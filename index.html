@@ -37,8 +37,22 @@ const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Mult
 const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
 let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-function money(v){const n=Number(v||0);return '$'+n.toLocaleString('en-US',{maximumFractionDigits:0});}
-function num(v){const n=Number(String(v??'').replace(/[$,]/g,''));return Number.isFinite(n)?n:0;}
+function num(v){
+ const raw=String(v??'').trim();
+ if(!raw)return 0;
+ const negative=/^\(.*\)$/.test(raw);
+ const cleaned=raw.replace(/^\((.*)\)$/,'$1').replace(/[$,£€₹\s]/g,'').replace(/%$/,'');
+ const n=Number(cleaned);
+ if(!Number.isFinite(n))return 0;
+ return negative?-n:n;
+}
+function money(v){
+ const raw=String(v??'').trim();
+ if(!raw)return '—';
+ const n=num(raw);
+ if(!Number.isFinite(n))return '—';
+ return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.remove('hidden');clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.add('hidden'),2800)}
 function initials(name){return String(name||'U').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
 function getRole(){return state.profile?.role||'client'}
@@ -108,7 +122,7 @@ const schemas={
    copay:['copay','co-pay','co pay','patient copay'],
    status:['status','verification status']
   },
-  map:['patient','provider','date','payer','plan','eligibility','participationStatus','visitLimits','copay','status']
+  map:['patient','provider','date','payer','plan','eligibility','participation_status','visit_limits','copay','status']
  },
  auth:{
   headers:['patient','provider','procedure','payer','requested','authnum','valid','status'],
@@ -139,7 +153,7 @@ const schemas={
    submitted:['submitted','submitted date','submission date'],
    status:['status','charge status','claim status']
   },
-  map:['id','patient','provider','payer','dos','cpt','charge','submitted','status']
+  map:['claim_id','patient','provider','payer','dos','cpt','charge','submitted','status']
  },
  payments:{
   headers:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status'],
@@ -154,21 +168,21 @@ const schemas={
    posted_amount:['posted amount','posted_amount','payment posted','amount posted'],
    status:['status','payment status']
   },
-  map:['id','payer','paymentDate','checkNo','postedDate','totalDepositAmount','postedAmount','status']
+  map:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status']
  }
 };
 
 const displayLabels={
- work_date:'Work date',claim_id:'Claim ID',patient:'Patient',patient_id:'Patient ID',provider:'Provider',payer:'Payer',
+ work_date:'Work date',claim_id:'Claim ID',payment_id:'Payment ID',patient:'Patient',patient_id:'Patient ID',provider:'Provider',payer:'Payer',
  dos:'Date of Service',balance:'Balance',age:'Age',bucket:'Bucket',status:'Status',cpt:'CPT',charge:'Charge',
- denial:'Denial',action:'Action',id:'ID',paymentDate:'Payment Date',checkNo:'Check No.',postedDate:'Posted Date',
- totalDepositAmount:'Total Deposit Amount',postedAmount:'Posted Amount',participationStatus:'Participation Status',
- visitLimits:'Visit Limits',ptResp:'Patient Responsibility',authnum:'Authorization #',requested:'Requested Date',valid:'Valid Through',
+ denial:'Denial',action:'Action',id:'ID',payment_date:'Payment Date',check_no:'Check No.',posted_date:'Posted Date',
+ total_deposit_amount:'Total Deposit Amount',posted_amount:'Posted Amount',participation_status:'Participation Status',
+ visit_limits:'Visit Limits',ptResp:'Patient Responsibility',authnum:'Authorization #',requested:'Requested Date',valid:'Valid Through',
  claim_id:'Claim ID',procedure:'Procedure',plan:'Plan',eligibility:'Eligibility',date:'Verification Date',submitted:'Submitted Date'
 };
 
-const moneyFields=new Set(['balance','amount','charge','billed','paid','adjustment','ptResp','copay','totalDepositAmount','postedAmount']);
-const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['paymentDate','postedDate']};
+const moneyFields=new Set(['balance','amount','charge','billed','paid','adjustment','ptResp','copay','totalDepositAmount','postedAmount','total_deposit_amount','posted_amount','payment_amount','deposit_amount','charge_amount','billed_amount','allowed_amount','paid_amount','patient_responsibility']);
+const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['payment_date','posted_date']};
 
 function normalizeHeader(v){
  return String(v??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[\u2013\u2014]/g,'-').replace(/[^a-z0-9]+/g,'');
@@ -178,7 +192,6 @@ function cleanExtraKey(v,index){
  return base||`extra_${index+1}`;
 }
 function prettyLabel(k,m){
- if(m==='payments'&&k==='id')return 'Payment ID';
  return displayLabels[k]||String(k).replace(/_/g,' ').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase());
 }
 function recordDate(module,r){
@@ -206,7 +219,7 @@ function normalizeModuleRows(module,rows){
   entries.forEach(([rawKey,value])=>{
    const canonical=aliasIndex[normalizeHeader(rawKey)];
    if(canonical){
-    const target=s.map[s.headers.indexOf(canonical)]||canonical;
+    const target=canonical;
     if(d[target]===''||d[target]===undefined||d[target]===null){
      d[target]=value??'';
      usedSourceKeys.add(rawKey);
@@ -214,13 +227,7 @@ function normalizeModuleRows(module,rows){
    }
   });
 
-  // If the CSV uses completely different headers but has exactly the standard
-  // number of columns, allow a controlled positional fallback.
-  const mappedCount=Object.keys(d).length;
-  if(mappedCount===0 && entries.length===s.headers.length){
-   s.map.forEach((target,i)=>{d[target]=entries[i]?.[1]??'';usedSourceKeys.add(entries[i]?.[0]);});
-  }
-
+  if(Object.keys(d).length===0)throw new Error(`No supported columns could be mapped for ${modules[module].label}.`);
   // Preserve genuinely extra columns without overwriting canonical fields.
   const usedNames=new Set(Object.keys(d));
   entries.forEach(([rawKey,value],i)=>{
@@ -233,6 +240,7 @@ function normalizeModuleRows(module,rows){
    // Never turn it into a visible extra column.
    if(normalizedRaw==='id')return;
 
+   if(!String(rawKey??'').trim())return;
    let key=cleanExtraKey(rawKey,i);
    while(usedNames.has(key))key=`${key}_${i+1}`;
    usedNames.add(key);
@@ -246,15 +254,28 @@ function normalizeModuleRows(module,rows){
  });
 }
 function sanitizeStoredRecord(module, raw){
-  const r={...(raw||{})};
-
-  // These are portal/database metadata keys, never source data columns.
-  // Older imports and some database-side RPC versions stored a generated
-  // ROW-* value inside `data.id`. Never expose those internal fields.
-  ['id','row_id','rowId','external_id','externalId','_id'].forEach(k=>{
-    if(Object.prototype.hasOwnProperty.call(r,k)) delete r[k];
-  });
-  return r;
+ const r={...(raw||{})};
+ const legacyMap={
+  payments:{id:'payment_id',paymentDate:'payment_date',checkNo:'check_no',postedDate:'posted_date',totalDepositAmount:'total_deposit_amount',postedAmount:'posted_amount'},
+  charges:{id:'claim_id'},
+  verification:{participationStatus:'participation_status',visitLimits:'visit_limits'},
+  ar:{},
+  denials:{},
+  auth:{}
+ };
+ const map=legacyMap[module]||{};
+ Object.entries(map).forEach(([legacy,canonical])=>{
+   if((r[canonical]===undefined||r[canonical]===null||String(r[canonical]).trim()==='') && r[legacy]!==undefined){
+     r[canonical]=r[legacy];
+   }
+   if(legacy!==canonical)delete r[legacy];
+ });
+ // Only remove generic/internal IDs. Module-specific real IDs were migrated above.
+ ['row_id','rowId','external_id','externalId','_id'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(r,k))delete r[k]});
+ if(module!=='payments' && module!=='charges' && Object.prototype.hasOwnProperty.call(r,'id'))delete r.id;
+ if(module==='payments' && /^row-/i.test(String(r.payment_id??'')))delete r.payment_id;
+ if(module==='charges' && /^row-/i.test(String(r.claim_id??'')))delete r.claim_id;
+ return r;
 }
 function demoData(){const s=sampleRows();return Object.fromEntries(Object.entries(s).map(([m,rows])=>[m,normalizeModuleRows(m,rows).map(r=>sanitizeStoredRecord(m,{...r,client_id:'demo-client-1'}))]))}
 function loginView(){return `<div class="login"><div class="login-card"><div class="brand"><div class="brandmark">BHA</div><div><h1>Bright Health Alliance</h1><small>Revenue Cycle Management</small></div></div><h2>Client Portal</h2><p>Secure access to your RCM performance dashboard.</p><form id="loginForm"><div class="field"><label>Email / Username</label><input id="loginEmail" autocomplete="username" required></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div><button class="btn btn-primary" style="width:100%;margin-top:8px">Sign in</button><div id="loginError"></div></form>${DEMO_MODE?'<div class="demo-note"><b>Demo mode:</b> admin@demo.local / Admin@123<br>user@demo.local / User@123<br>client@demo.local / Client@123</div>':''}</div></div>`}
@@ -342,7 +363,7 @@ function renderModule(m){
   // their schema order; genuine source extras follow afterwards.
   const isInternalDataKey=(key)=>{
     const k=String(key||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-    return ['id','rowid','externalid'].includes(k);
+    return ['id','rowid','externalid','externalid'].includes(k);
   };
   const presentKeys=new Set(
     rows.flatMap(r=>Object.keys(r||{}))
@@ -359,7 +380,7 @@ function renderModule(m){
 function statusPill(v){const s=String(v||'');let c='';if(/paid|posted|verified|approved|accepted|overturned/i.test(s))c='green';else if(/pending|partial|process|expiring|appealed/i.test(s))c='amber';else if(/denied|failed|open|rejected/i.test(s))c='red';else if(/submitted/i.test(s))c='blue';return `<span class="pill ${c}">${esc(s||'—')}</span>`}
 function renderOverview(){
   const ar=filteredRows('ar'),den=filteredRows('denials'),pay=filteredRows('payments'),ver=filteredRows('verification'),auth=filteredRows('auth');
-  const totalAR=ar.reduce((a,r)=>a+num(r.balance),0),claims=ar.length,denAmt=den.reduce((a,r)=>a+num(r.balance),0),deposits=pay.reduce((a,r)=>a+num(r.totalDepositAmount),0),posted=pay.reduce((a,r)=>a+num(r.postedAmount),0);
+  const totalAR=ar.reduce((a,r)=>a+num(r.balance),0),claims=ar.length,denAmt=den.reduce((a,r)=>a+num(r.balance),0),deposits=pay.reduce((a,r)=>a+num(r.total_deposit_amount),0),posted=pay.reduce((a,r)=>a+num(r.posted_amount),0);
   const actions=den.filter(r=>/open|appealed/i.test(r.status)).length+ver.filter(r=>/failed|pending/i.test(r.status)).length+auth.filter(r=>/denied|expiring/i.test(r.status)).length;
   document.getElementById('kpiAR').textContent=money(totalAR);
   document.getElementById('kpiClaims').textContent=claims.toLocaleString();
@@ -382,7 +403,7 @@ function renderOverview(){
   drawChart('paymentChart','bar',['Total Deposit','Posted Amount'],['Amount'],[[deposits,posted]]);
 }
 function drawChart(id,type,labels,datasets,values){const el=document.getElementById(id);if(!el)return;if(state.charts[id])state.charts[id].destroy();let data;if(type==='doughnut')data={labels,datasets:[{label:datasets[0],data:values[0],borderWidth:0}]};else data={labels,datasets:[{label:datasets[0],data:values[0],borderWidth:0,borderRadius:5}]};state.charts[id]=new Chart(el,{type,data,options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{font:{size:9}}}},scales:type==='doughnut'?{}:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#eef1f5'},ticks:{font:{size:9}}}}}})}
-function renderSchemaHelp(){const m=document.getElementById('importModule'),out=document.getElementById('schemaHelp');const paint=()=>{const s=schemas[m.value];out.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${(s.csvHeaders||s.headers).map(x=>`<span class="pill blue">${x}</span>`).join('')}</div><p class="muted" style="margin-top:10px">Required standard columns: ${(s.csvHeaders||s.headers).join(', ')}. Extra columns are retained.</p>`};m?.addEventListener('change',paint);paint()}
+function renderSchemaHelp(){const m=document.getElementById('importModule'),out=document.getElementById('schemaHelp');const paint=()=>{const s=schemas[m.value];out.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${(s.csvHeaders||s.headers).map(x=>`<span class="pill blue">${x}</span>`).join('')}</div><p class="muted" style="margin-top:10px">Supported standard columns: ${(s.csvHeaders||s.headers).join(', ')}. Extra columns are retained.</p>`};m?.addEventListener('change',paint);paint()}
 function getFileExtension(file){return String(file?.name||'').toLowerCase().split('.').pop()||''}
 function getSchemaHeaderInfo(module,rawRows){
   const s=schemas[module];
@@ -396,8 +417,20 @@ function getSchemaHeaderInfo(module,rawRows){
   const suspiciousTokens=knownHeaders.filter(h=>h.length>=5 && joined.includes(h));
   const duplicateNormalized=new Set();
   const duplicates=[];
-  for(const k of keys){const n=normalizeHeader(k);if(!n)continue;if(duplicateNormalized.has(n))duplicates.push(k);duplicateNormalized.add(n)}
-  return {keys,recognized,duplicates,suspiciousTokens};
+  const canonicalSeen=new Map();
+  const aliasCollisions=[];
+  for(const k of keys){
+    const n=normalizeHeader(k);
+    if(!n)continue;
+    if(duplicateNormalized.has(n))duplicates.push(k);
+    duplicateNormalized.add(n);
+    const canonical=aliasSet.has(n)?Object.entries(s.aliases||{}).find(([c,names])=>[c,...names].some(x=>normalizeHeader(x)===n))?.[0]:null;
+    if(canonical){
+      if(canonicalSeen.has(canonical))aliasCollisions.push({header:k,canonical});
+      else canonicalSeen.set(canonical,k);
+    }
+  }
+  return {keys,recognized,duplicates,aliasCollisions,suspiciousTokens};
 }
 function validateImportStructure(module,rawRows,fileName){
   const s=schemas[module];
@@ -406,21 +439,18 @@ function validateImportStructure(module,rawRows,fileName){
   const info=getSchemaHeaderInfo(module,rawRows);
   if(!info.keys.length)throw new Error('No column headers were detected. The first row must contain column names.');
   if(info.duplicates.length)throw new Error(`Duplicate column header detected: ${info.duplicates[0]}. Rename duplicate columns and try again.`);
+  if(info.aliasCollisions.length)throw new Error(`Multiple headers map to the same field (${info.aliasCollisions[0].canonical}). Keep only one matching column and try again.`);
   const nonEmptyHeaders=info.keys.filter(k=>String(k??'').trim()!=='');
   if(nonEmptyHeaders.length<2)throw new Error('The file contains too few columns. Please check that the header row is correct.');
   // A common failure mode is a header accidentally concatenated into one field, e.g. payerDate of Servicebalance...
   if(info.keys.length<=2 && info.suspiciousTokens.length>=3){
     throw new Error(`The header row appears malformed or concatenated. Example detected in ${fileName||'the file'}. Please export the sheet again with separate columns.`);
   }
-  if(info.recognized.length===0 && info.keys.length!==s.headers.length){
+  if(info.recognized.length===0){
     throw new Error(`No supported column headers were recognized for ${modules[module].label}. Use the Download Template button or rename the headers before importing.`);
   }
-  if(info.recognized.length===0 && info.keys.length===s.headers.length){
-    // Controlled positional fallback remains available only when the file has exactly the expected number of columns.
-    return;
-  }
-  if(info.recognized.length<Math.min(2,s.headers.length) && info.keys.length>s.headers.length){
-    throw new Error('Too few recognizable headers were found for a file with extra columns. Import stopped to prevent column misalignment.');
+  if(info.recognized.length<Math.min(2,s.headers.length)){
+    throw new Error(`Only ${info.recognized.length} supported column(s) were recognized for ${modules[module].label}. Import stopped to prevent column misalignment.`);
   }
 }
 async function parseImportFile(file,module){
