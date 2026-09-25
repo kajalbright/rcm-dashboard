@@ -225,8 +225,15 @@ function normalizeModuleRows(module,rows){
   const usedNames=new Set(Object.keys(d));
   entries.forEach(([rawKey,value],i)=>{
    if(usedSourceKeys.has(rawKey))return;
-   const canonical=aliasIndex[normalizeHeader(rawKey)];
+   const normalizedRaw=normalizeHeader(rawKey);
+   const canonical=aliasIndex[normalizedRaw];
    if(canonical)return;
+
+   // "ID" is a legacy/internal field in older imports. If the real source
+   // already supplied Claim ID/Patient ID/etc., never expose a synthetic ID
+   // as an extra visible column.
+   if(normalizedRaw==='id' && /^row-/i.test(String(value??'').trim()))return;
+
    let key=cleanExtraKey(rawKey,i);
    while(usedNames.has(key))key=`${key}_${i+1}`;
    usedNames.add(key);
@@ -239,7 +246,23 @@ function normalizeModuleRows(module,rows){
   return d;
  });
 }
-function demoData(){const s=sampleRows();return Object.fromEntries(Object.entries(s).map(([m,rows])=>[m,normalizeModuleRows(m,rows).map(r=>({...r,client_id:'demo-client-1'}))]))}
+function sanitizeStoredRecord(module, raw){
+  const r={...(raw||{})};
+
+  // Older builds stored a generated ROW-UUID under `id` inside data.
+  // That is database metadata, not a source CSV/Excel column, so hide/remove it.
+  if(Object.prototype.hasOwnProperty.call(r,'id') && /^row-/i.test(String(r.id??'').trim())){
+    delete r.id;
+  }
+  if(Object.prototype.hasOwnProperty.call(r,'row_id') && /^row-/i.test(String(r.row_id??'').trim())){
+    delete r.row_id;
+  }
+  if(Object.prototype.hasOwnProperty.call(r,'rowId') && /^row-/i.test(String(r.rowId??'').trim())){
+    delete r.rowId;
+  }
+  return r;
+}
+function demoData(){const s=sampleRows();return Object.fromEntries(Object.entries(s).map(([m,rows])=>[m,normalizeModuleRows(m,rows).map(r=>sanitizeStoredRecord(m,{...r,client_id:'demo-client-1'}))]))}
 function loginView(){return `<div class="login"><div class="login-card"><div class="brand"><div class="brandmark">BHA</div><div><h1>Bright Health Alliance</h1><small>Revenue Cycle Management</small></div></div><h2>Client Portal</h2><p>Secure access to your RCM performance dashboard.</p><form id="loginForm"><div class="field"><label>Email / Username</label><input id="loginEmail" autocomplete="username" required></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div><button class="btn btn-primary" style="width:100%;margin-top:8px">Sign in</button><div id="loginError"></div></form>${DEMO_MODE?'<div class="demo-note"><b>Demo mode:</b> admin@demo.local / Admin@123<br>user@demo.local / User@123<br>client@demo.local / Client@123</div>':''}</div></div>`}
 function shell(){
   const clientControl=hasAllClients()
@@ -319,11 +342,19 @@ function filteredRows(m){
 function exportCurrentModule(m){const rows=filteredRows(m);if(!rows.length)return toast('No records to export.');const keys=[...new Set(rows.flatMap(r=>Object.keys(r||{})))].filter(k=>k!=='client_id');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
 function renderModule(m){
   const rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
-  // Render ONLY columns that are actually present in the imported records.
-  // This prevents synthetic schema fields (especially Row ID) from appearing
+  // Render ONLY source columns that are actually present in the imported records.
+  // This prevents legacy/internal fields (especially generated Row ID) from appearing
   // when they were not present in the CSV/Excel source. Standard fields keep
   // their schema order; genuine source extras follow afterwards.
-  const presentKeys=new Set(rows.flatMap(r=>Object.keys(r||{})).filter(k=>k!=='client_id'));
+  const isSyntheticRowId=(key,value)=>{
+    const k=String(key||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    return ['id','rowid','row_id'].includes(k) && /^row-/i.test(String(value??'').trim());
+  };
+  const presentKeys=new Set(
+    rows.flatMap(r=>Object.keys(r||{}))
+      .filter(k=>k!=='client_id')
+      .filter(k=>!rows.some(r=>isSyntheticRowId(k,r?.[k])))
+  );
   const baseCols=schemas[m].map.filter(k=>presentKeys.has(k));
   const extraKeys=[...presentKeys].filter(k=>!schemas[m].map.includes(k));
   const cols=[...baseCols,...extraKeys]; const shown=rows.slice(0,500);
@@ -526,7 +557,10 @@ async function loadData(){
   state.dataCapped=(data||[]).length>20000;
   const source=(data||[]).slice(0,20000);
   state.records={};
-  source.forEach(r=>(state.records[r.module]??=[]).push({...r.data,client_id:r.client_id}));
+  source.forEach(r=>{
+    const clean=sanitizeStoredRecord(r.module,r.data);
+    (state.records[r.module]??=[]).push({...clean,client_id:r.client_id});
+  });
 }
 async function loadClients(){if(DEMO_MODE){state.clients=demoClients;return}const {data,error}=await sb.from('clients').select('id,name,specialty,status').order('name');if(error)throw error;state.clients=data||[];state.client=state.profile.client_id?state.clients.find(c=>c.id===state.profile.client_id)||null:null}
 async function loadUsers(){
