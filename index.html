@@ -21,7 +21,7 @@
 @media(max-width:1100px){.grid-kpi{grid-template-columns:repeat(3,1fr)}.cards2,.upload-panel{grid-template-columns:1fr}.cards3{grid-template-columns:1fr 1fr}}@media(max-width:800px){.sidebar{width:72px}.side-brand div:not(.brandmark),.nav-label,.nav button span:not(.nav-icon){display:none}.nav button{justify-content:center}.main{margin-left:72px;width:calc(100% - 72px)}.topbar{padding:0 15px}.content{padding:18px 14px}.grid-kpi{grid-template-columns:1fr 1fr}.cards3{grid-template-columns:1fr}.modal-grid{grid-template-columns:1fr}.top-actions .role-badge{display:none}}
 </style>
 </head>
-<body>
+<body data-bha-build="2026-09-25-v10">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -38,26 +38,46 @@ const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.loc
 let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function parseNumericValue(v){
- const raw=String(v??'').trim();
- if(!raw||/^(nan|null|undefined|n\/a|-)$/i.test(raw))return null;
- const negative=/^\(.*\)$/.test(raw);
- let cleaned=raw.replace(/^\((.*)\)$/,'$1');
- cleaned=cleaned.replace(/[$,£€₹\s]/g,'').replace(/%$/,'');
- // Handle common accounting values such as CR/DR without allowing junk through.
- cleaned=cleaned.replace(/(CR|DR)$/i,'');
- const n=Number(cleaned);
- if(!Number.isFinite(n))return null;
- return negative?-n:n;
+  if(v===null||v===undefined||v==='')return null;
+  if(typeof v==='number')return Number.isFinite(v)?v:null;
+
+  let raw=String(v).trim();
+  if(!raw||/^(nan|null|undefined|n\/a|na|none|-)$/i.test(raw))return null;
+
+  // Normalize accounting/currency strings:
+  // $2,205.00 / USD 2,205.00 / 2,205.00 USD / (2,205.00) / -$2,205.00
+  raw=raw.replace(/\u00A0/g,' ').trim();
+  const negativeParens=/^\(.*\)$/.test(raw);
+  raw=raw.replace(/^\((.*)\)$/,'$1').trim();
+  raw=raw.replace(/[−–—]/g,'-');
+  raw=raw.replace(/^\s*(USD|US\$)\s*/i,'');
+  raw=raw.replace(/\s*(USD|US\$)\s*$/i,'');
+  raw=raw.replace(/[$£€₹]/g,'');
+  raw=raw.replace(/,/g,'');
+  raw=raw.replace(/\s+/g,'');
+  raw=raw.replace(/(CR|DR)$/i,'');
+
+  if(!raw||raw==='-'||raw==='+')return null;
+  const n=Number(raw);
+  if(!Number.isFinite(n))return null;
+  return negativeParens?-Math.abs(n):n;
 }
+
 function num(v){
  const n=parseNumericValue(v);
  return n===null?0:n;
 }
 function money(v){
- const n=parseNumericValue(v);
- if(n===null)return '—';
- return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const n=parseNumericValue(v);
+  if(n===null){
+    const raw=String(v??'').trim();
+    // Never display "$NaN". If the imported source value is not numeric,
+    // show the original value so data is not silently destroyed.
+    return raw && !/^(nan|null|undefined)$/i.test(raw) ? esc(raw) : '—';
+  }
+  return (n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
+
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.remove('hidden');clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.add('hidden'),2800)}
 function initials(name){return String(name||'U').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
 function getRole(){return state.profile?.role||'client'}
@@ -212,8 +232,15 @@ function isInternalDataKey(key){
 }
 function sourceColumnKeys(module,row){
  const raw=row?.__source_columns;
- if(Array.isArray(raw)&&raw.length)return raw.filter(k=>!isInternalDataKey(k));
- return Object.keys(row||{}).filter(k=>k!=='client_id'&&!isInternalDataKey(k)&&!String(k).startsWith('__'));
+ const clean=k=>!isInternalDataKey(k)&&k!=='client_id'&&!String(k).startsWith('__');
+ if(Array.isArray(raw)&&raw.length){
+   const keys=raw.filter(clean);
+   // Older records may have incomplete source metadata. Add canonical fields
+   // that are actually present in the record, without adding absent fields.
+   schemas[module]?.map?.forEach(k=>{if(clean(k)&&Object.prototype.hasOwnProperty.call(row,k)&&!keys.includes(k))keys.push(k)});
+   return keys;
+ }
+ return Object.keys(row||{}).filter(clean);
 }
 function normalizeModuleRows(module,rows){
  const s=schemas[module];
@@ -263,9 +290,51 @@ function normalizeModuleRows(module,rows){
 
   // Store the exact canonical source columns as hidden metadata. This lets the
   // renderer reproduce the uploaded file structure without exposing metadata.
-  d.__source_columns=Object.keys(d).filter(k=>!isInternalDataKey(k));
-  return d;
+  const cleanMoney=canonicalizeImportedMoney(module,d);
+  cleanMoney.__source_columns=Object.keys(d).filter(k=>!isInternalDataKey(k));
+  return cleanMoney;
  });
+}
+function moneyFieldAliases(module){
+  const common={
+    total_deposit_amount:['total_deposit_amount','totalDepositAmount','deposit_amount','depositAmount','total_deposit','totalDeposit'],
+    posted_amount:['posted_amount','postedAmount','amount_posted','payment_posted'],
+    balance:['balance','ar_balance','amount_due','outstanding_balance'],
+    charge:['charge','charge_amount','billed','billed_amount'],
+    copay:['copay','co_pay','copayment'],
+    patient_responsibility:['patient_responsibility','patientResponsibility','ptResp','pt_resp'],
+    payment_amount:['payment_amount','paymentAmount','amount_paid','paid_amount']
+  };
+  if(module==='payments')return {total_deposit_amount:common.total_deposit_amount,posted_amount:common.posted_amount};
+  if(module==='ar'||module==='denials')return {balance:common.balance};
+  if(module==='charges')return {charge:common.charge};
+  return {};
+}
+function repairMoneyFields(module,r){
+  const aliases=moneyFieldAliases(module);
+  Object.entries(aliases).forEach(([canonical,candidates])=>{
+    const current=r[canonical];
+    if(parseNumericValue(current)!==null)return;
+    for(const key of candidates){
+      if(key===canonical)continue;
+      const candidate=r[key];
+      if(parseNumericValue(candidate)!==null){
+        r[canonical]=candidate;
+        break;
+      }
+    }
+  });
+  return r;
+}
+function canonicalizeImportedMoney(module,r){
+  const out={...r};
+  const fields=[...(moneyFields||[])];
+  fields.forEach(k=>{
+    if(!Object.prototype.hasOwnProperty.call(out,k))return;
+    const n=parseNumericValue(out[k]);
+    if(n!==null)out[k]=n;
+  });
+  return out;
 }
 function sanitizeStoredRecord(module, raw){
  const r={...(raw||{})};
@@ -279,11 +348,15 @@ function sanitizeStoredRecord(module, raw){
  };
  const map=legacyMap[module]||{};
  Object.entries(map).forEach(([legacy,canonical])=>{
-   if((r[canonical]===undefined||r[canonical]===null||String(r[canonical]).trim()==='') && r[legacy]!==undefined){
-     r[canonical]=r[legacy];
-   }
+   const current=r[canonical];
+   const currentMissing=current===undefined||current===null||String(current).trim()===''||(
+     moneyFields.has(canonical)&&parseNumericValue(current)===null
+   );
+   if(currentMissing && r[legacy]!==undefined)r[canonical]=r[legacy];
    if(legacy!==canonical)delete r[legacy];
  });
+ repairMoneyFields(module,r);
+ canonicalizeImportedMoney(module,r);
  // Only remove generic/internal IDs. Module-specific real IDs were migrated above.
  ['row_id','rowId','external_id','externalId','_id','source_columns','sourceColumns','source_file','sourceFile','import_batch_id','importBatchId'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(r,k))delete r[k]});
  if(Object.prototype.hasOwnProperty.call(r,'id'))delete r.id;
@@ -533,7 +606,7 @@ async function importCsv(){
   if(button){button.disabled=true;button.textContent='Processing…';}
   try{
     const parsed=await parseImportFile(file,module);
-    const rows=parsed.rows.map(r=>({...r,__source_file:parsed.sourceName}));
+    const rows=parsed.rows;
     if(!rows.length)throw new Error('No records could be mapped from the file.');
     const clientId=hasAllClients()?(document.getElementById('importClient')?.value||state.clients[0]?.id):state.profile?.client_id;
     if(!clientId)throw new Error('No client is assigned to this account.');
