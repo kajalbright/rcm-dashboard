@@ -60,7 +60,7 @@ const schemas={
   csvHeaders:['Work date','Claim ID','Patient','Patient ID','Provider','Payer','Date of Service','Balance','Age','Bucket','Status'],
   aliases:{
    work_date:['work_date','work date','workdate','date worked','work dt'],
-   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #','id'],
+   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #'],
    patient:['patient','patient name','member name','patient_name'],
    patient_id:['patient id','patient_id','patientid','member id','member_id','patient #','member #'],
    provider:['provider','provider name','rendering provider','physician'],
@@ -78,7 +78,7 @@ const schemas={
   csvHeaders:['Work date','Claim ID','Patient','Patient ID','Provider','Payer','Date of Service','CPT','Charge','Balance','Denial','Status','Action'],
   aliases:{
    work_date:['work_date','work date','workdate'],
-   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #','id'],
+   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #'],
    patient:['patient','patient name','member name'],
    patient_id:['patient id','patient_id','patientid','member id','member_id'],
    provider:['provider','provider name','rendering provider','physician'],
@@ -129,7 +129,7 @@ const schemas={
   headers:['claim_id','patient','provider','payer','dos','cpt','charge','submitted','status'],
   csvHeaders:['Claim ID','Patient','Provider','Payer','Date of Service','CPT','Charge','Submitted Date','Status'],
   aliases:{
-   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #','id'],
+   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #'],
    patient:['patient','patient name','member name'],
    provider:['provider','provider name','rendering provider'],
    payer:['payer','insurance','insurance payer','carrier'],
@@ -145,7 +145,7 @@ const schemas={
   headers:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status'],
   csvHeaders:['Payment ID','Payer','Payment Date','Check No.','Posted Date','Total Deposit Amount','Posted Amount','Status'],
   aliases:{
-   payment_id:['payment_id','payment id','paymentid','payment number','payment no','id'],
+   payment_id:['payment_id','payment id','paymentid','payment number','payment no'],
    payer:['payer','insurance','insurance payer','carrier'],
    payment_date:['payment date','payment_date','paymentdate','deposit date'],
    check_no:['check no','check no.','check number','check_number','checkno','check #'],
@@ -229,10 +229,9 @@ function normalizeModuleRows(module,rows){
    const canonical=aliasIndex[normalizedRaw];
    if(canonical)return;
 
-   // "ID" is a legacy/internal field in older imports. If the real source
-   // already supplied Claim ID/Patient ID/etc., never expose a synthetic ID
-   // as an extra visible column.
-   if(normalizedRaw==='id' && /^row-/i.test(String(value??'').trim()))return;
+   // Generic ID is reserved for database metadata in this portal.
+   // Never turn it into a visible extra column.
+   if(normalizedRaw==='id')return;
 
    let key=cleanExtraKey(rawKey,i);
    while(usedNames.has(key))key=`${key}_${i+1}`;
@@ -249,17 +248,12 @@ function normalizeModuleRows(module,rows){
 function sanitizeStoredRecord(module, raw){
   const r={...(raw||{})};
 
-  // Older builds stored a generated ROW-UUID under `id` inside data.
-  // That is database metadata, not a source CSV/Excel column, so hide/remove it.
-  if(Object.prototype.hasOwnProperty.call(r,'id') && /^row-/i.test(String(r.id??'').trim())){
-    delete r.id;
-  }
-  if(Object.prototype.hasOwnProperty.call(r,'row_id') && /^row-/i.test(String(r.row_id??'').trim())){
-    delete r.row_id;
-  }
-  if(Object.prototype.hasOwnProperty.call(r,'rowId') && /^row-/i.test(String(r.rowId??'').trim())){
-    delete r.rowId;
-  }
+  // These are portal/database metadata keys, never source data columns.
+  // Older imports and some database-side RPC versions stored a generated
+  // ROW-* value inside `data.id`. Never expose those internal fields.
+  ['id','row_id','rowId','external_id','externalId','_id'].forEach(k=>{
+    if(Object.prototype.hasOwnProperty.call(r,k)) delete r[k];
+  });
   return r;
 }
 function demoData(){const s=sampleRows();return Object.fromEntries(Object.entries(s).map(([m,rows])=>[m,normalizeModuleRows(m,rows).map(r=>sanitizeStoredRecord(m,{...r,client_id:'demo-client-1'}))]))}
@@ -346,14 +340,14 @@ function renderModule(m){
   // This prevents legacy/internal fields (especially generated Row ID) from appearing
   // when they were not present in the CSV/Excel source. Standard fields keep
   // their schema order; genuine source extras follow afterwards.
-  const isSyntheticRowId=(key,value)=>{
+  const isInternalDataKey=(key)=>{
     const k=String(key||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-    return ['id','rowid','row_id'].includes(k) && /^row-/i.test(String(value??'').trim());
+    return ['id','rowid','externalid'].includes(k);
   };
   const presentKeys=new Set(
     rows.flatMap(r=>Object.keys(r||{}))
       .filter(k=>k!=='client_id')
-      .filter(k=>!rows.some(r=>isSyntheticRowId(k,r?.[k])))
+      .filter(k=>!isInternalDataKey(k))
   );
   const baseCols=schemas[m].map.filter(k=>presentKeys.has(k));
   const extraKeys=[...presentKeys].filter(k=>!schemas[m].map.includes(k));
