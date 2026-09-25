@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.3/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{--navy:#0b1f33;--blue:#2563eb;--blue2:#1d4ed8;--ink:#142033;--muted:#667085;--line:#e6eaf0;--bg:#f6f8fb;--card:#fff;--green:#0f9f6e;--amber:#c77b00;--red:#c43d4b;--purple:#7357d8;--shadow:0 10px 28px rgba(16,24,40,.06)}
 *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg)}button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
@@ -54,29 +55,188 @@ function sampleRows(){return {
  payments:[['PAY-3001','Medicare','2026-09-24','CHK-78421','2026-09-24',2100,1680,'Posted'],['PAY-3002','Aetna','2026-09-23','CHK-78422','—',1450,0,'Pending'],['PAY-3003','Cigna','2026-09-24','CHK-78423','2026-09-24',3800,1900,'Partial']]
 };}
 const schemas={
- ar:{headers:['work_date','claim_id','patient','patient_id','provider','payer','dos','balance','age','bucket','status'],csvHeaders:['Work date','claim_id','patient','patient ID','provider','payer','dos','balance','age','bucket','status'],map:['work_date','claim_id','patient','patient_id','provider','payer','dos','balance','age','bucket','status']},
- denials:{headers:['work_date','claim_id','patient','patient_id','provider','payer','dos','cpt','charge','balance','denial','status','action'],csvHeaders:['Work date','claim_id','patient','patient ID','provider','payer','dos','CPT','Charge','balance','Denial','status','Action'],map:['work_date','claim_id','patient','patient_id','provider','payer','dos','cpt','charge','balance','denial','status','action']},
- verification:{headers:['patient','provider','date','payer','plan','eligibility','participation_status','visit_limits','copay','status'],map:['patient','provider','date','payer','plan','eligibility','participationStatus','visitLimits','copay','status']},
- auth:{headers:['patient','provider','procedure','payer','requested','authnum','valid','status'],map:['patient','provider','procedure','payer','requested','authnum','valid','status']},
- charges:{headers:['claim_id','patient','provider','payer','dos','cpt','charge','submitted','status'],map:['id','patient','provider','payer','dos','cpt','charge','submitted','status']},
- payments:{headers:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status'],map:['id','payer','paymentDate','checkNo','postedDate','totalDepositAmount','postedAmount','status']}
+ ar:{
+  headers:['work_date','claim_id','patient','patient_id','provider','payer','dos','balance','age','bucket','status'],
+  csvHeaders:['Work date','Claim ID','Patient','Patient ID','Provider','Payer','Date of Service','Balance','Age','Bucket','Status'],
+  aliases:{
+   work_date:['work_date','work date','workdate','date worked','work dt'],
+   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #','id'],
+   patient:['patient','patient name','member name','patient_name'],
+   patient_id:['patient id','patient_id','patientid','member id','member_id','patient #','member #'],
+   provider:['provider','provider name','rendering provider','physician'],
+   payer:['payer','insurance','insurance payer','insurance company','carrier'],
+   dos:['dos','date of service','date_of_service','service date','service_date'],
+   balance:['balance','ar balance','outstanding balance','balance amount'],
+   age:['age','ar age','age days','days outstanding'],
+   bucket:['bucket','aging bucket','age bucket','ar bucket'],
+   status:['status','claim status','ar status','workflow status']
+  },
+  map:['work_date','claim_id','patient','patient_id','provider','payer','dos','balance','age','bucket','status']
+ },
+ denials:{
+  headers:['work_date','claim_id','patient','patient_id','provider','payer','dos','cpt','charge','balance','denial','status','action'],
+  csvHeaders:['Work date','Claim ID','Patient','Patient ID','Provider','Payer','Date of Service','CPT','Charge','Balance','Denial','Status','Action'],
+  aliases:{
+   work_date:['work_date','work date','workdate'],
+   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #','id'],
+   patient:['patient','patient name','member name'],
+   patient_id:['patient id','patient_id','patientid','member id','member_id'],
+   provider:['provider','provider name','rendering provider','physician'],
+   payer:['payer','insurance','insurance payer','insurance company','carrier'],
+   dos:['dos','date of service','date_of_service','service date','service_date'],
+   cpt:['cpt','cpt code','procedure code','procedure'],
+   charge:['charge','charge amount','billed amount','billed'],
+   balance:['balance','denial balance','outstanding balance'],
+   denial:['denial','denial reason','denial code','reason code','carc','remark code'],
+   status:['status','denial status','workflow status'],
+   action:['action','next action','recommended action','follow up','follow-up']
+  },
+  map:['work_date','claim_id','patient','patient_id','provider','payer','dos','cpt','charge','balance','denial','status','action']
+ },
+ verification:{
+  headers:['patient','provider','date','payer','plan','eligibility','participation_status','visit_limits','copay','status'],
+  csvHeaders:['Patient','Provider','Verification Date','Payer','Plan','Eligibility','Participation Status','Visit Limits','Copay','Status'],
+  aliases:{
+   patient:['patient','patient name','member name'],
+   provider:['provider','provider name','rendering provider'],
+   date:['date','verification date','verified date','check date'],
+   payer:['payer','insurance','insurance payer','carrier'],
+   plan:['plan','plan name','insurance plan'],
+   eligibility:['eligibility','eligibility status'],
+   participation_status:['participation status','participation_status','participation','network status'],
+   visit_limits:['visit limits','visit_limits','visit limit','benefit limits','allowed visits'],
+   copay:['copay','co-pay','co pay','patient copay'],
+   status:['status','verification status']
+  },
+  map:['patient','provider','date','payer','plan','eligibility','participationStatus','visitLimits','copay','status']
+ },
+ auth:{
+  headers:['patient','provider','procedure','payer','requested','authnum','valid','status'],
+  csvHeaders:['Patient','Provider','Procedure','Payer','Requested Date','Authorization #','Valid Through','Status'],
+  aliases:{
+   patient:['patient','patient name','member name'],
+   provider:['provider','provider name','rendering provider'],
+   procedure:['procedure','procedure name','cpt','service'],
+   payer:['payer','insurance','insurance payer','carrier'],
+   requested:['requested','requested date','request date','auth requested'],
+   authnum:['authnum','auth number','authorization #','authorization number','authorization id','auth id'],
+   valid:['valid','valid through','expiration date','expiry date','auth expiration'],
+   status:['status','authorization status']
+  },
+  map:['patient','provider','procedure','payer','requested','authnum','valid','status']
+ },
+ charges:{
+  headers:['claim_id','patient','provider','payer','dos','cpt','charge','submitted','status'],
+  csvHeaders:['Claim ID','Patient','Provider','Payer','Date of Service','CPT','Charge','Submitted Date','Status'],
+  aliases:{
+   claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #','id'],
+   patient:['patient','patient name','member name'],
+   provider:['provider','provider name','rendering provider'],
+   payer:['payer','insurance','insurance payer','carrier'],
+   dos:['dos','date of service','date_of_service','service date'],
+   cpt:['cpt','cpt code','procedure code'],
+   charge:['charge','charge amount','billed amount','billed'],
+   submitted:['submitted','submitted date','submission date'],
+   status:['status','charge status','claim status']
+  },
+  map:['id','patient','provider','payer','dos','cpt','charge','submitted','status']
+ },
+ payments:{
+  headers:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status'],
+  csvHeaders:['Payment ID','Payer','Payment Date','Check No.','Posted Date','Total Deposit Amount','Posted Amount','Status'],
+  aliases:{
+   payment_id:['payment_id','payment id','paymentid','payment number','payment no','id'],
+   payer:['payer','insurance','insurance payer','carrier'],
+   payment_date:['payment date','payment_date','paymentdate','deposit date'],
+   check_no:['check no','check no.','check number','check_number','checkno','check #'],
+   posted_date:['posted date','posted_date','posteddate'],
+   total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit'],
+   posted_amount:['posted amount','posted_amount','payment posted','amount posted'],
+   status:['status','payment status']
+  },
+  map:['id','payer','paymentDate','checkNo','postedDate','totalDepositAmount','postedAmount','status']
+ }
 };
-const displayLabels={work_date:'Work date',claim_id:'claim_id',patient:'patient',patient_id:'patient ID',provider:'provider',payer:'payer',dos:'dos',balance:'balance',age:'age',bucket:'bucket',status:'status',cpt:'CPT',charge:'Charge',denial:'Denial',action:'Action',id:'ID',paymentDate:'Payment Date',checkNo:'Check No.',postedDate:'Posted Date',totalDepositAmount:'Total Deposit Amount',postedAmount:'Posted Amount',participationStatus:'Participation Status',visitLimits:'Visit Limits',ptResp:'Patient Responsibility',dos:'Date of Service',cpt:'CPT',authnum:'Authorization #',requested:'Requested Date',valid:'Valid Through',claim_id:'Claim ID'};
+
+const displayLabels={
+ work_date:'Work date',claim_id:'Claim ID',patient:'Patient',patient_id:'Patient ID',provider:'Provider',payer:'Payer',
+ dos:'Date of Service',balance:'Balance',age:'Age',bucket:'Bucket',status:'Status',cpt:'CPT',charge:'Charge',
+ denial:'Denial',action:'Action',id:'ID',paymentDate:'Payment Date',checkNo:'Check No.',postedDate:'Posted Date',
+ totalDepositAmount:'Total Deposit Amount',postedAmount:'Posted Amount',participationStatus:'Participation Status',
+ visitLimits:'Visit Limits',ptResp:'Patient Responsibility',authnum:'Authorization #',requested:'Requested Date',valid:'Valid Through',
+ claim_id:'Claim ID',procedure:'Procedure',plan:'Plan',eligibility:'Eligibility',date:'Verification Date',submitted:'Submitted Date'
+};
+
 const moneyFields=new Set(['balance','amount','charge','billed','paid','adjustment','ptResp','copay','totalDepositAmount','postedAmount']);
 const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['paymentDate','postedDate']};
-function prettyLabel(k,m){if(m==='payments'&&k==='id')return 'Payment ID';return displayLabels[k]||String(k).replace(/_/g,' ').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase())}
-function recordDate(module,r){for(const k of (dateFieldsByModule[module]||[])){const v=String(r?.[k]??'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;}return ''}
+
+function normalizeHeader(v){
+ return String(v??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[\u2013\u2014]/g,'-').replace(/[^a-z0-9]+/g,'');
+}
+function cleanExtraKey(v,index){
+ const base=String(v??'').replace(/^\uFEFF/,'').trim().replace(/[^a-zA-Z0-9_]+/g,'_').replace(/^_+|_+$/g,'').toLowerCase();
+ return base||`extra_${index+1}`;
+}
+function prettyLabel(k,m){
+ if(m==='payments'&&k==='id')return 'Payment ID';
+ return displayLabels[k]||String(k).replace(/_/g,' ').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function recordDate(module,r){
+ for(const k of (dateFieldsByModule[module]||[])){
+  const v=String(r?.[k]??'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+ }
+ return '';
+}
 function normalizeModuleRows(module,rows){
-  const s=schemas[module];
-  const cleanKey=k=>String(k??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/\s+/g,'_');
-  const aliases={claimid:'claim_id',claim_number:'claim_id',patientid:'patient_id',patient_id:'patient_id',member_id:'patient_id',workdate:'work_date',work_date:'work_date',cpt:'cpt',charge_amount:'charge',denial_reason:'denial',denial_code:'denial',paymentid:'payment_id',payment_id:'payment_id',checknumber:'check_no',check_number:'check_no',checkno:'check_no',paymentdate:'payment_date',posteddate:'posted_date',totaldepositamount:'total_deposit_amount',depositamount:'total_deposit_amount',postedamount:'posted_amount',participation:'participation_status',participationstatus:'participation_status',visitlimit:'visit_limits',visitlimits:'visit_limits',member_id:'patient',date_of_service:'dos',dateofservice:'dos',auth_number:'authnum',authorization_number:'authnum',patient_responsibility:'patient_resp'};
-  return rows.map((r,i)=>{
-    const source=r&&typeof r==='object'?r:{}; const byKey={}; Object.entries(source).forEach(([k,v])=>{byKey[cleanKey(k)]=v});
-    const d={};
-    s.headers.forEach((h,j)=>{let val=byKey[cleanKey(h)]; if(val===undefined) val=source?.[h]; if(val===undefined) val=source?.[j]; const alias=aliases[cleanKey(h)]; if(val===undefined&&alias) val=byKey[alias]; d[s.map[j]]=val??''});
-    Object.entries(source).forEach(([k,v])=>{const ck=cleanKey(k); if(!Object.prototype.hasOwnProperty.call(d,k)&&k!=='client_id'&&k!=='__proto__'&&k!=='constructor')d[k]=v??''});
-    if(!d.id)d.id='ROW-'+Date.now()+'-'+i; return d;
+ const s=schemas[module];
+ if(!s)throw new Error(`Unsupported module: ${module}`);
+ const aliasIndex={};
+ Object.entries(s.aliases).forEach(([canonical,names])=>{
+  [canonical,...names].forEach(n=>aliasIndex[normalizeHeader(n)]=canonical);
+ });
+ return rows.map((source,rowIndex)=>{
+  const src=(source&&typeof source==='object')?source:{};
+  const entries=Object.entries(src);
+  const d={};
+  const usedSourceKeys=new Set();
+
+  // Header-based mapping is authoritative. Never guess from column position
+  // when a real header is present; this prevents status/ID/date columns from shifting.
+  entries.forEach(([rawKey,value])=>{
+   const canonical=aliasIndex[normalizeHeader(rawKey)];
+   if(canonical){
+    const target=s.map[s.headers.indexOf(canonical)]||canonical;
+    if(d[target]===''||d[target]===undefined||d[target]===null){
+     d[target]=value??'';
+     usedSourceKeys.add(rawKey);
+    }
+   }
   });
+
+  // If the CSV uses completely different headers but has exactly the standard
+  // number of columns, allow a controlled positional fallback.
+  const mappedCount=Object.keys(d).length;
+  if(mappedCount===0 && entries.length===s.headers.length){
+   s.map.forEach((target,i)=>{d[target]=entries[i]?.[1]??'';usedSourceKeys.add(entries[i]?.[0]);});
+  }
+
+  // Preserve genuinely extra columns without overwriting canonical fields.
+  const usedNames=new Set(Object.keys(d));
+  entries.forEach(([rawKey,value],i)=>{
+   if(usedSourceKeys.has(rawKey))return;
+   const canonical=aliasIndex[normalizeHeader(rawKey)];
+   if(canonical)return;
+   let key=cleanExtraKey(rawKey,i);
+   while(usedNames.has(key))key=`${key}_${i+1}`;
+   usedNames.add(key);
+   d[key]=value??'';
+  });
+
+  s.map.forEach(k=>{if(d[k]===undefined||d[k]===null)d[k]='';});
+  d.id=d.id||`ROW-${crypto.randomUUID?.()||`${Date.now()}-${rowIndex}`}`;
+  return d;
+ });
 }
 function demoData(){const s=sampleRows();return Object.fromEntries(Object.entries(s).map(([m,rows])=>[m,normalizeModuleRows(m,rows).map(r=>({...r,client_id:'demo-client-1'}))]))}
 function loginView(){return `<div class="login"><div class="login-card"><div class="brand"><div class="brandmark">BHA</div><div><h1>Bright Health Alliance</h1><small>Revenue Cycle Management</small></div></div><h2>Client Portal</h2><p>Secure access to your RCM performance dashboard.</p><form id="loginForm"><div class="field"><label>Email / Username</label><input id="loginEmail" autocomplete="username" required></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div><button class="btn btn-primary" style="width:100%;margin-top:8px">Sign in</button><div id="loginError"></div></form>${DEMO_MODE?'<div class="demo-note"><b>Demo mode:</b> admin@demo.local / Admin@123<br>user@demo.local / User@123<br>client@demo.local / Client@123</div>':''}</div></div>`}
@@ -100,7 +260,7 @@ function globalFilters(){
 }
 function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload CSV</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Open / active claims</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Collection Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Paid ÷ billed</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Performance</h3><p class="cap">Billed vs paid vs patient responsibility</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
 function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]} CSV</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
-function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV Imports','Upload operational CSVs into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">CSV columns are mapped to the selected RCM module. Extra columns are preserved automatically.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV file</h4><p>Use UTF-8 CSV. The first row should contain column names. You can upload one module at a time.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv"><button class="btn btn-primary btn-small" id="startImport">Import CSV</button></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Recommended CSV fields</h3><p class="cap">Standard fields supported by the current dashboard.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Tip: extra CSV columns are not discarded. They are retained in each record so the portal can support different client templates.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
+function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Upload CSV or Excel (.xlsx / .xls) files. Columns are mapped by header name, and supported extra columns are preserved automatically.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported formats: CSV, Excel .xlsx and Excel .xls. The first row of the file should contain column names. You can upload one module at a time.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Recommended File Fields</h3><p class="cap">Standard fields supported by the current dashboard.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Tip: CSV and Excel files use the same column-mapping rules. Extra columns are retained and do not replace standard fields.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
@@ -191,17 +351,103 @@ function renderOverview(){
 }
 function drawChart(id,type,labels,datasets,values){const el=document.getElementById(id);if(!el)return;if(state.charts[id])state.charts[id].destroy();let data;if(type==='doughnut')data={labels,datasets:[{label:datasets[0],data:values[0],borderWidth:0}]};else data={labels,datasets:[{label:datasets[0],data:values[0],borderWidth:0,borderRadius:5}]};state.charts[id]=new Chart(el,{type,data,options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{font:{size:9}}}},scales:type==='doughnut'?{}:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#eef1f5'},ticks:{font:{size:9}}}}}})}
 function renderSchemaHelp(){const m=document.getElementById('importModule'),out=document.getElementById('schemaHelp');const paint=()=>{const s=schemas[m.value];out.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${(s.csvHeaders||s.headers).map(x=>`<span class="pill blue">${x}</span>`).join('')}</div><p class="muted" style="margin-top:10px">Required standard columns: ${(s.csvHeaders||s.headers).join(', ')}. Extra columns are retained.</p>`};m?.addEventListener('change',paint);paint()}
-async function importCsv(){const file=document.getElementById('csvFile')?.files?.[0],module=document.getElementById('importModule')?.value;if(!file)return toast('Please select a CSV file.');if(!module)return toast('Please select a module.');const result=document.getElementById('importResult');result.innerHTML='<div class="notice">Reading CSV…</div>';Papa.parse(file,{header:true,skipEmptyLines:true,complete:async r=>{try{if(r.errors?.length)throw new Error(r.errors[0].message);const rawRows=r.data||[]; if(!rawRows.length)throw new Error('No data rows found.'); const rows=normalizeModuleRows(module,rawRows); if(rows.length>50000)throw new Error('Maximum 50,000 rows per import. Split the file into smaller imports.');const clientId=hasAllClients()?(document.getElementById('importClient')?.value||state.clients[0]?.id):state.profile.client_id;if(!clientId)throw new Error('No client is assigned to this account.');if(DEMO_MODE){const demoRows=rows.map(r=>({...r,client_id:clientId})); if(document.getElementById('importMode').value==='replace')state.records[module]=demoRows;else state.records[module]=[...getRecords(module),...demoRows];result.innerHTML=`<div class="notice">Imported ${rows.length.toLocaleString()} records in demo mode.</div>`;toast('CSV imported');return}await insertRecords(module,rows,clientId,document.getElementById('importMode').value);result.innerHTML=`<div class="notice">Imported ${rows.length.toLocaleString()} records successfully.</div>`;await loadData();toast('CSV imported successfully');}catch(e){result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`}},error:e=>{result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`}})}
-async function insertRecords(module,rows,clientId,mode){
-  if(!state.session?.user?.id)throw new Error('Your session has expired. Please sign in again.');
-  if(!clientId)throw new Error('A client is required for import.');
-  if(!['admin','user'].includes(getRole()))throw new Error('You do not have permission to import data.');
-  const batchId=crypto.randomUUID();
-  const payload=rows.map(r=>({external_id:String(r.id||''),data:r}));
-  const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
-  if(error)throw new Error(error.message||'Import failed.');
-  await audit('csv_import',{module,client_id:clientId,rows:rows.length,mode,batch_id:batchId});
-  return data;
+async function importCsv(){
+  const file=document.getElementById('csvFile')?.files?.[0];
+  const module=document.getElementById('importModule')?.value;
+  if(!file)return toast('Please select a CSV or Excel file.');
+  if(!module)return toast('Please select a module.');
+
+  const result=document.getElementById('importResult');
+  const ext=String(file.name||'').toLowerCase().split('.').pop();
+  const isExcel=['xlsx','xls'].includes(ext);
+  const isCsv=ext==='csv';
+
+  if(!isExcel&&!isCsv){
+    result.innerHTML='<div class="notice danger-note">Unsupported file. Please upload CSV, XLSX, or XLS.</div>';
+    return;
+  }
+
+  result.innerHTML=`<div class="notice">Reading ${isExcel?'Excel':'CSV'} file…</div>`;
+
+  try{
+    let rawRows=[];
+
+    if(isExcel){
+      if(typeof XLSX==='undefined')throw new Error('Excel reader is unavailable. Please refresh the page and try again.');
+
+      const buffer=await file.arrayBuffer();
+      const workbook=XLSX.read(buffer,{type:'array',cellDates:true});
+      if(!workbook.SheetNames?.length)throw new Error('No worksheet found in the Excel file.');
+
+      // Use the first non-empty worksheet. This keeps uploads predictable.
+      let sheetName=workbook.SheetNames[0];
+      for(const name of workbook.SheetNames){
+        const sheet=workbook.Sheets[name];
+        const test=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',blankrows:false});
+        if(test.some(row=>row.some(v=>String(v??'').trim()!==''))){
+          sheetName=name;
+          break;
+        }
+      }
+
+      const sheet=workbook.Sheets[sheetName];
+      rawRows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false,blankrows:false});
+    }else{
+      rawRows=await new Promise((resolve,reject)=>{
+        Papa.parse(file,{
+          header:true,
+          skipEmptyLines:'greedy',
+          transformHeader:h=>String(h??'').replace(/^\uFEFF/,'').trim(),
+          complete:r=>{
+            if(r.errors?.length){
+              const first=r.errors.find(e=>e.code!=='TooManyFields');
+              if(first)reject(new Error(first.message||'CSV parsing error.'));
+            }
+            resolve(r.data||[]);
+          },
+          error:e=>reject(new Error(e.message||'CSV parsing failed.'))
+        });
+      });
+    }
+
+    if(!rawRows.length)throw new Error('No data rows found. Make sure the first row contains column names.');
+
+    // Remove completely empty rows before normalization.
+    rawRows=rawRows.filter(row=>Object.values(row||{}).some(v=>String(v??'').trim()!==''));
+
+    if(!rawRows.length)throw new Error('The file contains no usable data rows.');
+    if(rawRows.length>50000)throw new Error('Maximum 50,000 rows per import. Split the file into smaller imports.');
+
+    const rows=normalizeModuleRows(module,rawRows);
+
+    // Basic structural protection against a broken/misaligned file.
+    const invalidRows=rows.filter(r=>{
+      const values=Object.values(r||{}).map(v=>String(v??'').trim()).filter(Boolean);
+      return values.length===0;
+    });
+    if(invalidRows.length===rows.length)throw new Error('No usable records could be mapped from this file. Check the column headers.');
+
+    const clientId=hasAllClients()?(document.getElementById('importClient')?.value||state.clients[0]?.id):state.profile.client_id;
+    if(!clientId)throw new Error('No client is assigned to this account.');
+
+    const mode=document.getElementById('importMode')?.value||'append';
+
+    if(DEMO_MODE){
+      const demoRows=rows.map(r=>({...r,client_id:clientId}));
+      if(mode==='replace')state.records[module]=demoRows;
+      else state.records[module]=[...getRecords(module),...demoRows];
+      result.innerHTML=`<div class="notice">Imported ${rows.length.toLocaleString()} records from ${esc(file.name)} in demo mode.</div>`;
+      toast('File imported');
+      return;
+    }
+
+    await insertRecords(module,rows,clientId,mode);
+    result.innerHTML=`<div class="notice">Imported ${rows.length.toLocaleString()} records from ${esc(file.name)} successfully.</div>`;
+    await loadData();
+    toast('File imported successfully');
+  }catch(e){
+    result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`;
+  }
 }
 function downloadTemplate(){const m=document.getElementById('importModule').value,s=schemas[m],headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
 async function loadData(){
