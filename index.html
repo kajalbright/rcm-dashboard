@@ -233,8 +233,9 @@ function normalizeModuleRows(module,rows){
    d[key]=value??'';
   });
 
-  s.map.forEach(k=>{if(d[k]===undefined||d[k]===null)d[k]='';});
-  d.id=d.id||`ROW-${crypto.randomUUID?.()||`${Date.now()}-${rowIndex}`}`;
+  // Do NOT manufacture an `id` column. Only fields that actually exist in the
+  // uploaded CSV/Excel file are kept as data columns. The database import gets
+  // its own external_id separately, so a synthetic Row ID never appears in the UI.
   return d;
  });
 }
@@ -318,8 +319,13 @@ function filteredRows(m){
 function exportCurrentModule(m){const rows=filteredRows(m);if(!rows.length)return toast('No records to export.');const keys=[...new Set(rows.flatMap(r=>Object.keys(r||{})))].filter(k=>k!=='client_id');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
 function renderModule(m){
   const rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
-  const baseCols=schemas[m].map;
-  const extraKeys=[...new Set(rows.flatMap(r=>Object.keys(r||{})))].filter(k=>!baseCols.includes(k)&&k!=='client_id').slice(0,8);
+  // Render ONLY columns that are actually present in the imported records.
+  // This prevents synthetic schema fields (especially Row ID) from appearing
+  // when they were not present in the CSV/Excel source. Standard fields keep
+  // their schema order; genuine source extras follow afterwards.
+  const presentKeys=new Set(rows.flatMap(r=>Object.keys(r||{})).filter(k=>k!=='client_id'));
+  const baseCols=schemas[m].map.filter(k=>presentKeys.has(k));
+  const extraKeys=[...presentKeys].filter(k=>!schemas[m].map.includes(k));
   const cols=[...baseCols,...extraKeys]; const shown=rows.slice(0,500);
   table.innerHTML=`<thead><tr>${cols.map(c=>`<th>${esc(prettyLabel(c,m))}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${moneyFields.has(c)?money(r[c]):c==='status'?statusPill(r[c]):esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody>`;
   if(!rows.length)table.innerHTML+=`<tbody><tr><td colspan="${cols.length}" class="empty">No records match the current filters.</td></tr></tbody>`;
@@ -488,7 +494,13 @@ async function insertRecords(module,rows,clientId,mode){
   if(!Array.isArray(rows)||!rows.length)throw new Error('No records to import.');
   if(rows.length>50000)throw new Error('Maximum 50,000 rows per import.');
   const batchId=crypto.randomUUID?.()||`batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const payload=rows.map(r=>({external_id:String(r.id||''),data:r}));
+  // external_id is database metadata only. It is never added to `data`, so it
+  // cannot create an extra visible Row ID column in the portal.
+  const naturalIdKeys=['claim_id','payment_id','authnum','patient_id'];
+  const payload=rows.map((r,index)=>{
+    const naturalId=naturalIdKeys.map(k=>String(r?.[k]??'').trim()).find(Boolean);
+    return {external_id:naturalId||`${batchId}:${index+1}`,data:r};
+  });
   const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
   if(error)throw new Error(error.message||'Import failed.');
   await audit('csv_import',{module,client_id:clientId,rows:rows.length,mode,batch_id:batchId,file_type:'csv_or_excel'});
