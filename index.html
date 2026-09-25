@@ -28,10 +28,11 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 .login-brand-panel{position:relative;padding:54px 58px;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(145deg,#061b2c 0%,#0b2c47 55%,#0a3b4a 100%);color:#fff;overflow:hidden}
 .login-brand-panel:before{content:"";position:absolute;width:420px;height:420px;border-radius:50%;right:-210px;top:-180px;background:radial-gradient(circle,rgba(31,193,174,.28),transparent 68%)}
 .login-brand-panel:after{content:"";position:absolute;width:300px;height:300px;border-radius:50%;left:-180px;bottom:-150px;background:radial-gradient(circle,rgba(213,44,132,.22),transparent 68%)}
-.login-brand-logo{width:320px;height:auto;display:block;margin-bottom:38px;position:relative;z-index:1;background:#fff;border-radius:6px;overflow:hidden;line-height:0}
-.login-brand-logo img{display:block;width:100%;height:auto;max-width:none;object-fit:contain;object-position:center;filter:none;image-rendering:auto}
-.mobile-login-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:6px;box-sizing:border-box;width:250px;margin:0 auto 22px;overflow:hidden;line-height:0}
-.mobile-login-logo img{display:block;width:100%;height:auto;object-fit:contain;filter:none}
+.login-brand-logo{display:none}
+.login-brand-logo img{display:none}
+.mobile-login-logo{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:6px;box-sizing:border-box;width:190px;height:auto;margin:0 0 20px auto;overflow:hidden;line-height:0}
+.mobile-login-logo img{display:block;width:100%;height:auto;object-fit:contain;filter:none;image-rendering:auto}
+.login-card .mobile-login-logo{flex:0 0 auto;align-self:flex-end}
 .login-brand-copy{position:relative;z-index:1;max-width:520px}.eyebrow{font-size:10px;letter-spacing:.18em;color:#79ddd1;font-weight:800}
 .login-brand-copy h1{font-size:43px;line-height:1.08;margin:14px 0 16px;letter-spacing:-.03em}.login-brand-copy h1 strong{color:#fff}
 .login-brand-copy p{max-width:470px;color:#afc1d2;line-height:1.7;font-size:13px;margin:0}
@@ -66,7 +67,7 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 
 </style>
 </head>
-<body data-bha-build="2026-09-26-v22">
+<body data-bha-build="2026-09-26-v25">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -419,7 +420,7 @@ function hydrateRecordFromDatabase(module,record,externalId){
  if(module==='auth'&&!String(r.authnum??'').trim()&&ext&&!isSynthetic&&!/^row-/i.test(ext))r.authnum=ext;
  return r;
 }
-function loginView(){return `<div class="login"><div class="login-orb orb-one"></div><div class="login-orb orb-two"></div><div class="login-shell"><div class="login-brand-panel"><div class="login-brand-logo"><img src="${BHA_LOGO}" alt="Bright Health Alliance"></div><div class="login-brand-copy"><span class="eyebrow">SMART HUSTLE • SMARTER FINANCES</span><h1>Revenue Cycle<br><strong>Management</strong></h1><p>One secure workspace for billing, denials, eligibility, authorizations and payment performance.</p><div class="login-feature-row"><span>✓ Secure client access</span><span>✓ Real-time RCM visibility</span></div></div></div><div class="login-card"><div class="mobile-login-logo"><img src="${BHA_LOGO}" alt="Bright Health Alliance"></div><div class="login-heading"><span class="login-kicker">BHA CLIENT PORTAL</span><h2>Welcome back</h2><p>Sign in to continue to your RCM workspace.</p></div><form id="loginForm"><div class="field"><label>Email / Username</label><div class="input-wrap"><span class="input-icon">✉</span><input id="loginEmail" autocomplete="username" required placeholder="you@company.com"></div></div><div class="field"><label>Password</label><div class="input-wrap"><span class="input-icon">⌑</span><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Enter your password"></div></div><button class="btn btn-primary login-submit"><span>Sign in to Portal</span><span class="login-arrow">→</span></button><div id="loginError"></div></form>${DEMO_MODE?'<div class="demo-note"><b>Demo mode</b><br>admin@demo.local / Admin@123<br>user@demo.local / User@123<br>client@demo.local / Client@123</div>':''}<div class="login-footer">© 2026 Bright Health Alliance <span>•</span> Secure RCM Portal</div></div></div></div>`}
+function loginView(){return `<div class="login"><div class="login-orb orb-one"></div><div class="login-orb orb-two"></div><div class="login-shell"><div class="login-brand-panel"><div class="login-brand-copy"><span class="eyebrow">SMART HUSTLE • SMARTER FINANCES</span><h1>Revenue Cycle<br><strong>Management</strong></h1><p>One secure workspace for billing, denials, eligibility, authorizations and payment performance.</p><div class="login-feature-row"><span>✓ Secure client access</span><span>✓ Real-time RCM visibility</span></div></div></div><div class="login-card"><div class="mobile-login-logo"><img src="${BHA_LOGO}" alt="Bright Health Alliance"></div><div class="login-heading"><span class="login-kicker">BHA CLIENT PORTAL</span><h2>Welcome back</h2><p>Sign in to continue to your RCM workspace.</p></div><form id="loginForm"><div class="field"><label>Email / Username</label><div class="input-wrap"><span class="input-icon">✉</span><input id="loginEmail" autocomplete="username" required placeholder="you@company.com"></div></div><div class="field"><label>Password</label><div class="input-wrap"><span class="input-icon">⌑</span><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Enter your password"></div></div><button class="btn btn-primary login-submit"><span>Sign in to Portal</span><span class="login-arrow">→</span></button><div id="loginError"></div></form>${DEMO_MODE?'<div class="demo-note"><b>Demo mode</b><br>admin@demo.local / Admin@123<br>user@demo.local / User@123<br>client@demo.local / Client@123</div>':''}<div class="login-footer">© 2026 Bright Health Alliance <span>•</span> Secure RCM Portal</div></div></div></div>`}
 function shell(){
   const clientControl=hasAllClients()
     ? `<div class="client-switcher"><label>Client / Practice</label><select id="globalClientSelect"><option value="__ALL__">All Clients</option>${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div>`
