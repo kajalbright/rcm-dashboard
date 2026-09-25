@@ -246,7 +246,7 @@ function shell(){
     : `<div class="crumb">${esc(clientName())}</div>`;
   return `<div class="layout"><aside class="sidebar"><div class="side-brand"><div class="brandmark">BHA</div><div><strong>BHA RCM Portal</strong><span>Revenue Cycle Management</span></div></div><nav class="nav">${navHtml()}</nav></aside><main class="main"><header class="topbar"><div>${clientControl}</div><div class="top-actions"><span class="role-badge">${esc(getRole())}</span><div class="avatar">${esc(initials(state.profile?.name))}</div><button id="logoutBtn" class="btn btn-light btn-small">Logout</button></div></header><div class="content"><div id="sectionRoot"></div></div></main></div>`;
 }
-function navHtml(){let html='<div class="nav-label">Workspace</div>';for(const k of ['overview','ar','denials','verification','auth','charges','payments'])html+=`<button data-section="${k}" class="${state.section===k?'active':''}"><span class="nav-icon">${modules[k].icon}</span><span>${modules[k].label}</span></button>`;if(canUpload())html+='<div class="nav-label">Operations</div><button data-section="imports" class="'+(state.section==='imports'?'active':'')+'"><span class="nav-icon">⇧</span><span>CSV Imports</span></button>';if(canAdmin())html+='<div class="nav-label">Administration</div><button data-section="users" class="'+(state.section==='users'?'active':'')+'"><span class="nav-icon">♙</span><span>Users & Access</span></button><button data-section="activity" class="'+(state.section==='activity'?'active':'')+'"><span class="nav-icon">◷</span><span>Activity Log</span></button><button data-section="clients" class="'+(state.section==='clients'?'active':'')+'"><span class="nav-icon">⌂</span><span>Clients & Practices</span></button>';return html}
+function navHtml(){let html='<div class="nav-label">Workspace</div>';for(const k of ['overview','ar','denials','verification','auth','charges','payments'])html+=`<button data-section="${k}" class="${state.section===k?'active':''}"><span class="nav-icon">${modules[k].icon}</span><span>${modules[k].label}</span></button>`;if(canUpload())html+='<div class="nav-label">Operations</div><button data-section="imports" class="'+(state.section==='imports'?'active':'')+'"><span class="nav-icon">⇧</span><span>File Imports</span></button>';if(canAdmin())html+='<div class="nav-label">Administration</div><button data-section="users" class="'+(state.section==='users'?'active':'')+'"><span class="nav-icon">♙</span><span>Users & Access</span></button><button data-section="activity" class="'+(state.section==='activity'?'active':'')+'"><span class="nav-icon">◷</span><span>Activity Log</span></button><button data-section="clients" class="'+(state.section==='clients'?'active':'')+'"><span class="nav-icon">⌂</span><span>Clients & Practices</span></button>';return html}
 function pageHead(title,sub,actions=''){return `<div class="page-head"><div><h2>${title}</h2><p>${sub}</p></div><div class="page-actions">${actions}</div></div>`}
 function uniqueValues(module,key){
   return [...new Set(getRecords(module).map(r=>String(r?.[key]??'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -258,9 +258,9 @@ function globalFilters(){
   const statuses=[...new Set(mods.flatMap(m=>uniqueValues(m,'status')))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
   return `<div class="filters"><span class="filter-title">Filters</span><select id="payerFilter"><option value="">All Payers</option>${payers.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="providerFilter"><option value="">All Providers</option>${providers.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="statusFilter"><option value="">All Statuses</option>${statuses.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="dateFrom" type="date" aria-label="From date" title="From date"><input id="dateTo" type="date" aria-label="To date" title="To date"><input id="tableSearch" placeholder="Search patient, ID, payer..." style="min-width:220px"><button class="btn btn-light btn-small" id="clearFilters">Clear filters</button></div>`;
 }
-function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload CSV</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Open / active claims</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Collection Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Paid ÷ billed</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Performance</h3><p class="cap">Billed vs paid vs patient responsibility</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
-function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]} CSV</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
-function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Upload CSV or Excel (.xlsx / .xls) files. Columns are mapped by header name, and supported extra columns are preserved automatically.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported formats: CSV, Excel .xlsx and Excel .xls. The first row of the file should contain column names. You can upload one module at a time.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Recommended File Fields</h3><p class="cap">Standard fields supported by the current dashboard.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Tip: CSV and Excel files use the same column-mapping rules. Extra columns are retained and do not replace standard fields.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
+function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload File</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Open / active claims</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Collection Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Paid ÷ billed</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Performance</h3><p class="cap">Billed vs paid vs patient responsibility</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
+function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
+function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
@@ -287,6 +287,7 @@ function bindSection(){
   });
   ['payerFilter','providerFilter','statusFilter','dateFrom','dateTo','tableSearch'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>state.section==='overview'?renderOverview():renderModule(state.section)));
   document.getElementById('startImport')?.addEventListener('click',importCsv);
+  document.getElementById('csvFile')?.addEventListener('change',e=>{const f=e.target.files?.[0],out=document.getElementById('selectedFileInfo');if(out)out.textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`:''});
   document.getElementById('exportCurrent')?.addEventListener('click',()=>exportCurrentModule(state.section));
   document.getElementById('downloadTemplate')?.addEventListener('click',downloadTemplate);document.getElementById('deleteDataBtn')?.addEventListener('click',deleteImportedData);
   document.getElementById('newUser')?.addEventListener('click',openUserModal);
@@ -351,103 +352,148 @@ function renderOverview(){
 }
 function drawChart(id,type,labels,datasets,values){const el=document.getElementById(id);if(!el)return;if(state.charts[id])state.charts[id].destroy();let data;if(type==='doughnut')data={labels,datasets:[{label:datasets[0],data:values[0],borderWidth:0}]};else data={labels,datasets:[{label:datasets[0],data:values[0],borderWidth:0,borderRadius:5}]};state.charts[id]=new Chart(el,{type,data,options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{font:{size:9}}}},scales:type==='doughnut'?{}:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#eef1f5'},ticks:{font:{size:9}}}}}})}
 function renderSchemaHelp(){const m=document.getElementById('importModule'),out=document.getElementById('schemaHelp');const paint=()=>{const s=schemas[m.value];out.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${(s.csvHeaders||s.headers).map(x=>`<span class="pill blue">${x}</span>`).join('')}</div><p class="muted" style="margin-top:10px">Required standard columns: ${(s.csvHeaders||s.headers).join(', ')}. Extra columns are retained.</p>`};m?.addEventListener('change',paint);paint()}
-async function importCsv(){
-  const file=document.getElementById('csvFile')?.files?.[0];
-  const module=document.getElementById('importModule')?.value;
-  if(!file)return toast('Please select a CSV or Excel file.');
-  if(!module)return toast('Please select a module.');
-
-  const result=document.getElementById('importResult');
-  const ext=String(file.name||'').toLowerCase().split('.').pop();
-  const isExcel=['xlsx','xls'].includes(ext);
-  const isCsv=ext==='csv';
-
-  if(!isExcel&&!isCsv){
-    result.innerHTML='<div class="notice danger-note">Unsupported file. Please upload CSV, XLSX, or XLS.</div>';
+function getFileExtension(file){return String(file?.name||'').toLowerCase().split('.').pop()||''}
+function getSchemaHeaderInfo(module,rawRows){
+  const s=schemas[module];
+  const keys=rawRows.length?Object.keys(rawRows[0]||{}):[];
+  const aliasSet=new Set();
+  Object.entries(s.aliases||{}).forEach(([canonical,names])=>[canonical,...names].forEach(n=>aliasSet.add(normalizeHeader(n))));
+  const recognized=keys.filter(k=>aliasSet.has(normalizeHeader(k)));
+  const normalizedKeys=keys.map(normalizeHeader).filter(Boolean);
+  const joined=normalizedKeys.join('');
+  const knownHeaders=Object.keys(s.aliases||{}).flatMap(k=>[k,...(s.aliases[k]||[])]).map(normalizeHeader);
+  const suspiciousTokens=knownHeaders.filter(h=>h.length>=5 && joined.includes(h));
+  const duplicateNormalized=new Set();
+  const duplicates=[];
+  for(const k of keys){const n=normalizeHeader(k);if(!n)continue;if(duplicateNormalized.has(n))duplicates.push(k);duplicateNormalized.add(n)}
+  return {keys,recognized,duplicates,suspiciousTokens};
+}
+function validateImportStructure(module,rawRows,fileName){
+  const s=schemas[module];
+  if(!s)throw new Error(`Unsupported module: ${module}`);
+  if(!Array.isArray(rawRows)||!rawRows.length)throw new Error('No data rows found. Make sure the first row contains column names.');
+  const info=getSchemaHeaderInfo(module,rawRows);
+  if(!info.keys.length)throw new Error('No column headers were detected. The first row must contain column names.');
+  if(info.duplicates.length)throw new Error(`Duplicate column header detected: ${info.duplicates[0]}. Rename duplicate columns and try again.`);
+  const nonEmptyHeaders=info.keys.filter(k=>String(k??'').trim()!=='');
+  if(nonEmptyHeaders.length<2)throw new Error('The file contains too few columns. Please check that the header row is correct.');
+  // A common failure mode is a header accidentally concatenated into one field, e.g. payerDate of Servicebalance...
+  if(info.keys.length<=2 && info.suspiciousTokens.length>=3){
+    throw new Error(`The header row appears malformed or concatenated. Example detected in ${fileName||'the file'}. Please export the sheet again with separate columns.`);
+  }
+  if(info.recognized.length===0 && info.keys.length!==s.headers.length){
+    throw new Error(`No supported column headers were recognized for ${modules[module].label}. Use the Download Template button or rename the headers before importing.`);
+  }
+  if(info.recognized.length===0 && info.keys.length===s.headers.length){
+    // Controlled positional fallback remains available only when the file has exactly the expected number of columns.
     return;
   }
+  if(info.recognized.length<Math.min(2,s.headers.length) && info.keys.length>s.headers.length){
+    throw new Error('Too few recognizable headers were found for a file with extra columns. Import stopped to prevent column misalignment.');
+  }
+}
+async function parseImportFile(file,module){
+  const ext=getFileExtension(file);
+  if(!['csv','xlsx','xls'].includes(ext))throw new Error('Unsupported file. Please upload CSV, XLSX, or XLS.');
+  if(file.size===0)throw new Error('The selected file is empty.');
+  if(file.size>25*1024*1024)throw new Error('Maximum file size is 25 MB. Split the file into smaller uploads.');
 
-  result.innerHTML=`<div class="notice">Reading ${isExcel?'Excel':'CSV'} file…</div>`;
-
-  try{
-    let rawRows=[];
-
-    if(isExcel){
-      if(typeof XLSX==='undefined')throw new Error('Excel reader is unavailable. Please refresh the page and try again.');
-
-      const buffer=await file.arrayBuffer();
-      const workbook=XLSX.read(buffer,{type:'array',cellDates:true});
-      if(!workbook.SheetNames?.length)throw new Error('No worksheet found in the Excel file.');
-
-      // Use the first non-empty worksheet. This keeps uploads predictable.
-      let sheetName=workbook.SheetNames[0];
-      for(const name of workbook.SheetNames){
-        const sheet=workbook.Sheets[name];
-        const test=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',blankrows:false});
-        if(test.some(row=>row.some(v=>String(v??'').trim()!==''))){
-          sheetName=name;
-          break;
-        }
-      }
-
-      const sheet=workbook.Sheets[sheetName];
-      rawRows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false,blankrows:false});
-    }else{
-      rawRows=await new Promise((resolve,reject)=>{
-        Papa.parse(file,{
-          header:true,
-          skipEmptyLines:'greedy',
-          transformHeader:h=>String(h??'').replace(/^\uFEFF/,'').trim(),
-          complete:r=>{
-            if(r.errors?.length){
-              const first=r.errors.find(e=>e.code!=='TooManyFields');
-              if(first)reject(new Error(first.message||'CSV parsing error.'));
-            }
-            resolve(r.data||[]);
-          },
-          error:e=>reject(new Error(e.message||'CSV parsing failed.'))
-        });
-      });
+  let rawRows=[];
+  let sourceName=file.name||'file';
+  if(['xlsx','xls'].includes(ext)){
+    if(typeof XLSX==='undefined')throw new Error('Excel reader is unavailable. Please refresh the page and try again.');
+    const buffer=await file.arrayBuffer();
+    const workbook=XLSX.read(buffer,{type:'array',cellDates:false,raw:false});
+    if(!workbook.SheetNames?.length)throw new Error('No worksheet was found in the Excel file.');
+    let sheetName='';
+    for(const name of workbook.SheetNames){
+      const sheet=workbook.Sheets[name];
+      const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',blankrows:false,raw:false});
+      if(matrix.some(row=>Array.isArray(row)&&row.some(v=>String(v??'').trim()!==''))){sheetName=name;break;}
     }
-
-    if(!rawRows.length)throw new Error('No data rows found. Make sure the first row contains column names.');
-
-    // Remove completely empty rows before normalization.
-    rawRows=rawRows.filter(row=>Object.values(row||{}).some(v=>String(v??'').trim()!==''));
-
-    if(!rawRows.length)throw new Error('The file contains no usable data rows.');
-    if(rawRows.length>50000)throw new Error('Maximum 50,000 rows per import. Split the file into smaller imports.');
-
-    const rows=normalizeModuleRows(module,rawRows);
-
-    // Basic structural protection against a broken/misaligned file.
-    const invalidRows=rows.filter(r=>{
-      const values=Object.values(r||{}).map(v=>String(v??'').trim()).filter(Boolean);
-      return values.length===0;
+    if(!sheetName)throw new Error('All worksheets in the Excel file are empty.');
+    sourceName=`${file.name} — sheet: ${sheetName}`;
+    rawRows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{defval:'',blankrows:false,raw:false});
+  }else{
+    rawRows=await new Promise((resolve,reject)=>{
+      Papa.parse(file,{
+        header:true,
+        skipEmptyLines:'greedy',
+        transformHeader:h=>String(h??'').replace(/^\uFEFF/,'').trim(),
+        delimitersToGuess:[',','\t',';','|'],
+        complete:r=>{
+          if(r.errors?.length){
+            const first=r.errors[0];
+            reject(new Error(first.message||'CSV parsing failed. Please check the delimiter and column structure.'));
+            return;
+          }
+          resolve(r.data||[]);
+        },
+        error:e=>reject(new Error(e.message||'CSV parsing failed.'))
+      });
     });
-    if(invalidRows.length===rows.length)throw new Error('No usable records could be mapped from this file. Check the column headers.');
-
-    const clientId=hasAllClients()?(document.getElementById('importClient')?.value||state.clients[0]?.id):state.profile.client_id;
+  }
+  rawRows=rawRows.filter(row=>Object.values(row||{}).some(v=>String(v??'').trim()!==''));
+  if(!rawRows.length)throw new Error('No usable data rows were found.');
+  if(rawRows.length>50000)throw new Error('Maximum 50,000 rows per import. Split the file into smaller imports.');
+  validateImportStructure(module,rawRows,sourceName);
+  return {rows:normalizeModuleRows(module,rawRows),sourceName,ext};
+}
+async function importCsv(){
+  if(!canUpload())return toast('Admin or RCM Operations permission required.');
+  const file=document.getElementById('csvFile')?.files?.[0];
+  const module=document.getElementById('importModule')?.value;
+  const result=document.getElementById('importResult');
+  if(!file)return toast('Please select a CSV or Excel file.');
+  if(!module)return toast('Please select a module.');
+  if(result)result.innerHTML='<div class="notice">Reading and validating file…</div>';
+  const button=document.getElementById('startImport');
+  if(button){button.disabled=true;button.textContent='Processing…';}
+  try{
+    const parsed=await parseImportFile(file,module);
+    const rows=parsed.rows;
+    if(!rows.length)throw new Error('No records could be mapped from the file.');
+    const clientId=hasAllClients()?(document.getElementById('importClient')?.value||state.clients[0]?.id):state.profile?.client_id;
     if(!clientId)throw new Error('No client is assigned to this account.');
-
+    const allowedClient=state.clients.some(c=>String(c.id)===String(clientId));
+    if(!allowedClient)throw new Error('Selected client is not available to your account.');
     const mode=document.getElementById('importMode')?.value||'append';
+    if(!['replace','append'].includes(mode))throw new Error('Invalid import mode.');
 
     if(DEMO_MODE){
       const demoRows=rows.map(r=>({...r,client_id:clientId}));
       if(mode==='replace')state.records[module]=demoRows;
       else state.records[module]=[...getRecords(module),...demoRows];
-      result.innerHTML=`<div class="notice">Imported ${rows.length.toLocaleString()} records from ${esc(file.name)} in demo mode.</div>`;
-      toast('File imported');
+      result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} in demo mode.</div>`;
+      toast('File imported successfully');
       return;
     }
-
-    await insertRecords(module,rows,clientId,mode);
-    result.innerHTML=`<div class="notice">Imported ${rows.length.toLocaleString()} records from ${esc(file.name)} successfully.</div>`;
+    const response=await insertRecords(module,rows,clientId,mode);
+    result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} successfully.</div>`;
+    if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
     await loadData();
     toast('File imported successfully');
   }catch(e){
-    result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`;
+    if(result)result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`;
+  }finally{
+    if(button){button.disabled=false;button.textContent='Import File';}
   }
+}
+async function insertRecords(module,rows,clientId,mode){
+  if(!state.session?.user?.id)throw new Error('Your session has expired. Please sign in again.');
+  if(!clientId)throw new Error('A client is required for import.');
+  if(!['admin','user'].includes(getRole()))throw new Error('You do not have permission to import data.');
+  if(!schemas[module])throw new Error('Invalid RCM module.');
+  if(!['replace','append'].includes(mode))throw new Error('Invalid import mode.');
+  if(!Array.isArray(rows)||!rows.length)throw new Error('No records to import.');
+  if(rows.length>50000)throw new Error('Maximum 50,000 rows per import.');
+  const batchId=crypto.randomUUID?.()||`batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const payload=rows.map(r=>({external_id:String(r.id||''),data:r}));
+  const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
+  if(error)throw new Error(error.message||'Import failed.');
+  await audit('csv_import',{module,client_id:clientId,rows:rows.length,mode,batch_id:batchId,file_type:'csv_or_excel'});
+  if(data&&typeof data==='object'&&!data.import_batch_id)data.import_batch_id=batchId;
+  return data||{import_batch_id:batchId};
 }
 function downloadTemplate(){const m=document.getElementById('importModule').value,s=schemas[m],headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
 async function loadData(){
