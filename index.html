@@ -228,7 +228,7 @@ function recordDate(module,r){
 }
 function isInternalDataKey(key){
  const k=String(key||'').toLowerCase().replace(/[^a-z0-9]/g,'');
- return k==='id'||k==='rowid'||k==='externalid'||k==='sourcecolumns'||k==='sourcefile'||k==='importbatchid'||k==='sourcerowindex'||k==='importedat'||k==='dbuploadedat';
+ return k==='id'||k==='rowid'||k==='externalid'||k==='sourcecolumns'||k==='sourcefile'||k==='importbatchid'||k==='sourcerowindex'||k==='importedat'||k==='dbuploadedat'||k==='sourcebatchid';
 }
 function sourceColumnKeys(module,row){
  const raw=row?.__source_columns;
@@ -443,17 +443,23 @@ function bindSection(){
 }
 function getRecords(m){return state.records[m]||[]}
 function compareSourceOrder(a,b){
-  const ai=Number(a?.__source_row_index);
-  const bi=Number(b?.__source_row_index);
-  const ah=Number.isFinite(ai), bh=Number.isFinite(bi);
-  if(ah&&bh&&ai!==bi)return ai-bi;
-
+  // A record belongs to an upload batch. Batch order is determined by the
+  // actual upload timestamp; row order is determined by the source row index.
+  // This prevents rows from different uploads (each starting at row 0) from
+  // being interleaved.
   const at=String(a?.__imported_at||a?.__db_uploaded_at||'');
   const bt=String(b?.__imported_at||b?.__db_uploaded_at||'');
   if(at&&bt&&at!==bt)return at.localeCompare(bt);
 
-  // For legacy records without import metadata, keep the order supplied by
-  // the database rather than inventing a sort by claim/payer/date.
+  const ai=Number(a?.__source_row_index);
+  const bi=Number(b?.__source_row_index);
+  const ah=Number.isFinite(ai), bh=Number.isFinite(bi);
+  if(ah&&bh&&ai!==bi)return ai-bi;
+  if(ah&&!bh)return -1;
+  if(!ah&&bh)return 1;
+
+  // Legacy records without source metadata: preserve database order rather
+  // than inventing a sort by claim ID, payer, date, amount, etc.
   return 0;
 }
 function filteredRows(m){
@@ -698,13 +704,19 @@ async function insertRecords(module,rows,clientId,mode){
   // cannot create an extra visible Row ID column in the portal.
   const naturalIdKeys=['claim_id','payment_id','authnum','patient_id'];
   const payload=rows.map((r,index)=>{
-    const naturalId=naturalIdKeys.map(k=>String(r?.[k]??'').trim()).find(Boolean);
+    // IMPORTANT: external_id is the stable, non-visible source-order key.
+    // Never use a business field such as claim_id/payment_id here: doing so
+    // makes the database free to return rows in an arbitrary order and can
+    // break when the same business ID appears in another upload.
+    const sourceIndex=Number.isFinite(Number(r?.__source_row_index))?Number(r.__source_row_index):index;
     const data={
       ...r,
-      __source_row_index:Number.isFinite(Number(r?.__source_row_index))?Number(r.__source_row_index):index,
-      __imported_at:importedAt
+      __source_row_index:sourceIndex,
+      __imported_at:importedAt,
+      __source_batch_id:batchId
     };
-    return {external_id:naturalId||`${batchId}:${index+1}`,data};
+    const sequence=String(sourceIndex+1).padStart(8,'0');
+    return {external_id:`${batchId}:${sequence}`,data};
   });
   const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
   if(error)throw new Error(error.message||'Import failed.');
@@ -723,7 +735,7 @@ async function loadData(){
     }
     return;
   }
-  let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at');
+  let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
   if(!hasAllClients()) q=q.eq('client_id',state.profile.client_id);
   else if(state.client?.id) q=q.eq('client_id',state.client.id);
   const {data,error}=await q.order('uploaded_at',{ascending:false}).limit(20001);
@@ -735,6 +747,7 @@ async function loadData(){
     const clean=sanitizeStoredRecord(r.module,r.data);
     const hydrated=hydrateRecordFromDatabase(r.module,clean,r.external_id);
     if(!hydrated.__db_uploaded_at && r.uploaded_at)hydrated.__db_uploaded_at=r.uploaded_at;
+    if(!hydrated.__source_batch_id && r.import_batch_id)hydrated.__source_batch_id=String(r.import_batch_id);
     (state.records[r.module]??=[]).push({...hydrated,client_id:r.client_id});
   });
 
