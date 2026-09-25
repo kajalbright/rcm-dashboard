@@ -28,8 +28,10 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 .login-brand-panel{position:relative;padding:54px 58px;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(145deg,#061b2c 0%,#0b2c47 55%,#0a3b4a 100%);color:#fff;overflow:hidden}
 .login-brand-panel:before{content:"";position:absolute;width:420px;height:420px;border-radius:50%;right:-210px;top:-180px;background:radial-gradient(circle,rgba(31,193,174,.28),transparent 68%)}
 .login-brand-panel:after{content:"";position:absolute;width:300px;height:300px;border-radius:50%;left:-180px;bottom:-150px;background:radial-gradient(circle,rgba(213,44,132,.22),transparent 68%)}
-.login-brand-logo{width:300px;height:auto;display:flex;align-items:flex-start;justify-content:flex-start;margin-bottom:38px;position:relative;z-index:1}
-.login-brand-logo img{display:block;width:100%;height:auto;max-width:300px;object-fit:contain;object-position:left center;filter:drop-shadow(0 8px 18px rgba(0,0,0,.12));image-rendering:auto}
+.login-brand-logo{width:300px;height:auto;display:flex;align-items:center;justify-content:center;margin-bottom:38px;position:relative;z-index:1;background:#fff;padding:12px 16px;box-sizing:border-box;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);overflow:hidden}
+.login-brand-logo img{display:block;width:100%;height:auto;max-width:268px;object-fit:contain;object-position:center;filter:none;image-rendering:auto}
+.mobile-login-logo{display:flex;align-items:center;justify-content:center;background:#fff;padding:10px 14px;border-radius:8px;box-sizing:border-box;box-shadow:0 4px 14px rgba(0,0,0,.06);width:fit-content;margin:0 auto 22px}
+.mobile-login-logo img{display:block;width:210px;height:auto;object-fit:contain;filter:none}
 .login-brand-copy{position:relative;z-index:1;max-width:520px}.eyebrow{font-size:10px;letter-spacing:.18em;color:#79ddd1;font-weight:800}
 .login-brand-copy h1{font-size:43px;line-height:1.08;margin:14px 0 16px;letter-spacing:-.03em}.login-brand-copy h1 strong{color:#fff}
 .login-brand-copy p{max-width:470px;color:#afc1d2;line-height:1.7;font-size:13px;margin:0}
@@ -64,7 +66,7 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 
 </style>
 </head>
-<body data-bha-build="2026-09-25-v14">
+<body data-bha-build="2026-09-26-v22">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
