@@ -234,12 +234,17 @@ function sourceColumnKeys(module,row){
  const raw=row?.__source_columns;
  const clean=k=>!isInternalDataKey(k)&&k!=='client_id'&&!String(k).startsWith('__');
  if(Array.isArray(raw)&&raw.length){
+   // This list is created in exact source-header order during import.
+   // Keep that order authoritative. Only append a real field if an older
+   // record has the field but its metadata did not contain it.
    const keys=raw.filter(clean);
-   // Older records may have incomplete source metadata. Add canonical fields
-   // that are actually present in the record, without adding absent fields.
-   schemas[module]?.map?.forEach(k=>{if(clean(k)&&Object.prototype.hasOwnProperty.call(row,k)&&!keys.includes(k))keys.push(k)});
+   Object.keys(row||{}).forEach(k=>{
+     if(clean(k)&&!keys.includes(k))keys.push(k);
+   });
    return keys;
  }
+ // Legacy records: use their stored object order; never replace it with
+ // the module schema order because that makes columns appear random.
  return Object.keys(row||{}).filter(clean);
 }
 function normalizeModuleRows(module,rows){
@@ -398,7 +403,7 @@ function globalFilters(){
 }
 function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload File</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Open / active claims</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Collection Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Paid ÷ billed</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Performance</h3><p class="cap">Billed vs paid vs patient responsibility</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
 function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
-function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
+function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the same column order as the uploaded file.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
@@ -453,20 +458,37 @@ function filteredRows(m){
     return true;
   });
 }
-function exportCurrentModule(m){const rows=filteredRows(m);if(!rows.length)return toast('No records to export.');const keySet=new Set();rows.forEach(r=>sourceColumnKeys(m,r).forEach(k=>keySet.add(k)));const keys=[...schemas[m].map.filter(k=>keySet.has(k)),...Array.from(keySet).filter(k=>!schemas[m].map.includes(k))];const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
+function exportCurrentModule(m){
+  const rows=filteredRows(m);
+  if(!rows.length)return toast('No records to export.');
+  // Preserve the same column order used by the uploaded source file.
+  const keys=[];
+  const seen=new Set();
+  rows.forEach(r=>{
+    sourceColumnKeys(m,r).forEach(k=>{
+      if(!seen.has(k)){seen.add(k);keys.push(k);}
+    });
+  });
+  const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
+  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
 function renderModule(m){
   const rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
-  // Render ONLY source columns that are actually present in the imported records.
-  // This prevents legacy/internal fields (especially generated Row ID) from appearing
-  // when they were not present in the CSV/Excel source. Standard fields keep
-  // their schema order; genuine source extras follow afterwards.
-  const presentKeys=new Set();
-  rows.forEach(r=>sourceColumnKeys(m,r).forEach(k=>presentKeys.add(k)));
-  // Keep the exact schema order for known source columns, then append genuine
-  // source extras. Internal metadata never becomes a visible column.
-  const baseCols=schemas[m].map.filter(k=>presentKeys.has(k));
-  const extraKeys=[...presentKeys].filter(k=>!schemas[m].map.includes(k));
-  const cols=[...baseCols,...extraKeys]; const shown=rows.slice(0,500);
+  // IMPORTANT: The portal must preserve the uploaded file's column order.
+  // Do NOT reorder known fields using the module schema. `__source_columns`
+  // records the exact canonical column sequence created from the source
+  // headers during import. For legacy records without that metadata, the
+  // JavaScript object insertion order is used as the best available order.
+  const cols=[];
+  const seen=new Set();
+  rows.forEach(r=>{
+    sourceColumnKeys(m,r).forEach(k=>{
+      if(!seen.has(k)){
+        seen.add(k);
+        cols.push(k);
+      }
+    });
+  });
+  const shown=rows.slice(0,500);
   table.innerHTML=`<thead><tr>${cols.map(c=>`<th>${esc(prettyLabel(c,m))}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${moneyFields.has(c)?money(r[c]):c==='status'?statusPill(r[c]):esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody>`;
   if(!rows.length)table.innerHTML+=`<tbody><tr><td colspan="${cols.length}" class="empty">No records match the current filters.</td></tr></tbody>`;
   const meta=document.getElementById('tableMeta');if(meta)meta.innerHTML=`Showing <b>${shown.length.toLocaleString()}</b> of <b>${rows.length.toLocaleString()}</b> filtered records${rows.length>500?' · Showing first 500':''}`;
