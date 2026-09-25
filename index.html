@@ -228,7 +228,7 @@ function recordDate(module,r){
 }
 function isInternalDataKey(key){
  const k=String(key||'').toLowerCase().replace(/[^a-z0-9]/g,'');
- return k==='id'||k==='rowid'||k==='externalid'||k==='sourcecolumns'||k==='sourcefile'||k==='importbatchid';
+ return k==='id'||k==='rowid'||k==='externalid'||k==='sourcecolumns'||k==='sourcefile'||k==='importbatchid'||k==='sourcerowindex'||k==='importedat'||k==='dbuploadedat';
 }
 function sourceColumnKeys(module,row){
  const raw=row?.__source_columns;
@@ -296,7 +296,12 @@ function normalizeModuleRows(module,rows){
   // Store the exact canonical source columns as hidden metadata. This lets the
   // renderer reproduce the uploaded file structure without exposing metadata.
   const cleanMoney=canonicalizeImportedMoney(module,d);
+
+  // Preserve the source file exactly. These fields are internal metadata only
+  // and are never rendered/exported. They make row order survive a database
+  // round-trip, where SQL is otherwise free to return rows in any order.
   cleanMoney.__source_columns=Object.keys(d).filter(k=>!isInternalDataKey(k));
+  cleanMoney.__source_row_index=rowIndex;
   return cleanMoney;
  });
 }
@@ -437,6 +442,20 @@ function bindSection(){
   document.getElementById('newClient')?.addEventListener('click',openClientModal);
 }
 function getRecords(m){return state.records[m]||[]}
+function compareSourceOrder(a,b){
+  const ai=Number(a?.__source_row_index);
+  const bi=Number(b?.__source_row_index);
+  const ah=Number.isFinite(ai), bh=Number.isFinite(bi);
+  if(ah&&bh&&ai!==bi)return ai-bi;
+
+  const at=String(a?.__imported_at||a?.__db_uploaded_at||'');
+  const bt=String(b?.__imported_at||b?.__db_uploaded_at||'');
+  if(at&&bt&&at!==bt)return at.localeCompare(bt);
+
+  // For legacy records without import metadata, keep the order supplied by
+  // the database rather than inventing a sort by claim/payer/date.
+  return 0;
+}
 function filteredRows(m){
   const payer=document.getElementById('payerFilter')?.value||'';
   const provider=document.getElementById('providerFilter')?.value||'';
@@ -445,7 +464,7 @@ function filteredRows(m){
   const to=document.getElementById('dateTo')?.value||'';
   const q=(document.getElementById('tableSearch')?.value||'').toLowerCase().trim();
   const selected=state.client?.id;
-  return getRecords(m).filter(r=>{
+  const filtered=getRecords(m).filter(r=>{
     if(hasAllClients() && selected && r.client_id && String(r.client_id)!==String(selected)) return false;
     if(payer && String(r.payer||'').toLowerCase()!==payer.toLowerCase()) return false;
     if(provider && String(r.provider||'').toLowerCase()!==provider.toLowerCase()) return false;
@@ -457,6 +476,13 @@ function filteredRows(m){
     if(q && !JSON.stringify(r).toLowerCase().includes(q)) return false;
     return true;
   });
+  return filtered
+    .map((r,index)=>({r,index}))
+    .sort((a,b)=>{
+      const order=compareSourceOrder(a.r,b.r);
+      return order||a.index-b.index;
+    })
+    .map(x=>x.r);
 }
 function exportCurrentModule(m){
   const rows=filteredRows(m);
@@ -638,7 +664,8 @@ async function importCsv(){
     if(!['replace','append'].includes(mode))throw new Error('Invalid import mode.');
 
     if(DEMO_MODE){
-      const demoRows=rows.map(r=>({...r,client_id:clientId}));
+      const importedAt=new Date().toISOString();
+      const demoRows=rows.map((r,index)=>({...r,client_id:clientId,__source_row_index:Number.isFinite(Number(r?.__source_row_index))?Number(r.__source_row_index):index,__imported_at:importedAt}));
       if(mode==='replace')state.records[module]=demoRows;
       else state.records[module]=[...getRecords(module),...demoRows];
       result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} in demo mode.</div>`;
@@ -665,12 +692,19 @@ async function insertRecords(module,rows,clientId,mode){
   if(!Array.isArray(rows)||!rows.length)throw new Error('No records to import.');
   if(rows.length>50000)throw new Error('Maximum 50,000 rows per import.');
   const batchId=crypto.randomUUID?.()||`batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const importedAt=new Date().toISOString();
+
   // external_id is database metadata only. It is never added to `data`, so it
   // cannot create an extra visible Row ID column in the portal.
   const naturalIdKeys=['claim_id','payment_id','authnum','patient_id'];
   const payload=rows.map((r,index)=>{
     const naturalId=naturalIdKeys.map(k=>String(r?.[k]??'').trim()).find(Boolean);
-    return {external_id:naturalId||`${batchId}:${index+1}`,data:r};
+    const data={
+      ...r,
+      __source_row_index:Number.isFinite(Number(r?.__source_row_index))?Number(r.__source_row_index):index,
+      __imported_at:importedAt
+    };
+    return {external_id:naturalId||`${batchId}:${index+1}`,data};
   });
   const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
   if(error)throw new Error(error.message||'Import failed.');
@@ -700,7 +734,16 @@ async function loadData(){
   source.forEach(r=>{
     const clean=sanitizeStoredRecord(r.module,r.data);
     const hydrated=hydrateRecordFromDatabase(r.module,clean,r.external_id);
+    if(!hydrated.__db_uploaded_at && r.uploaded_at)hydrated.__db_uploaded_at=r.uploaded_at;
     (state.records[r.module]??=[]).push({...hydrated,client_id:r.client_id});
+  });
+
+  // Never sort by claim ID, payer, date, balance, etc. Those would change the
+  // source row order. Only use the internal import sequence when available.
+  Object.keys(state.records).forEach(m=>{
+    state.records[m]=state.records[m].map((r,index)=>({r,index}))
+      .sort((a,b)=>compareSourceOrder(a.r,b.r)||a.index-b.index)
+      .map(x=>x.r);
   });
 }
 async function loadClients(){if(DEMO_MODE){state.clients=demoClients;return}const {data,error}=await sb.from('clients').select('id,name,specialty,status').order('name');if(error)throw error;state.clients=data||[];state.client=state.profile.client_id?state.clients.find(c=>c.id===state.profile.client_id)||null:null}
