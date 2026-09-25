@@ -21,7 +21,7 @@
 @media(max-width:1100px){.grid-kpi{grid-template-columns:repeat(3,1fr)}.cards2,.upload-panel{grid-template-columns:1fr}.cards3{grid-template-columns:1fr 1fr}}@media(max-width:800px){.sidebar{width:72px}.side-brand div:not(.brandmark),.nav-label,.nav button span:not(.nav-icon){display:none}.nav button{justify-content:center}.main{margin-left:72px;width:calc(100% - 72px)}.topbar{padding:0 15px}.content{padding:18px 14px}.grid-kpi{grid-template-columns:1fr 1fr}.cards3{grid-template-columns:1fr}.modal-grid{grid-template-columns:1fr}.top-actions .role-badge{display:none}}
 </style>
 </head>
-<body data-bha-build="2026-09-25-v10">
+<body data-bha-build="2026-09-25-v14">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -232,75 +232,59 @@ function isInternalDataKey(key){
 }
 function sourceColumnKeys(module,row){
  const raw=row?.__source_columns;
- const clean=k=>!isInternalDataKey(k)&&k!=='client_id'&&!String(k).startsWith('__');
  if(Array.isArray(raw)&&raw.length){
-   // This list is created in exact source-header order during import.
-   // Keep that order authoritative. Only append a real field if an older
-   // record has the field but its metadata did not contain it.
-   const keys=raw.filter(clean);
-   Object.keys(row||{}).forEach(k=>{
-     if(clean(k)&&!keys.includes(k))keys.push(k);
-   });
-   return keys;
+   return raw.filter(k=>String(k||'')!=='client_id'&&!String(k||'').startsWith('__'));
  }
- // Legacy records: use their stored object order; never replace it with
- // the module schema order because that makes columns appear random.
- return Object.keys(row||{}).filter(clean);
+ return Object.keys(row||{}).filter(k=>String(k||'')!=='client_id'&&!String(k||'').startsWith('__')&&!isInternalDataKey(k));
+}
+function sourceHeaderLabel(row,key){
+ const headers=row?.__source_headers;
+ if(headers&&typeof headers==='object'){
+   const label=String(headers[key]??'').trim();
+   if(label)return label;
+ }
+ return prettyLabel(key);
 }
 function normalizeModuleRows(module,rows){
  const s=schemas[module];
  if(!s)throw new Error(`Unsupported module: ${module}`);
  const aliasIndex={};
- Object.entries(s.aliases).forEach(([canonical,names])=>{
-  [canonical,...names].forEach(n=>aliasIndex[normalizeHeader(n)]=canonical);
+ Object.entries(s.aliases||{}).forEach(([canonical,names])=>{
+  [canonical,...names].forEach(n=>{aliasIndex[normalizeHeader(n)]=canonical});
  });
  return rows.map((source,rowIndex)=>{
   const src=(source&&typeof source==='object')?source:{};
-  const entries=Object.entries(src);
   const d={};
-  const usedSourceKeys=new Set();
-
-  // Header-based mapping is authoritative. Never guess from column position
-  // when a real header is present; this prevents status/ID/date columns from shifting.
-  entries.forEach(([rawKey,value])=>{
-   const canonical=aliasIndex[normalizeHeader(rawKey)];
+  const sourceColumns=[];
+  const sourceHeaders={};
+  const usedCanonical=new Set();
+  const usedKeys=new Set();
+  // Walk source headers left-to-right so dashboard order exactly matches file order.
+  Object.entries(src).forEach(([rawKey,value],i)=>{
+   const originalHeader=String(rawKey??'').replace(/^﻿/,'').trim();
+   if(!originalHeader)return;
+   const canonical=aliasIndex[normalizeHeader(originalHeader)];
    if(canonical){
-    const target=canonical;
-    if(d[target]===''||d[target]===undefined||d[target]===null){
-     d[target]=value??'';
-     usedSourceKeys.add(rawKey);
-    }
+     if(usedCanonical.has(canonical))throw new Error(`Duplicate column mapping in row ${rowIndex+2}: "${originalHeader}" maps to ${canonical}.`);
+     d[canonical]=value??'';
+     sourceColumns.push(canonical);
+     sourceHeaders[canonical]=originalHeader;
+     usedCanonical.add(canonical);
+     usedKeys.add(canonical);
+     return;
    }
-  });
-
-  if(Object.keys(d).length===0)throw new Error(`No supported columns could be mapped for ${modules[module].label}.`);
-  // Preserve genuinely extra columns without overwriting canonical fields.
-  const usedNames=new Set(Object.keys(d));
-  entries.forEach(([rawKey,value],i)=>{
-   if(usedSourceKeys.has(rawKey))return;
-   const normalizedRaw=normalizeHeader(rawKey);
-   const canonical=aliasIndex[normalizedRaw];
-   if(canonical)return;
-
-   // Generic ID is reserved for database metadata in this portal.
-   // Never turn it into a visible extra column.
-   if(normalizedRaw==='id')return;
-
-   if(!String(rawKey??'').trim())return;
-   let key=cleanExtraKey(rawKey,i);
-   while(usedNames.has(key))key=`${key}_${i+1}`;
-   usedNames.add(key);
+   let key=cleanExtraKey(originalHeader,i);
+   while(usedKeys.has(key)||key.startsWith('__'))key=`${key}_${i+1}`;
+   usedKeys.add(key);
    d[key]=value??'';
+   sourceColumns.push(key);
+   sourceHeaders[key]=originalHeader;
   });
-
-  // Store the exact canonical source columns as hidden metadata. This lets the
-  // renderer reproduce the uploaded file structure without exposing metadata.
+  if(!sourceColumns.length)throw new Error(`Row ${rowIndex+2} has no usable columns.`);
+  if(!sourceColumns.some(k=>usedCanonical.has(k)))throw new Error(`No supported columns could be mapped for ${modules[module].label}.`);
   const cleanMoney=canonicalizeImportedMoney(module,d);
-
-  // Preserve the source file exactly. These fields are internal metadata only
-  // and are never rendered/exported. They make row order survive a database
-  // round-trip, where SQL is otherwise free to return rows in any order.
-  cleanMoney.__source_columns=Object.keys(d).filter(k=>!isInternalDataKey(k));
+  cleanMoney.__source_columns=sourceColumns;
+  cleanMoney.__source_headers=sourceHeaders;
   cleanMoney.__source_row_index=rowIndex;
   return cleanMoney;
  });
@@ -348,43 +332,45 @@ function canonicalizeImportedMoney(module,r){
 }
 function sanitizeStoredRecord(module, raw){
  const r={...(raw||{})};
- const legacyMap={
-  payments:{id:'payment_id',paymentDate:'payment_date',checkNo:'check_no',postedDate:'posted_date',totalDepositAmount:'total_deposit_amount',postedAmount:'posted_amount'},
-  charges:{id:'claim_id'},
-  verification:{participationStatus:'participation_status',visitLimits:'visit_limits'},
-  ar:{},
-  denials:{},
-  auth:{}
- };
+ const legacyMap={payments:{paymentDate:'payment_date',checkNo:'check_no',postedDate:'posted_date',totalDepositAmount:'total_deposit_amount',postedAmount:'posted_amount'},charges:{},verification:{participationStatus:'participation_status',visitLimits:'visit_limits'},ar:{},denials:{},auth:{}};
  const map=legacyMap[module]||{};
  Object.entries(map).forEach(([legacy,canonical])=>{
    const current=r[canonical];
-   const currentMissing=current===undefined||current===null||String(current).trim()===''||(
-     moneyFields.has(canonical)&&parseNumericValue(current)===null
-   );
-   if(currentMissing && r[legacy]!==undefined)r[canonical]=r[legacy];
+   const currentMissing=current===undefined||current===null||String(current).trim()===''||(moneyFields.has(canonical)&&parseNumericValue(current)===null);
+   if(currentMissing&&r[legacy]!==undefined)r[canonical]=r[legacy];
    if(legacy!==canonical)delete r[legacy];
  });
  repairMoneyFields(module,r);
  canonicalizeImportedMoney(module,r);
- // Only remove generic/internal IDs. Module-specific real IDs were migrated above.
+ const sourceHasId=Array.isArray(r.__source_columns)&&r.__source_columns.includes('id');
  ['row_id','rowId','external_id','externalId','_id','source_columns','sourceColumns','source_file','sourceFile','import_batch_id','importBatchId'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(r,k))delete r[k]});
- if(Object.prototype.hasOwnProperty.call(r,'id'))delete r.id;
- if(module==='payments' && /^row-/i.test(String(r.payment_id??'')))delete r.payment_id;
- if(module==='charges' && /^row-/i.test(String(r.claim_id??'')))delete r.claim_id;
- if(Array.isArray(r.__source_columns))r.__source_columns=r.__source_columns.filter(k=>!isInternalDataKey(k));
+ if(Object.prototype.hasOwnProperty.call(r,'id')&&!sourceHasId)delete r.id;
+ if(module==='payments'&&/^row-/i.test(String(r.payment_id??'')))delete r.payment_id;
+ if(module==='charges'&&/^row-/i.test(String(r.claim_id??'')))delete r.claim_id;
+ if(Array.isArray(r.__source_columns)){
+   r.__source_columns=r.__source_columns.filter(k=>String(k)!=='client_id'&&!String(k).startsWith('__'));
+   if(r.__source_headers&&typeof r.__source_headers==='object'){
+     const allowed=new Set(r.__source_columns);
+     Object.keys(r.__source_headers).forEach(k=>{if(!allowed.has(k))delete r.__source_headers[k]});
+   }
+ }
  return r;
 }
 function demoData(){const s=sampleRows();return Object.fromEntries(Object.entries(s).map(([m,rows])=>[m,normalizeModuleRows(m,rows).map(r=>sanitizeStoredRecord(m,{...r,client_id:'demo-client-1'}))]))}
 function hydrateRecordFromDatabase(module,record,externalId){
  const r={...(record||{})};
  const ext=String(externalId??'').trim();
+ if(ext){
+   r.__external_id=ext;
+   const match=ext.match(/:(\d+)$/);
+   if(match)r.__source_sequence=Number(match[1]);
+ }
  const isSynthetic=/^batch-[^:]+:\d+$/i.test(ext);
- if(module==='payments' && !String(r.payment_id??'').trim() && ext && !isSynthetic && !/^row-/i.test(ext))r.payment_id=ext;
- if(module==='charges' && !String(r.claim_id??'').trim() && ext && !isSynthetic && !/^row-/i.test(ext))r.claim_id=ext;
- if(module==='ar' && !String(r.claim_id??'').trim() && ext && !isSynthetic && !/^row-/i.test(ext))r.claim_id=ext;
- if(module==='denials' && !String(r.claim_id??'').trim() && ext && !isSynthetic && !/^row-/i.test(ext))r.claim_id=ext;
- if(module==='auth' && !String(r.authnum??'').trim() && ext && !isSynthetic && !/^row-/i.test(ext))r.authnum=ext;
+ if(module==='payments'&&!String(r.payment_id??'').trim()&&ext&&!isSynthetic&&!/^row-/i.test(ext))r.payment_id=ext;
+ if(module==='charges'&&!String(r.claim_id??'').trim()&&ext&&!isSynthetic&&!/^row-/i.test(ext))r.claim_id=ext;
+ if(module==='ar'&&!String(r.claim_id??'').trim()&&ext&&!isSynthetic&&!/^row-/i.test(ext))r.claim_id=ext;
+ if(module==='denials'&&!String(r.claim_id??'').trim()&&ext&&!isSynthetic&&!/^row-/i.test(ext))r.claim_id=ext;
+ if(module==='auth'&&!String(r.authnum??'').trim()&&ext&&!isSynthetic&&!/^row-/i.test(ext))r.authnum=ext;
  return r;
 }
 function loginView(){return `<div class="login"><div class="login-card"><div class="brand"><div class="brandmark">BHA</div><div><h1>Bright Health Alliance</h1><small>Revenue Cycle Management</small></div></div><h2>Client Portal</h2><p>Secure access to your RCM performance dashboard.</p><form id="loginForm"><div class="field"><label>Email / Username</label><input id="loginEmail" autocomplete="username" required></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div><button class="btn btn-primary" style="width:100%;margin-top:8px">Sign in</button><div id="loginError"></div></form>${DEMO_MODE?'<div class="demo-note"><b>Demo mode:</b> admin@demo.local / Admin@123<br>user@demo.local / User@123<br>client@demo.local / Client@123</div>':''}</div></div>`}
@@ -408,7 +394,7 @@ function globalFilters(){
 }
 function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload File</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Open / active claims</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Collection Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Paid ÷ billed</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Performance</h3><p class="cap">Billed vs paid vs patient responsibility</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
 function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
-function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the same column order as the uploaded file.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
+function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the exact column order and row order from the uploaded file. The original header names are also retained.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
@@ -443,23 +429,17 @@ function bindSection(){
 }
 function getRecords(m){return state.records[m]||[]}
 function compareSourceOrder(a,b){
-  // A record belongs to an upload batch. Batch order is determined by the
-  // actual upload timestamp; row order is determined by the source row index.
-  // This prevents rows from different uploads (each starting at row 0) from
-  // being interleaved.
-  const at=String(a?.__imported_at||a?.__db_uploaded_at||'');
-  const bt=String(b?.__imported_at||b?.__db_uploaded_at||'');
+  const ab=String(a?.__source_batch_id||''),bb=String(b?.__source_batch_id||'');
+  const ai=Number(a?.__source_sequence),bi=Number(b?.__source_sequence);
+  if(ab&&bb&&ab===bb){
+    if(Number.isFinite(ai)&&Number.isFinite(bi)&&ai!==bi)return ai-bi;
+    const ari=Number(a?.__source_row_index),bri=Number(b?.__source_row_index);
+    if(Number.isFinite(ari)&&Number.isFinite(bri)&&ari!==bri)return ari-bri;
+  }
+  const at=String(a?.__imported_at||a?.__db_uploaded_at||''),bt=String(b?.__imported_at||b?.__db_uploaded_at||'');
   if(at&&bt&&at!==bt)return at.localeCompare(bt);
-
-  const ai=Number(a?.__source_row_index);
-  const bi=Number(b?.__source_row_index);
-  const ah=Number.isFinite(ai), bh=Number.isFinite(bi);
-  if(ah&&bh&&ai!==bi)return ai-bi;
-  if(ah&&!bh)return -1;
-  if(!ah&&bh)return 1;
-
-  // Legacy records without source metadata: preserve database order rather
-  // than inventing a sort by claim ID, payer, date, amount, etc.
+  if(at&&!bt)return 1;
+  if(!at&&bt)return -1;
   return 0;
 }
 function filteredRows(m){
@@ -521,7 +501,9 @@ function renderModule(m){
     });
   });
   const shown=rows.slice(0,500);
-  table.innerHTML=`<thead><tr>${cols.map(c=>`<th>${esc(prettyLabel(c,m))}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${moneyFields.has(c)?money(r[c]):c==='status'?statusPill(r[c]):esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  const headerRows=new Map();
+  rows.forEach(r=>{sourceColumnKeys(m,r).forEach(c=>{if(!headerRows.has(c))headerRows.set(c,r)})});
+  table.innerHTML=`<thead><tr>${cols.map(c=>`<th>${esc(sourceHeaderLabel(headerRows.get(c)||rows[0],c))}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${moneyFields.has(c)?money(r[c]):c==='status'?statusPill(r[c]):esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody>`;
   if(!rows.length)table.innerHTML+=`<tbody><tr><td colspan="${cols.length}" class="empty">No records match the current filters.</td></tr></tbody>`;
   const meta=document.getElementById('tableMeta');if(meta)meta.innerHTML=`Showing <b>${shown.length.toLocaleString()}</b> of <b>${rows.length.toLocaleString()}</b> filtered records${rows.length>500?' · Showing first 500':''}`;
 }
@@ -747,7 +729,12 @@ async function loadData(){
     const clean=sanitizeStoredRecord(r.module,r.data);
     const hydrated=hydrateRecordFromDatabase(r.module,clean,r.external_id);
     if(!hydrated.__db_uploaded_at && r.uploaded_at)hydrated.__db_uploaded_at=r.uploaded_at;
+    if(!hydrated.__imported_at && r.uploaded_at)hydrated.__imported_at=r.uploaded_at;
     if(!hydrated.__source_batch_id && r.import_batch_id)hydrated.__source_batch_id=String(r.import_batch_id);
+    if(!hydrated.__source_batch_id && hydrated.__external_id){
+      const batch=String(hydrated.__external_id).split(':')[0];
+      if(batch)hydrated.__source_batch_id=batch;
+    }
     (state.records[r.module]??=[]).push({...hydrated,client_id:r.client_id});
   });
 
