@@ -470,15 +470,27 @@ function bindSection(){
     renderSection();
   });
   document.getElementById('logoutBtn')?.addEventListener('click',logout);
-  document.getElementById('globalClientSelect')?.addEventListener('change',async e=>{
+  const clientSelect=document.getElementById('globalClientSelect');
+  if(clientSelect) clientSelect.onchange=async e=>{
     const value=e.target.value;
-    state.client=value==='__ALL__'?null:(state.clients.find(c=>c.id===value)||null);
+    const nextClient=value==='__ALL__'?null:(state.clients.find(c=>String(c.id)===String(value))||null);
+    if(value!=='__ALL__'&&!nextClient){toast('Selected client was not found.');return;}
+    const previousClient=state.client;
+    state.client=nextClient;
+    clientSelect.disabled=true;
     try{
       await loadData();
       renderSection();
       toast(state.client?`Showing ${state.client.name}`:'Showing All Clients');
-    }catch(err){toast(err.message||'Unable to switch client');}
-  });
+    }catch(err){
+      state.client=previousClient;
+      clientSelect.value=previousClient?.id||'__ALL__';
+      toast(err.message||'Unable to switch client');
+    }finally{
+      const refreshedSelect=document.getElementById('globalClientSelect');
+      if(refreshedSelect)refreshedSelect.disabled=false;
+    }
+  };
   document.getElementById('clearFilters')?.addEventListener('click',()=>{
     ['payerFilter','providerFilter','statusFilter','dateFrom','dateTo','tableSearch'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
     state.section==='overview'?renderOverview():renderModule(state.section);
@@ -513,9 +525,10 @@ function filteredRows(m){
   const from=document.getElementById('dateFrom')?.value||'';
   const to=document.getElementById('dateTo')?.value||'';
   const q=(document.getElementById('tableSearch')?.value||'').toLowerCase().trim();
-  const selected=state.client?.id;
+  const selected=state.client?.id || (!hasAllClients()?state.profile?.client_id:null);
   const filtered=getRecords(m).filter(r=>{
-    if(hasAllClients() && selected && r.client_id && String(r.client_id)!==String(selected)) return false;
+    // Always scope locally as a second guard; missing client_id must never pass a client-scoped view.
+    if(selected && String(r.client_id||'')!==String(selected)) return false;
     if(getRole()==='provider' && String(r.provider||'').trim().toLowerCase()!==String(state.profile?.provider_name||'').trim().toLowerCase()) return false;
     if(payer && String(r.payer||'').toLowerCase()!==payer.toLowerCase()) return false;
     if(provider && String(r.provider||'').toLowerCase()!==provider.toLowerCase()) return false;
@@ -782,13 +795,22 @@ async function loadData(){
     }
     return;
   }
-  let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
-  if(!hasAllClients()) q=q.eq('client_id',state.profile.client_id);
-  else if(state.client?.id) q=q.eq('client_id',state.client.id);
-  const {data,error}=await q.order('uploaded_at',{ascending:false}).limit(20001);
-  if(error)throw error;
-  state.dataCapped=(data||[]).length>20000;
-  const source=(data||[]).slice(0,20000);
+  const selectedClientId=state.client?.id || (!hasAllClients()?state.profile?.client_id:null);
+  const pageSize=1000, maxRows=20000;
+  const source=[];
+  for(let offset=0;offset<=maxRows;offset+=pageSize){
+    let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
+    if(selectedClientId)q=q.eq('client_id',selectedClientId);
+    const {data,error}=await q.order('uploaded_at',{ascending:false}).order('id',{ascending:true}).range(offset,offset+pageSize-1);
+    if(error)throw error;
+    const page=data||[];
+    if(!page.length)break;
+    const remaining=maxRows+1-source.length;
+    source.push(...page.slice(0,remaining));
+    if(page.length<pageSize||source.length>maxRows)break;
+  }
+  state.dataCapped=source.length>maxRows;
+  source.splice(maxRows);
   state.records={};
   source.forEach(r=>{
     const clean=sanitizeStoredRecord(r.module,r.data);
