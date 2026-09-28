@@ -81,8 +81,13 @@ const modules={
  overview:{label:'Executive Overview',icon:'▦'},ar:{label:'AR Management',icon:'◫'},denials:{label:'Denial Management',icon:'⊘'},verification:{label:'Insurance Verification',icon:'✓'},auth:{label:'Prior Authorization',icon:'▣'},charges:{label:'Charge Submission',icon:'↥'},payments:{label:'Payment Posting',icon:'$',},imports:{label:'CSV Imports',icon:'⇧'},users:{label:'Users & Access',icon:'♙'},activity:{label:'Activity Log',icon:'◷'},clients:{label:'Clients & Practices',icon:'⌂'}
 };
 const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Multi-specialty'}];
-const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-provider',name:'Demo Provider',email:'provider@demo.local',role:'provider',client_id:'demo-client-1',access_all:false,provider_name:'Dr. Sharma',active:true}];
+const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
 let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};
+// Short-lived in-memory cache: improves repeat client switching without persisting PHI.
+const recordsCache=new Map();
+const SEARCH_TEXT_CACHE=new WeakMap();
+const RECORD_CACHE_TTL_MS=30000;
+function clearRecordsCache(){recordsCache.clear();}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function parseNumericValue(v){
   if(v===null||v===undefined||v==='')return null;
@@ -458,7 +463,7 @@ function globalFilters(){
 }
 function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload File</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Open / active claims</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Collection Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Paid ÷ billed</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Performance</h3><p class="cap">Billed vs paid vs patient responsibility</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
 function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
-function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the exact column order and row order from the uploaded file. The original header names are also retained.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
+function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the exact column order and row order from the uploaded file. The original header names are also retained.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Import Batch History</h3><p class="cap">Review individual CSV imports and delete only the selected batch. Available to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="batchClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="batchModule">${choices}</select></div></div><button class="btn btn-light btn-small" id="refreshBatches">Refresh Batch History</button><div id="batchHistory" style="margin-top:12px"></div>`:`<div class="notice">Admin access required to view import batches.</div>`}</div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
@@ -478,6 +483,7 @@ function bindSection(){
     const previousClient=state.client;
     state.client=nextClient;
     clientSelect.disabled=true;
+    toast('Loading selected client…');
     try{
       await loadData();
       renderSection();
@@ -499,7 +505,7 @@ function bindSection(){
   document.getElementById('startImport')?.addEventListener('click',importCsv);
   document.getElementById('csvFile')?.addEventListener('change',e=>{const f=e.target.files?.[0],out=document.getElementById('selectedFileInfo');if(out)out.textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`:''});
   document.getElementById('exportCurrent')?.addEventListener('click',()=>exportCurrentModule(state.section));
-  document.getElementById('downloadTemplate')?.addEventListener('click',downloadTemplate);document.getElementById('deleteDataBtn')?.addEventListener('click',deleteImportedData);
+  document.getElementById('downloadTemplate')?.addEventListener('click',downloadTemplate);document.getElementById('deleteDataBtn')?.addEventListener('click',deleteImportedData);document.getElementById('refreshBatches')?.addEventListener('click',loadImportBatches);if(document.getElementById('batchClient'))document.getElementById('batchClient').addEventListener('change',loadImportBatches);if(document.getElementById('batchModule'))document.getElementById('batchModule').addEventListener('change',loadImportBatches);if(document.getElementById('batchHistory'))loadImportBatches();
   document.getElementById('newUser')?.addEventListener('click',openUserModal);
   document.getElementById('newClient')?.addEventListener('click',openClientModal);
 }
@@ -517,12 +523,6 @@ function compareSourceOrder(a,b){
   if(at&&!bt)return 1;
   if(!at&&bt)return -1;
   return 0;
-}
-const searchTextCache=new WeakMap();
-function cachedSearchText(record){
-  let text=searchTextCache.get(record);
-  if(text===undefined){text=JSON.stringify(record).toLowerCase();searchTextCache.set(record,text)}
-  return text;
 }
 function filteredRows(m){
   const payer=document.getElementById('payerFilter')?.value||'';
@@ -543,10 +543,9 @@ function filteredRows(m){
     if(from && date && date<from) return false;
     if(to && date && date>to) return false;
     if((from||to) && !date) return false;
-    if(q && !cachedSearchText(r).includes(q)) return false;
+    if(q){let searchText=SEARCH_TEXT_CACHE.get(r);if(searchText===undefined){searchText=Object.entries(r).filter(([k])=>!k.startsWith('__')).map(([,v])=>String(v??'')).join(' ').toLowerCase();SEARCH_TEXT_CACHE.set(r,searchText);}if(!searchText.includes(q))return false;}
     return true;
   });
-  // Array.filter preserves the already-normalized source order from loadData().
   return filtered;
 }
 function exportCurrentModule(m){
@@ -561,7 +560,7 @@ function exportCurrentModule(m){
     });
   });
   const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
-  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.length.toLocaleString()} records`)}
+  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
 function renderModule(m){
   const rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
   // IMPORTANT: The portal must preserve the uploaded file's column order.
@@ -740,14 +739,10 @@ async function importCsv(){
       return;
     }
     const response=await insertRecords(module,rows,clientId,mode);
-    try{
-      await loadData();
-      result.innerHTML=`<div class="notice">Successfully imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} and refreshed the dashboard.</div>`;
-      if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
-      toast('File imported successfully');
-    }catch(refreshError){
-      result.innerHTML=`<div class="notice danger-note">The import was saved, but the dashboard could not refresh. Do not upload the same file again. Refresh the page and check the records. Details: ${esc(refreshError.message||refreshError)}</div>`;
-    }
+    result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} successfully.</div>`;
+    if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
+    await loadData();
+    toast('File imported successfully');
   }catch(e){
     if(result)result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`;
   }finally{
@@ -785,69 +780,58 @@ async function insertRecords(module,rows,clientId,mode){
   });
   const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
   if(error)throw new Error(error.message||'Import failed.');
+  clearRecordsCache();
   await audit('csv_import',{module,client_id:clientId,rows:rows.length,mode,batch_id:batchId,file_type:'csv_or_excel'});
   if(data&&typeof data==='object'&&!data.import_batch_id)data.import_batch_id=batchId;
   return data||{import_batch_id:batchId};
 }
 function downloadTemplate(){const m=document.getElementById('importModule').value,s=schemas[m],headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
 async function loadData(){
-  if(DEMO_MODE){
-    state.records=demoData();
-    state.dataCapped=false;
-    const selected=state.client?.id;
-    if(selected){
-      // Demo data belongs to the demo client; keep it visible when that client is selected.
-    }
-    return;
+  if(DEMO_MODE){state.records=demoData();state.dataCapped=false;return;}
+  const selectedClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
+  const cacheKey=selectedClientId?`client:${selectedClientId}`:'all:authorized';
+  const cached=recordsCache.get(cacheKey);
+  if(cached&&Date.now()-cached.savedAt<RECORD_CACHE_TTL_MS){
+    state.records=cached.records;state.dataCapped=cached.dataCapped;return;
   }
-  const selectedClientId=state.client?.id || (!hasAllClients()?state.profile?.client_id:null);
-  const pageSize=1000, maxRows=20000, concurrency=4;
-  const source=[];
-  // Fetch bounded page groups concurrently. This reduces client-switch latency
-  // for larger practices without changing the row cap or access filters.
-  let offset=0, reachedEnd=false;
-  while(offset<=maxRows && !reachedEnd){
-    const offsets=Array.from({length:concurrency},(_,i)=>offset+i*pageSize)
-      .filter(start=>start<=maxRows);
-    const pages=await Promise.all(offsets.map(async start=>{
-      let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
-      if(selectedClientId)q=q.eq('client_id',selectedClientId);
-      const {data,error}=await q.order('uploaded_at',{ascending:false}).order('id',{ascending:true}).range(start,start+pageSize-1);
-      if(error)throw error;
-      return {start,rows:data||[]};
-    }));
-    pages.sort((a,b)=>a.start-b.start);
-    for(const page of pages){
-      if(!page.rows.length){reachedEnd=true;break;}
-      const remaining=maxRows+1-source.length;
-      source.push(...page.rows.slice(0,remaining));
-      if(page.rows.length<pageSize || source.length>maxRows){reachedEnd=true;break;}
+  const pageSize=1000,maxRows=20000,concurrency=4,source=[];
+  const fetchPage=async(offset)=>{
+    let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
+    if(selectedClientId)q=q.eq('client_id',selectedClientId);
+    const {data,error}=await q.order('uploaded_at',{ascending:false}).order('id',{ascending:true}).range(offset,offset+pageSize-1);
+    if(error)throw error;return data||[];
+  };
+  // Fetch bounded page windows concurrently; never request beyond the existing 20k safety cap.
+  for(let base=0;base<maxRows;base+=pageSize*concurrency){
+    const offsets=Array.from({length:concurrency},(_,i)=>base+i*pageSize).filter(x=>x<maxRows);
+    const pages=await Promise.all(offsets.map(fetchPage));
+    let reachedEnd=false;
+    for(let i=0;i<pages.length;i++){
+      const page=pages[i];
+      if(!page.length){reachedEnd=true;break;}
+      source.push(...page.slice(0,Math.max(0,maxRows+1-source.length)));
+      if(page.length<pageSize){reachedEnd=true;break;}
+      if(source.length>maxRows)break;
     }
-    offset+=offsets.length*pageSize;
+    if(reachedEnd||source.length>maxRows)break;
   }
-  state.dataCapped=source.length>maxRows;
+  // One lightweight sentinel read distinguishes exactly 20k rows from a capped result.
+  let dataCapped=source.length>maxRows;
+  if(source.length>=maxRows){const sentinel=await fetchPage(maxRows);dataCapped=sentinel.length>0;}
   source.splice(maxRows);
-  state.records={};
+  const records={};
   source.forEach(r=>{
     const clean=sanitizeStoredRecord(r.module,r.data);
     const hydrated=hydrateRecordFromDatabase(r.module,clean,r.external_id);
-    if(!hydrated.__db_uploaded_at && r.uploaded_at)hydrated.__db_uploaded_at=r.uploaded_at;
-    if(!hydrated.__imported_at && r.uploaded_at)hydrated.__imported_at=r.uploaded_at;
-    if(!hydrated.__source_batch_id && r.import_batch_id)hydrated.__source_batch_id=String(r.import_batch_id);
-    if(!hydrated.__source_batch_id && hydrated.__external_id){
-      const batch=String(hydrated.__external_id).split(':')[0];
-      if(batch)hydrated.__source_batch_id=batch;
-    }
-    (state.records[r.module]??=[]).push({...hydrated,client_id:r.client_id});
+    if(!hydrated.__db_uploaded_at&&r.uploaded_at)hydrated.__db_uploaded_at=r.uploaded_at;
+    if(!hydrated.__imported_at&&r.uploaded_at)hydrated.__imported_at=r.uploaded_at;
+    if(!hydrated.__source_batch_id&&r.import_batch_id)hydrated.__source_batch_id=String(r.import_batch_id);
+    if(!hydrated.__source_batch_id&&hydrated.__external_id){const batch=String(hydrated.__external_id).split(':')[0];if(batch)hydrated.__source_batch_id=batch;}
+    (records[r.module]??=[]).push({...hydrated,client_id:r.client_id});
   });
-
-  // Never sort by claim ID, payer, date, balance, etc. Those would change the
-  // source row order. Only use the internal import sequence when available.
-  Object.keys(state.records).forEach(m=>{
-    state.records[m]=state.records[m].map((r,index)=>({r,index}))
-      .sort((a,b)=>compareSourceOrder(a.r,b.r)||a.index-b.index)
-      .map(x=>x.r);
-  });
+  Object.keys(records).forEach(m=>{records[m]=records[m].map((r,index)=>({r,index})).sort((a,b)=>compareSourceOrder(a.r,b.r)||a.index-b.index).map(x=>x.r);});
+  state.records=records;state.dataCapped=dataCapped;
+  recordsCache.set(cacheKey,{records,dataCapped,savedAt:Date.now()});
 }
 async function loadClients(){if(DEMO_MODE){state.clients=demoClients;return}let query=sb.from('clients').select('id,name,specialty,status');if(['client','provider'].includes(getRole())&&state.profile?.client_id)query=query.eq('id',state.profile.client_id);const {data,error}=await query.order('name');if(error)throw error;state.clients=data||[];state.client=state.profile.client_id?state.clients.find(c=>c.id===state.profile.client_id)||null:null}
 async function loadUsers(){
@@ -952,6 +936,28 @@ function openClientModal(){document.body.insertAdjacentHTML('beforeend',`<div cl
 function closeClientModal(){document.getElementById('clientModal')?.remove()}
 async function createClient(){if(!canAdmin())return toast('Admin permission required.');const name=document.getElementById('cName').value.trim(),specialty=document.getElementById('cSpecialty').value.trim(),err=document.getElementById('cError');if(!name){err.innerHTML='<div class="error">Client name is required.</div>';return}if(DEMO_MODE){state.clients.push({id:'demo-client-'+Date.now(),name,specialty,status:'active'});closeClientModal();await loadClientAdmin();if(hasAllClients()){const shellEl=document.getElementById('globalClientSelect');if(shellEl)shellEl.innerHTML='<option value="__ALL__">All Clients</option>'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');}toast('Demo client created');return}const {data,error}=await sb.from('clients').insert({name,specialty,status:'active'}).select().single();if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}await audit('client_created',{client_id:data.id,name});await loadClients();closeClientModal();await loadClientAdmin();toast('Client created successfully')}
 
+
+async function loadImportBatches(){
+  const host=document.getElementById('batchHistory');if(!host||!canAdmin())return;
+  const clientId=document.getElementById('batchClient')?.value,module=document.getElementById('batchModule')?.value;
+  if(!clientId||!module){host.innerHTML='<div class="muted">Select a client and module.</div>';return;}
+  host.innerHTML='<div class="muted">Loading import history…</div>';
+  if(DEMO_MODE){host.innerHTML='<div class="notice">Batch history is available in the live portal.</div>';return;}
+  const {data,error}=await sb.from('rcm_import_batches').select('id,client_id,module,row_count,import_mode,uploaded_by,created_at').eq('client_id',clientId).eq('module',module).order('created_at',{ascending:false});
+  if(error){host.innerHTML=`<div class="notice danger-note">${esc(error.message)}</div>`;return;}
+  if(!data?.length){host.innerHTML='<div class="empty">No tracked imports for this module yet. Older imports may not have batch-history metadata.</div>';return;}
+  host.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Imported</th><th>Rows</th><th>Mode</th><th>Batch ID</th><th>Action</th></tr></thead><tbody>${data.map(b=>`<tr><td>${new Date(b.created_at).toLocaleString()}</td><td>${Number(b.row_count||0).toLocaleString()}</td><td>${esc(b.import_mode)}</td><td style="max-width:220px;word-break:break-all">${esc(b.id)}</td><td><button class="btn btn-danger btn-small" onclick="deleteImportBatch('${esc(b.client_id)}','${esc(b.module)}','${esc(b.id)}')">Delete Batch</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+async function deleteImportBatch(clientId,module,batchId){
+  if(!canAdmin())return toast('Admin permission required.');
+  if(!confirm(`Permanently delete only this ${module} import batch?`))return;
+  const {data,error}=await sb.rpc('app_admin_delete_rcm_batch',{p_client_id:clientId,p_module:module,p_import_batch_id:batchId});
+  if(error)return toast(error.message||'Batch deletion failed.');
+  clearRecordsCache();
+  await audit('rcm_batch_deleted',{client_id:clientId,module,batch_id:batchId,deleted:data?.deleted??0});
+  await loadData();await loadImportBatches();toast(`Deleted ${Number(data?.deleted||0).toLocaleString()} rows from selected batch.`);
+}
+
 async function deleteImportedData(){
   if(!canAdmin())return toast('Admin permission required.');
   const clientId=document.getElementById('deleteDataClient')?.value,module=document.getElementById('deleteDataModule')?.value,result=document.getElementById('deleteDataResult');
@@ -966,6 +972,7 @@ async function deleteImportedData(){
   }
   const {data,error}=await sb.rpc('app_admin_delete_rcm_module',{p_client_id:clientId,p_module:module});
   if(error){if(result)result.innerHTML=`<div class="notice danger-note">${esc(error.message)}</div>`;return}
+  clearRecordsCache();
   await audit('rcm_data_deleted',{client_id:clientId,module,deleted:data?.deleted??null});
   await loadData();
   if(result)result.innerHTML=`<div class="notice">Deleted ${Number(data?.deleted||0).toLocaleString()} records successfully.</div>`;
@@ -1020,7 +1027,7 @@ async function enterApp(){
     if(x)x.innerHTML=`<div class="error">${esc(e.message||e)}</div>`;
   }
 }
-async function logout(){if(!DEMO_MODE)await sb.auth.signOut();state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};document.getElementById('app').innerHTML=loginView();bindLogin()}
+async function logout(){if(!DEMO_MODE)await sb.auth.signOut();clearRecordsCache();state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};document.getElementById('app').innerHTML=loginView();bindLogin()}
 function bindLogin(){document.getElementById('loginForm')?.addEventListener('submit',e=>{e.preventDefault();login()})}
 async function boot(){document.getElementById('app').innerHTML=loginView();bindLogin();if(DEMO_MODE)return;const {data}=await sb.auth.getSession();if(data.session){state.session=data.session;try{await loadProfile();await enterApp()}catch(e){await sb.auth.signOut()}}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_OUT'){document.getElementById('app').innerHTML=loginView();bindLogin()}})}
 boot();
