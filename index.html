@@ -67,7 +67,7 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 
 </style>
 </head>
-<body data-bha-build="2026-09-26-v25">
+<body data-bha-build="2026-09-28-provider-v1">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -130,7 +130,7 @@ function initials(name){return String(name||'U').split(/\s+/).slice(0,2).map(x=>
 function getRole(){return state.profile?.role||'client'}
 function canUpload(){return ['admin','user'].includes(getRole())}
 function canAdmin(){return getRole()==='admin'}
-function hasAllClients(){return canAdmin() || state.profile?.access_all===true}
+function hasAllClients(){return getRole()!=='provider' && getRole()!=='client' && (canAdmin() || state.profile?.access_all===true)}
 function clientName(){return state.client?.name || (hasAllClients()?'All Clients':'Assigned Client')}
 function sampleRows(){return {
  ar:[['2026-09-25','CLM-1001','Maria Lopez','PAT-1001','Dr. Sharma','Medicare','2026-09-02',4200,24,'0-30','Pending'],['2026-09-24','CLM-1002','James Wilson','PAT-1002','Dr. Mehta','Aetna','2026-08-14',3150,43,'31-60','In Process'],['2026-09-23','CLM-1003','Sophia Lee','PAT-1003','Dr. Kaur','Cigna','2026-07-19',6800,70,'61-90','Denied'],['2026-09-22','CLM-1004','Daniel Kim','PAT-1004','Dr. Singh','UnitedHealth','2026-05-22',9800,125,'120+','Pending'],['2026-09-25','CLM-1005','Emma Davis','PAT-1005','Dr. Gupta','BlueCross','2026-09-12',1250,12,'0-30','Paid']],
@@ -516,6 +516,7 @@ function filteredRows(m){
   const selected=state.client?.id;
   const filtered=getRecords(m).filter(r=>{
     if(hasAllClients() && selected && r.client_id && String(r.client_id)!==String(selected)) return false;
+    if(getRole()==='provider' && String(r.provider||'').trim().toLowerCase()!==String(state.profile?.provider_name||'').trim().toLowerCase()) return false;
     if(payer && String(r.payer||'').toLowerCase()!==payer.toLowerCase()) return false;
     if(provider && String(r.provider||'').toLowerCase()!==provider.toLowerCase()) return false;
     if(status && String(r.status||'').toLowerCase()!==status.toLowerCase()) return false;
@@ -810,18 +811,18 @@ async function loadData(){
       .map(x=>x.r);
   });
 }
-async function loadClients(){if(DEMO_MODE){state.clients=demoClients;return}const {data,error}=await sb.from('clients').select('id,name,specialty,status').order('name');if(error)throw error;state.clients=data||[];state.client=state.profile.client_id?state.clients.find(c=>c.id===state.profile.client_id)||null:null}
+async function loadClients(){if(DEMO_MODE){state.clients=demoClients;return}let query=sb.from('clients').select('id,name,specialty,status');if(['client','provider'].includes(getRole())&&state.profile?.client_id)query=query.eq('id',state.profile.client_id);const {data,error}=await query.order('name');if(error)throw error;state.clients=data||[];state.client=state.profile.client_id?state.clients.find(c=>c.id===state.profile.client_id)||null:null}
 async function loadUsers(){
   const body=document.getElementById('usersBody');if(!body)return;
   let users;
   if(DEMO_MODE) users=demoUsers;
   else{
-    const {data,error}=await sb.from('profiles').select('id,name,email,role,client_id,access_all,active,created_at').order('created_at',{ascending:false});
+    const {data,error}=await sb.from('profiles').select('id,name,email,role,client_id,provider_name,access_all,active,created_at').order('created_at',{ascending:false});
     if(error){body.innerHTML=`<tr><td colspan="6">${esc(error.message)}</td></tr>`;return}
     users=data||[];
   }
   body.innerHTML=users.map(u=>{
-    const clientLabel=u.access_all?'All clients':(state.clients.find(c=>c.id===u.client_id)?.name||'—');
+    const clientLabel=u.role==='provider'?`${state.clients.find(c=>c.id===u.client_id)?.name||'—'} · ${u.provider_name||'Provider name missing'}`:(u.access_all?'All clients':(state.clients.find(c=>c.id===u.client_id)?.name||'—'));
     return `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td><span class="pill ${u.role==='admin'?'purple':u.role==='user'?'blue':''}">${esc(u.role)}</span></td><td>${esc(clientLabel)}</td><td>${u.active?'<span class="pill green">Active</span>':'<span class="pill red">Disabled</span>'}</td><td><div class="admin-actions"><button class="btn btn-edit btn-small" onclick="openEditUserModal('${u.id}')">Edit</button><button class="btn btn-light btn-small" onclick="toggleUser('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>${String(u.id)!==String(state.session?.user?.id)?`<button class="btn btn-delete btn-small" onclick="deleteUser('${u.id}')">Delete</button>`:''}</div></td></tr>`;
   }).join('')||'<tr><td colspan="6"><div class="empty">No users found.</div></td></tr>';
 }
@@ -835,25 +836,30 @@ async function toggleUser(id,active){
 function openEditUserModal(id){
   const u=(DEMO_MODE?demoUsers:[]).find(x=>x.id===id);
   if(DEMO_MODE){if(!u)return;showEditUserModal(u);return}
-  sb.from('profiles').select('id,name,email,role,client_id,access_all,active').eq('id',id).single().then(({data,error})=>{if(error)return toast(error.message);showEditUserModal(data)});
+  sb.from('profiles').select('id,name,email,role,client_id,provider_name,access_all,active').eq('id',id).single().then(({data,error})=>{if(error)return toast(error.message);showEditUserModal(data)});
 }
 function showEditUserModal(u){
   const opts=state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-  document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="editUserModal"><div class="modal"><div class="modal-head"><h3>Edit User Account</h3><button class="btn btn-light btn-small" onclick="closeEditUserModal()">Close</button></div><div class="modal-grid"><div class="field"><label>Full name</label><input id="euName" value="${esc(u.name)}"></div><div class="field"><label>Login email</label><input value="${esc(u.email)}" disabled></div><div class="field"><label>Role</label><select id="euRole"><option value="client">Client — View Only</option><option value="user">User — RCM Operations</option><option value="admin">Admin — Full Access</option></select></div><div class="field"><label>Status</label><select id="euActive"><option value="true">Active</option><option value="false">Disabled</option></select></div><div class="field" style="grid-column:1/-1"><label>Client / Practice Access</label><select id="euClient"><option value="__ALL__">All Clients</option>${opts}</select></div></div><div id="euError"></div><div class="modal-actions"><button class="btn btn-light" onclick="closeEditUserModal()">Cancel</button><button class="btn btn-primary" onclick="saveUser('${u.id}')">Save Changes</button></div></div></div>`);
+  document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="editUserModal"><div class="modal"><div class="modal-head"><h3>Edit User Account</h3><button class="btn btn-light btn-small" onclick="closeEditUserModal()">Close</button></div><div class="modal-grid"><div class="field"><label>Full name</label><input id="euName" value="${esc(u.name)}"></div><div class="field"><label>Login email</label><input value="${esc(u.email)}" disabled></div><div class="field"><label>Role</label><select id="euRole" data-original-role="${esc(u.role)}"><option value="client">Client — View Only</option><option value="provider">Provider — Own Records Only</option><option value="user">User — RCM Operations</option><option value="admin">Admin — Full Access</option></select></div><div class="field" id="euProviderNameField" style="display:none"><label>Provider name (CSV match)</label><input id="euProviderName" value="${esc(u.provider_name||'')}"></div><div class="field"><label>Status</label><select id="euActive"><option value="true">Active</option><option value="false">Disabled</option></select></div><div class="field" style="grid-column:1/-1"><label>Client / Practice Access</label><select id="euClient"><option value="__ALL__">All Clients</option>${opts}</select></div></div><div id="euError"></div><div class="modal-actions"><button class="btn btn-light" onclick="closeEditUserModal()">Cancel</button><button class="btn btn-primary" onclick="saveUser('${u.id}')">Save Changes</button></div></div></div>`);
   document.getElementById('euRole').value=u.role;
   document.getElementById('euActive').value=String(!!u.active);
   document.getElementById('euClient').value=u.access_all?'__ALL__':(u.client_id||'');
-  const sync=()=>{const role=document.getElementById('euRole').value,sel=document.getElementById('euClient'),all=sel.querySelector('option[value="__ALL__"]');if(all)all.disabled=role==='client';if(role==='client'&&sel.value==='__ALL__'&&sel.options.length>1)sel.value=sel.options[1].value};
+  const sync=()=>{const role=document.getElementById('euRole').value,sel=document.getElementById('euClient'),all=sel.querySelector('option[value="__ALL__"]');document.getElementById('euProviderNameField').style.display=role==='provider'?'block':'none';if(all)all.disabled=['client','provider'].includes(role);if(['client','provider'].includes(role)&&sel.value==='__ALL__'&&sel.options.length>1)sel.value=sel.options[1].value};
   document.getElementById('euRole').addEventListener('change',sync);sync();
 }
 function closeEditUserModal(){document.getElementById('editUserModal')?.remove()}
 async function saveUser(id){
   const name=document.getElementById('euName').value.trim(),role=document.getElementById('euRole').value,active=document.getElementById('euActive').value==='true',selected=document.getElementById('euClient').value,access_all=selected==='__ALL__',client_id=access_all?null:selected,err=document.getElementById('euError');
   if(!name){err.innerHTML='<div class="error">Name is required.</div>';return}
-  if(role==='client'&&access_all){err.innerHTML='<div class="error">Client Viewer must be assigned to one client.</div>';return}
-  if(DEMO_MODE){const u=demoUsers.find(x=>x.id===id);if(u)Object.assign(u,{name,role,active,client_id,access_all});closeEditUserModal();await loadUsers();toast('User updated');return}
-  const {error}=await sb.rpc('app_admin_update_user',{p_user_id:id,p_name:name,p_role:role,p_client_id:client_id,p_access_all:access_all,p_active:active});
+  const originalRole=document.getElementById('euRole').dataset.originalRole;
+  if(role!==originalRole&&(role==='provider'||originalRole==='provider')){err.innerHTML='<div class="error">For security, create a separate account to change into or out of Provider role.</div>';return}
+  if(['client','provider'].includes(role)&&access_all){err.innerHTML='<div class="error">This role must be assigned to one client.</div>';return}
+  const provider_name=(document.getElementById('euProviderName')?.value||'').trim();
+  if(role==='provider'&&!provider_name){err.innerHTML='<div class="error">Provider name is required.</div>';return}
+  if(DEMO_MODE){const u=demoUsers.find(x=>x.id===id);if(u)Object.assign(u,{name,role,active,client_id,access_all,provider_name});closeEditUserModal();await loadUsers();toast('User updated');return}
+  const {error}=await sb.rpc('app_admin_update_user',{p_user_id:id,p_name:name,p_role:role===originalRole?null:role,p_client_id:client_id,p_access_all:access_all,p_active:active});
   if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}
+  if(role==='provider'){const providerUpdate=await sb.rpc('app_admin_set_provider_name',{p_user_id:id,p_provider_name:provider_name});if(providerUpdate.error){err.innerHTML=`<div class="error">${esc(providerUpdate.error.message)}</div>`;return}}
   await audit('user_updated',{user_id:id,role,client_id,access_all,active});closeEditUserModal();await loadUsers();toast('User updated successfully');
 }
 async function deleteUser(id){
@@ -931,14 +937,16 @@ async function loadActivity(){const body=document.getElementById('activityBody')
 async function audit(action,details){if(DEMO_MODE)return;if(state.session?.user)await sb.from('audit_logs').insert({actor_id:state.session.user.id,action,details})}
 function openUserModal(){
   const opts=state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-  document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="userModal"><div class="modal"><div class="modal-head"><h3>Create User Account</h3><button class="btn btn-light btn-small" onclick="closeModal()">Close</button></div><div class="modal-grid"><div class="field"><label>Full name</label><input id="uName"></div><div class="field"><label>Login email</label><input id="uEmail" type="email"></div><div class="field"><label>Temporary password</label><input id="uPass" type="password"></div><div class="field"><label>Role</label><select id="uRole"><option value="client">Client — View Only</option><option value="user">User — RCM Operations</option><option value="admin">Admin — Full Access</option></select></div><div class="field" style="grid-column:1/-1"><label>Client / Practice Access</label><select id="uClient"><option value="__ALL__">All Clients</option>${opts}</select><div class="muted" style="margin-top:6px">All Clients is available for Admin and RCM Operations User accounts. Client Viewer accounts must be assigned to one client.</div></div></div><div class="notice">Admin should give the new login credentials to the user securely. For production, enable email/password reset policies in Supabase.</div><div id="uError"></div><div class="modal-actions"><button class="btn btn-light" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="createUser()">Create Account</button></div></div></div>`);
+  document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="userModal"><div class="modal"><div class="modal-head"><h3>Create User Account</h3><button class="btn btn-light btn-small" onclick="closeModal()">Close</button></div><div class="modal-grid"><div class="field"><label>Full name</label><input id="uName"></div><div class="field"><label>Login email</label><input id="uEmail" type="email"></div><div class="field"><label>Temporary password</label><input id="uPass" type="password"></div><div class="field"><label>Role</label><select id="uRole"><option value="client">Client — View Only</option><option value="provider">Provider — Own Records Only</option><option value="user">User — RCM Operations</option><option value="admin">Admin — Full Access</option></select></div><div class="field" id="providerNameField" style="display:none"><label>Provider name (must match CSV)</label><input id="uProviderName" placeholder="Exact name in Provider column"></div><div class="field" style="grid-column:1/-1"><label>Client / Practice Access</label><select id="uClient"><option value="__ALL__">All Clients</option>${opts}</select><div class="muted" style="margin-top:6px">All Clients is available for Admin and RCM Operations User accounts. Client Viewer accounts must be assigned to one client.</div></div></div><div class="notice">Admin should give the new login credentials to the user securely. For production, enable email/password reset policies in Supabase.</div><div id="uError"></div><div class="modal-actions"><button class="btn btn-light" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="createUser()">Create Account</button></div></div></div>`);
   const role=document.getElementById('uRole');
   const client=document.getElementById('uClient');
   const syncAccess=()=>{
     const isClient=role.value==='client';
+    const isProvider=role.value==='provider';
+    document.getElementById('providerNameField').style.display=isProvider?'block':'none';
     const all=client.querySelector('option[value="__ALL__"]');
     if(all) all.disabled=isClient;
-    if(isClient && client.value==='__ALL__' && client.options.length>1) client.value=client.options[1].value;
+    if((isClient||isProvider) && client.value==='__ALL__' && client.options.length>1) client.value=client.options[1].value;
     if(!isClient && !client.value) client.value='__ALL__';
   };
   role.addEventListener('change',syncAccess); syncAccess();
@@ -947,16 +955,18 @@ function closeModal(){document.getElementById('userModal')?.remove()}
 async function createUser(){
   const name=document.getElementById('uName').value.trim(),email=document.getElementById('uEmail').value.trim(),password=document.getElementById('uPass').value,role=document.getElementById('uRole').value,selected=document.getElementById('uClient').value,access_all=selected==='__ALL__';
   const client_id=access_all?null:selected;
+  const provider_name=(document.getElementById('uProviderName')?.value||'').trim();
   const err=document.getElementById('uError');
   if(!name||!email||password.length<8){err.innerHTML='<div class="error">Enter name, valid email and a password of at least 8 characters.</div>';return}
-  if(role==='client' && access_all){err.innerHTML='<div class="error">Client Viewer must be assigned to a specific client.</div>';return}
-  if(DEMO_MODE){demoUsers.push({id:'demo-'+Date.now(),name,email,role,client_id,access_all,active:true});closeModal();await loadUsers();toast('Demo user created');return}
-  const {data,error}=await sb.functions.invoke('admin-create-user',{body:{name,email,password,role,client_id,access_all}});
+  if(['client','provider'].includes(role) && access_all){err.innerHTML='<div class="error">This role must be assigned to a specific client.</div>';return}
+  if(role==='provider'&&!provider_name){err.innerHTML='<div class="error">Provider name is required and must match the CSV Provider column.</div>';return}
+  if(DEMO_MODE){demoUsers.push({id:'demo-'+Date.now(),name,email,role,client_id,access_all,provider_name,active:true});closeModal();await loadUsers();toast('Demo user created');return}
+  const {data,error}=await sb.functions.invoke('admin-create-user',{body:{name,email,password,role,client_id,access_all,provider_name}});
   if(error||data?.error){err.innerHTML=`<div class="error">${esc(error?.message||data?.error||'Unable to create user')}</div>`;return}
   closeModal();await loadUsers();toast('User created successfully')
 }
 async function login(){const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value,err=document.getElementById('loginError');if(DEMO_MODE){const u=demoUsers.find(x=>x.email.toLowerCase()===email.toLowerCase()&&x.active);const pass={admin:'Admin@123',user:'User@123',client:'Client@123'}[u?.role];if(!u||password!==pass){err.innerHTML='<div class="error">Invalid demo credentials.</div>';return}state.session={user:{id:u.id,email:u.email}};state.profile=u;await enterApp();return}const {data,error}=await sb.auth.signInWithPassword({email,password});if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}state.session=data.session;await loadProfile();await enterApp()}
-async function loadProfile(){const {data,error}=await sb.from('profiles').select('id,name,email,role,client_id,access_all,active').eq('id',state.session.user.id).single();if(error)throw error;if(!data.active)throw new Error('This account is disabled.');state.profile=data}
+async function loadProfile(){const {data,error}=await sb.from('profiles').select('id,name,email,role,client_id,provider_name,access_all,active').eq('id',state.session.user.id).single();if(error)throw error;if(!data.active)throw new Error('This account is disabled.');state.profile=data}
 async function enterApp(){
   try{
     await loadClients();
