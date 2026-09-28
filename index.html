@@ -588,12 +588,14 @@ function renderModule(m){
 function statusPill(v){const s=String(v||'');let c='';if(/paid|posted|verified|approved|accepted|overturned/i.test(s))c='green';else if(/pending|partial|process|expiring|appealed/i.test(s))c='amber';else if(/denied|failed|open|rejected/i.test(s))c='red';else if(/submitted/i.test(s))c='blue';return `<span class="pill ${c}">${esc(s||'—')}</span>`}
 function renderOverview(){
   const ar=filteredRows('ar'),den=filteredRows('denials'),pay=filteredRows('payments'),ver=filteredRows('verification'),auth=filteredRows('auth');
-  const totalAR=ar.reduce((a,r)=>a+num(r.balance),0),claims=ar.length,denAmt=den.reduce((a,r)=>a+num(r.balance),0),deposits=pay.reduce((a,r)=>a+num(r.total_deposit_amount),0),posted=pay.reduce((a,r)=>a+num(r.posted_amount),0);
+  const sumValid=(rows,field)=>rows.reduce((sum,r)=>{const n=parseNumericValue(r[field]);return sum+(n===null?0:n);},0);
+  const totalAR=sumValid(ar,'balance'),claims=ar.length,denAmt=sumValid(den,'balance'),deposits=sumValid(pay,'total_deposit_amount'),posted=sumValid(pay,'posted_amount');
+  const invalidARBalances=ar.filter(r=>parseNumericValue(r.balance)===null).length;
   const actions=den.filter(r=>/open|appealed/i.test(r.status)).length+ver.filter(r=>/failed|pending/i.test(r.status)).length+auth.filter(r=>/denied|expiring/i.test(r.status)).length;
   document.getElementById('kpiAR').textContent=money(totalAR);
   document.getElementById('kpiClaims').textContent=claims.toLocaleString();
   document.getElementById('kpiDenials').textContent=money(denAmt);
-  document.getElementById('kpiCollection').textContent=(deposits?Math.round(posted/deposits*100):0)+'%';
+  document.getElementById('kpiCollection').textContent=(deposits>0?Math.round(posted/deposits*100)+'%':'—');
   document.getElementById('kpiActions').textContent=actions;
   document.getElementById('exceptionList').innerHTML=[
     ['Open denials',den.filter(r=>/open/i.test(r.status)).length,'red'],
@@ -604,29 +606,54 @@ function renderOverview(){
   const workflow=[['AR',ar.length],['Denials',den.length],['Verification',ver.length],['Prior Auth',auth.length],['Charges',filteredRows('charges').length],['Payments',pay.length]];
   const workflowMax=Math.max(0,...workflow.map(x=>x[1]));
   document.getElementById('workflowStats').innerHTML=workflow.map(x=>{const width=workflowMax?x[1]/workflowMax*100:0;return `<div style="margin:0 0 12px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px"><span>${x[0]}</span><b>${x[1].toLocaleString()}</b></div><div class="progress"><span style="width:${width}%"></span></div></div>`}).join('');
-  const buckets=['0-30','31-60','61-90','91-120','120+'];
+  // Build AR aging categories from the actual source data instead of a fixed list.
+  // This supports client-specific buckets such as 121-180, 181-240, 241-365 and 365+.
+  const normalizeBucketLabel=value=>String(value??'').trim().toLowerCase()
+    .replace(/[–—]/g,'-').replace(/\bdays?\b/g,'').replace(/\s+/g,'')
+    .replace(/to/g,'-').replace(/plus/g,'+');
   const bucketForRecord=r=>{
-    const raw=String(r.bucket??'').trim().toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,'');
-    const normalized=raw.replace(/days?/g,'').replace(/to/g,'-');
-    if(/^(0-30|0-30d|0-30day)$/.test(normalized))return '0-30';
-    if(/^(31-60|31-60d|31-60day)$/.test(normalized))return '31-60';
-    if(/^(61-90|61-90d|61-90day)$/.test(normalized))return '61-90';
-    if(/^(91-120|91-120d|91-120day)$/.test(normalized))return '91-120';
-    if(/^(120\+|120plus|121\+|120andabove|over120|>120)$/.test(normalized))return '120+';
+    const raw=normalizeBucketLabel(r.bucket);
+    if(raw && raw!=='null' && raw!=='na' && raw!=='n/a')return raw;
     const age=parseNumericValue(r.age);
-    if(age===null||age<0)return 'Unclassified';
-    if(age<=30)return '0-30';if(age<=60)return '31-60';if(age<=90)return '61-90';if(age<=120)return '91-120';return '120+';
+    if(age===null||age<0)return 'unclassified';
+    if(age<=30)return '0-30';if(age<=60)return '31-60';if(age<=90)return '61-90';if(age<=120)return '91-120';
+    if(age<=180)return '121-180';if(age<=240)return '181-240';if(age<=365)return '241-365';return '365+';
   };
-  const agingTotals=Object.fromEntries(buckets.map(b=>[b,0]));let unclassifiedAR=0;
-  ar.forEach(r=>{const b=bucketForRecord(r);if(Object.prototype.hasOwnProperty.call(agingTotals,b))agingTotals[b]+=num(r.balance);else unclassifiedAR+=num(r.balance)});
-  const agingLabels=unclassifiedAR? [...buckets,'Unclassified']:buckets;
-  const agingValues=[...buckets.map(b=>agingTotals[b]),...(unclassifiedAR?[unclassifiedAR]:[])];
+  const agingTotals=new Map();
+  ar.forEach(r=>{
+    const bucket=bucketForRecord(r);
+    const amount=parseNumericValue(r.balance);
+    if(amount===null)return;
+    agingTotals.set(bucket,(agingTotals.get(bucket)||0)+amount);
+  });
+  const bucketStart=label=>{
+    const match=String(label).match(/^(\d+)/);
+    return match?Number(match[1]):Number.MAX_SAFE_INTEGER;
+  };
+  const bucketRank=label=>String(label)==='unclassified'?Number.MAX_SAFE_INTEGER:String(label)==='365+'?365:Number.MAX_SAFE_INTEGER-1;
+  const agingLabels=[...agingTotals.keys()].sort((a,b)=>bucketStart(a)-bucketStart(b)||bucketRank(a)-bucketRank(b)||a.localeCompare(b));
+  const agingValues=agingLabels.map(label=>agingTotals.get(label));
+  const agingChartTotal=agingValues.reduce((sum,n)=>sum+n,0);
+  const arChartHost=document.getElementById('arChart')?.parentElement;
+  let reconciliation=document.getElementById('arChartReconciliation');
+  if(!reconciliation&&arChartHost){reconciliation=document.createElement('div');reconciliation.id='arChartReconciliation';reconciliation.className='muted';reconciliation.style.cssText='font-size:12px;margin-top:8px';arChartHost.appendChild(reconciliation);}
+  if(reconciliation){const diff=totalAR-agingChartTotal;reconciliation.textContent=`Chart total: ${money(agingChartTotal)} · KPI total: ${money(totalAR)} · Difference: ${money(diff)}${invalidARBalances?` · ${invalidARBalances} AR rows have missing/non-numeric balances`:''}`;reconciliation.style.color=Math.abs(diff)>0.01||invalidARBalances?'#b45309':'#15803d';}
   drawChart('arChart','bar',agingLabels,['AR Balance'],[agingValues]);
-  const reason={};den.forEach(r=>{const key=String(r.denial??'').trim()||'Unspecified';reason[key]=(reason[key]||0)+num(r.balance)});
-  const sortedReasons=Object.entries(reason).sort((a,b)=>b[1]-a[1]);
-  const topReasons=sortedReasons.slice(0,7);const otherReasonTotal=sortedReasons.slice(7).reduce((sum,x)=>sum+x[1],0);
-  if(otherReasonTotal!==0)topReasons.push(['Other reasons',otherReasonTotal]);
-  drawChart('denialChart','doughnut',topReasons.map(x=>x[0]),['Denial Balance'],[topReasons.map(x=>x[1])]);
+
+  // Group denial reasons case-insensitively while retaining a readable source label.
+  const reasonMap=new Map();
+  den.forEach(r=>{
+    const source=String(r.denial??'').trim()||'Unspecified';
+    const key=source.toLowerCase().replace(/\s+/g,' ');
+    const amount=parseNumericValue(r.balance);
+    const item=reasonMap.get(key)||{label:source,amount:0};
+    if(amount!==null)item.amount+=amount;
+    reasonMap.set(key,item);
+  });
+  const sortedReasons=[...reasonMap.values()].sort((a,b)=>b.amount-a.amount);
+  const topReasons=sortedReasons.slice(0,7);const otherReasonTotal=sortedReasons.slice(7).reduce((sum,x)=>sum+x.amount,0);
+  if(otherReasonTotal!==0)topReasons.push({label:'Other reasons',amount:otherReasonTotal});
+  drawChart('denialChart','doughnut',topReasons.map(x=>x.label),['Denial Balance'],[topReasons.map(x=>x.amount)]);
   drawChart('paymentChart','bar',['Total Deposits','Posted Amount'],['Amount'],[[deposits,posted]]);
 }
 function drawChart(id,type,labels,datasets,values){
@@ -641,7 +668,7 @@ function drawChart(id,type,labels,datasets,values){
     plugins:{
       legend:{display:type==='doughnut',position:'bottom',labels:{font:{size:9}}},
       tooltip:{callbacks:{label:ctx=>{
-        const value=Number(ctx.parsed?.y??ctx.parsed??0);
+        const parsed=ctx.parsed;const value=Number((parsed&&typeof parsed==='object'?(parsed.y??parsed.x??parsed):parsed)??0);
         return `${ctx.dataset?.label||'Value'}: ${isMoneyChart?money(value):value.toLocaleString()}`;
       }}}
     }
