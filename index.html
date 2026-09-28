@@ -612,9 +612,35 @@ function renderOverview(){
     .replace(/[–—]/g,'-').replace(/\bdays?\b/g,'').replace(/\s+/g,'')
     .replace(/to/g,'-').replace(/plus/g,'+');
   const bucketForRecord=r=>{
-    const raw=normalizeBucketLabel(r.bucket);
-    if(raw && raw!=='null' && raw!=='na' && raw!=='n/a')return raw;
-    const age=parseNumericValue(r.age);
+    // Accept common source-column variants without tying the dashboard to one client's CSV.
+    const candidates=[r.bucket,r.aging_bucket,r.age_bucket,r.ar_bucket,r.aging,r.aging_period,r.age_range,r.days_bucket];
+    let rawValue=candidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='' );
+    if(rawValue===undefined){
+      const key=Object.keys(r).find(k=>/^(aging|age)[ _-]*(bucket|range|period)$/i.test(k));
+      if(key)rawValue=r[key];
+    }
+    let raw=normalizeBucketLabel(rawValue);
+    if(raw && !['null','na','n/a','-','—','unclassified','unknown'].includes(raw)){
+      // Normalize numeric ranges (e.g. "121 to 180 days", "0 – 30", "365+ days")
+      const compact=raw.replace(/\+/g,'+');
+      const range=compact.match(/^(\d+)-?(\d+)$/);
+      if(range){
+        const lo=Number(range[1]),hi=Number(range[2]);
+        if(lo===0&&hi===30)return '0-30';
+        if(lo===31&&hi===60)return '31-60';
+        if(lo===61&&hi===90)return '61-90';
+        if(lo===91&&hi===120)return '91-120';
+        if(lo===121&&hi===180)return '121-180';
+        if(lo===181&&hi===240)return '181-240';
+        if(lo===241&&hi===365)return '241-365';
+        return `${lo}-${hi}`;
+      }
+      const plus=compact.match(/^(\d+)\+$/);if(plus)return Number(plus[1])>=365?'365+':`${plus[1]}+`;
+      return raw;
+    }
+    const ageCandidates=[r.age,r.age_days,r.days_outstanding,r.days_in_ar];
+    const ageValue=ageCandidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='');
+    const age=parseNumericValue(ageValue);
     if(age===null||age<0)return 'unclassified';
     if(age<=30)return '0-30';if(age<=60)return '31-60';if(age<=90)return '61-90';if(age<=120)return '91-120';
     if(age<=180)return '121-180';if(age<=240)return '181-240';if(age<=365)return '241-365';return '365+';
