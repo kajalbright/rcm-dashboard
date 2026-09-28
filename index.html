@@ -81,7 +81,7 @@ const modules={
  overview:{label:'Executive Overview',icon:'▦'},ar:{label:'AR Management',icon:'◫'},denials:{label:'Denial Management',icon:'⊘'},verification:{label:'Insurance Verification',icon:'✓'},auth:{label:'Prior Authorization',icon:'▣'},charges:{label:'Charge Submission',icon:'↥'},payments:{label:'Payment Posting',icon:'$',},imports:{label:'CSV Imports',icon:'⇧'},users:{label:'Users & Access',icon:'♙'},activity:{label:'Activity Log',icon:'◷'},clients:{label:'Clients & Practices',icon:'⌂'}
 };
 const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Multi-specialty'}];
-const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
+const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-provider',name:'Demo Provider',email:'provider@demo.local',role:'provider',client_id:'demo-client-1',access_all:false,provider_name:'Dr. Sharma',active:true}];
 let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function parseNumericValue(v){
@@ -518,6 +518,12 @@ function compareSourceOrder(a,b){
   if(!at&&bt)return -1;
   return 0;
 }
+const searchTextCache=new WeakMap();
+function cachedSearchText(record){
+  let text=searchTextCache.get(record);
+  if(text===undefined){text=JSON.stringify(record).toLowerCase();searchTextCache.set(record,text)}
+  return text;
+}
 function filteredRows(m){
   const payer=document.getElementById('payerFilter')?.value||'';
   const provider=document.getElementById('providerFilter')?.value||'';
@@ -537,16 +543,11 @@ function filteredRows(m){
     if(from && date && date<from) return false;
     if(to && date && date>to) return false;
     if((from||to) && !date) return false;
-    if(q && !JSON.stringify(r).toLowerCase().includes(q)) return false;
+    if(q && !cachedSearchText(r).includes(q)) return false;
     return true;
   });
-  return filtered
-    .map((r,index)=>({r,index}))
-    .sort((a,b)=>{
-      const order=compareSourceOrder(a.r,b.r);
-      return order||a.index-b.index;
-    })
-    .map(x=>x.r);
+  // Array.filter preserves the already-normalized source order from loadData().
+  return filtered;
 }
 function exportCurrentModule(m){
   const rows=filteredRows(m);
@@ -560,7 +561,7 @@ function exportCurrentModule(m){
     });
   });
   const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
-  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
+  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.length.toLocaleString()} records`)}
 function renderModule(m){
   const rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
   // IMPORTANT: The portal must preserve the uploaded file's column order.
@@ -739,10 +740,14 @@ async function importCsv(){
       return;
     }
     const response=await insertRecords(module,rows,clientId,mode);
-    result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} successfully.</div>`;
-    if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
-    await loadData();
-    toast('File imported successfully');
+    try{
+      await loadData();
+      result.innerHTML=`<div class="notice">Successfully imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} and refreshed the dashboard.</div>`;
+      if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
+      toast('File imported successfully');
+    }catch(refreshError){
+      result.innerHTML=`<div class="notice danger-note">The import was saved, but the dashboard could not refresh. Do not upload the same file again. Refresh the page and check the records. Details: ${esc(refreshError.message||refreshError)}</div>`;
+    }
   }catch(e){
     if(result)result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`;
   }finally{
@@ -796,18 +801,29 @@ async function loadData(){
     return;
   }
   const selectedClientId=state.client?.id || (!hasAllClients()?state.profile?.client_id:null);
-  const pageSize=1000, maxRows=20000;
+  const pageSize=1000, maxRows=20000, concurrency=4;
   const source=[];
-  for(let offset=0;offset<=maxRows;offset+=pageSize){
-    let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
-    if(selectedClientId)q=q.eq('client_id',selectedClientId);
-    const {data,error}=await q.order('uploaded_at',{ascending:false}).order('id',{ascending:true}).range(offset,offset+pageSize-1);
-    if(error)throw error;
-    const page=data||[];
-    if(!page.length)break;
-    const remaining=maxRows+1-source.length;
-    source.push(...page.slice(0,remaining));
-    if(page.length<pageSize||source.length>maxRows)break;
+  // Fetch bounded page groups concurrently. This reduces client-switch latency
+  // for larger practices without changing the row cap or access filters.
+  let offset=0, reachedEnd=false;
+  while(offset<=maxRows && !reachedEnd){
+    const offsets=Array.from({length:concurrency},(_,i)=>offset+i*pageSize)
+      .filter(start=>start<=maxRows);
+    const pages=await Promise.all(offsets.map(async start=>{
+      let q=sb.from('rcm_records').select('id,client_id,module,external_id,data,uploaded_at,import_batch_id');
+      if(selectedClientId)q=q.eq('client_id',selectedClientId);
+      const {data,error}=await q.order('uploaded_at',{ascending:false}).order('id',{ascending:true}).range(start,start+pageSize-1);
+      if(error)throw error;
+      return {start,rows:data||[]};
+    }));
+    pages.sort((a,b)=>a.start-b.start);
+    for(const page of pages){
+      if(!page.rows.length){reachedEnd=true;break;}
+      const remaining=maxRows+1-source.length;
+      source.push(...page.rows.slice(0,remaining));
+      if(page.rows.length<pageSize || source.length>maxRows){reachedEnd=true;break;}
+    }
+    offset+=offsets.length*pageSize;
   }
   state.dataCapped=source.length>maxRows;
   source.splice(maxRows);
@@ -987,7 +1003,7 @@ async function createUser(){
   if(error||data?.error){err.innerHTML=`<div class="error">${esc(error?.message||data?.error||'Unable to create user')}</div>`;return}
   closeModal();await loadUsers();toast('User created successfully')
 }
-async function login(){const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value,err=document.getElementById('loginError');if(DEMO_MODE){const u=demoUsers.find(x=>x.email.toLowerCase()===email.toLowerCase()&&x.active);const pass={admin:'Admin@123',user:'User@123',client:'Client@123'}[u?.role];if(!u||password!==pass){err.innerHTML='<div class="error">Invalid demo credentials.</div>';return}state.session={user:{id:u.id,email:u.email}};state.profile=u;await enterApp();return}const {data,error}=await sb.auth.signInWithPassword({email,password});if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}state.session=data.session;await loadProfile();await enterApp()}
+async function login(){const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value,err=document.getElementById('loginError');if(DEMO_MODE){const u=demoUsers.find(x=>x.email.toLowerCase()===email.toLowerCase()&&x.active);const pass={admin:'Admin@123',user:'User@123',client:'Client@123',provider:'Provider@123'}[u?.role];if(!u||password!==pass){err.innerHTML='<div class="error">Invalid demo credentials.</div>';return}state.session={user:{id:u.id,email:u.email}};state.profile=u;await enterApp();return}const {data,error}=await sb.auth.signInWithPassword({email,password});if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}state.session=data.session;await loadProfile();await enterApp()}
 async function loadProfile(){const {data,error}=await sb.from('profiles').select('id,name,email,role,client_id,provider_name,access_all,active').eq('id',state.session.user.id).single();if(error)throw error;if(!data.active)throw new Error('This account is disabled.');state.profile=data}
 async function enterApp(){
   try{
