@@ -65,6 +65,97 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 @media(max-width:900px){.login-shell{grid-template-columns:1fr;min-height:auto;max-width:560px}.login-brand-panel{display:none}.mobile-login-logo{display:flex!important;justify-content:center;margin:0 auto 24px!important;width:160px}.mobile-login-logo img{width:100%;height:auto;object-fit:contain}.login-card{padding:42px 34px}.topbar-page-copy{display:none}.client-switcher{border-left:0;padding-left:0}}
 @media(max-width:800px){.sidebar{width:74px;padding:18px 9px}.side-brand{justify-content:center;padding-left:0;padding-right:0}.side-logo{width:47px;height:47px}.side-brand-copy,.side-divider,.side-footer,.nav-label{display:none}.nav button{justify-content:center;padding:11px 0}.nav button span:not(.nav-icon){display:none}.nav button:before{left:-1px}.main{margin-left:74px;width:calc(100% - 74px)}.topbar{padding:0 14px}.content{padding:20px 14px}.top-actions .role-badge{display:none}.logout-btn span{display:none}.login{padding:14px}.login-card{padding:34px 24px}.login-shell{border-radius:22px}}
 
+
+/* ===== PREMIUM EXECUTIVE OVERVIEW V1 ===== */
+.exec-hero{position:relative;overflow:hidden;border-radius:22px;padding:24px 26px;margin-bottom:16px;background:linear-gradient(135deg,#071a2b 0%,#0b3150 68%,#0b4a58 100%);color:#fff;box-shadow:0 18px 42px rgba(8,32,53,.14)}
+.exec-hero:after{content:"";position:absolute;width:300px;height:300px;border-radius:50%;right:-110px;top:-150px;background:radial-gradient(circle,rgba(63,209,191,.22),transparent 68%)}
+.exec-hero-row{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;gap:18px}.exec-kicker{font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#79ddd1}
+.exec-hero h2{font-size:26px;margin:7px 0 6px;letter-spacing:-.025em}.exec-hero p{margin:0;color:#b7c8d7;font-size:11px;line-height:1.6}
+.exec-live{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);padding:8px 11px;border-radius:999px;font-size:9px;font-weight:700;color:#dce9f2;white-space:nowrap}.exec-live:before{content:"";width:7px;height:7px;border-radius:50%;background:#25c997;box-shadow:0 0 0 4px rgba(37,201,151,.12)}
+.exec-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:16px}.exec-kpi{background:#fff;border:1px solid #e4ebf3;border-radius:17px;padding:18px;box-shadow:0 9px 26px rgba(16,35,58,.05);position:relative;overflow:hidden}
+.exec-kpi-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.exec-kpi-label{font-size:9px;font-weight:800;letter-spacing:.055em;text-transform:uppercase;color:#728297}.exec-kpi-icon{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#eef4ff;color:#2463eb;font-size:13px}
+.exec-kpi-value{font-size:26px;font-weight:800;letter-spacing:-.035em;color:#10243a;margin:11px 0 4px}.exec-kpi-sub{font-size:9px;color:#8a98a9}
+.exec-main-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.75fr);gap:15px}.exec-card{background:#fff;border:1px solid #e4ebf3;border-radius:17px;padding:19px;box-shadow:0 9px 28px rgba(16,35,58,.05);min-width:0}.exec-card h3{font-size:13px;margin:0;color:#172b41}.exec-card .cap{font-size:9px;color:#8290a1;margin:5px 0 15px}
+.exec-aging-list{display:grid;gap:10px}.exec-aging-row{display:grid;grid-template-columns:64px minmax(0,1fr) 90px;gap:10px;align-items:center;font-size:10px}.exec-aging-label{font-weight:800;color:#52677d}.exec-aging-track{height:8px;border-radius:999px;background:#edf1f6;overflow:hidden}.exec-aging-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2b6ef2,#6d91f5)}.exec-aging-amount{text-align:right;font-weight:800;color:#263b51}.exec-aging-meta{font-size:8px;color:#95a1af;font-weight:600}
+.exec-insights{display:grid;gap:10px}.exec-insight{padding:12px 13px;border:1px solid #e9eef4;background:#fafcfe;border-radius:12px}.exec-insight-label{font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:#8a98a9;font-weight:800}.exec-insight-value{font-size:15px;font-weight:800;color:#183149;margin-top:5px}.exec-insight-copy{font-size:9px;color:#77879a;margin-top:3px;line-height:1.45}
+.exec-empty{padding:48px 24px;text-align:center;border:1px dashed #cbd7e5;background:#fbfcfe;border-radius:16px}.exec-empty-icon{width:48px;height:48px;border-radius:14px;background:#edf4ff;color:#2463eb;display:grid;place-items:center;margin:0 auto 13px;font-size:20px}.exec-empty h3{margin:0 0 6px;font-size:15px}.exec-empty p{margin:0 auto;max-width:430px;font-size:10px;line-height:1.6;color:#7b8999}.exec-loading{padding:42px;text-align:center;color:#748397;font-size:11px}.exec-error{padding:14px;border:1px solid #ffd5d9;background:#fff6f6;color:#a42b38;border-radius:12px;font-size:10px}
+@media(max-width:1100px){.exec-grid{grid-template-columns:repeat(2,1fr)}.exec-main-grid{grid-template-columns:1fr}}@media(max-width:650px){.exec-grid{grid-template-columns:1fr}.exec-hero-row{align-items:flex-start;flex-direction:column}.exec-aging-row{grid-template-columns:52px minmax(0,1fr) 78px}}
+
+
+/* ===== PREMIUM V2 BATCH ===== */
+.exec-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px}
+.exec-toolbar-note{font-size:9px;color:#7e8c9d}.exec-toolbar-actions{display:flex;gap:8px;align-items:center}
+.exec-mini-btn{border:1px solid #dce5ef;background:#fff;color:#31475d;border-radius:10px;padding:8px 11px;font:700 9px Inter,sans-serif;cursor:pointer}
+.exec-mini-btn:hover{background:#f7f9fc}.exec-mini-btn:disabled{opacity:.55;cursor:wait}
+.exec-status-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}.exec-status-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);padding:6px 9px;border-radius:999px;color:#c6d6e2;font-size:8px;font-weight:700}.exec-status-chip b{color:#fff}
+.exec-kpi-value.textual{font-size:20px;letter-spacing:-.02em;margin-top:15px}
+.exec-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.exec-card-badge{font-size:8px;font-weight:800;color:#5e7185;background:#f2f6fa;border:1px solid #e4ebf2;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.exec-aging-fill.warn{background:linear-gradient(90deg,#f0a338,#f4bd62)}.exec-aging-fill.risk{background:linear-gradient(90deg,#e96a69,#ef8a77)}
+.exec-insight.priority{border-color:#f3dfc4;background:#fffaf4}.exec-insight.good{border-color:#d8ebe5;background:#f8fcfb}
+.exec-empty-actions{display:flex;justify-content:center;gap:8px;margin-top:15px}
+.exec-footnote{font-size:8px;color:#98a4b1;margin-top:12px;line-height:1.5}
+.module-topline{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:12px}.module-statline{font-size:9px;color:#7c8999}
+.table-wrap table tbody tr:hover{background:#f8fbff}
+.loading-skeleton{height:11px;border-radius:999px;background:linear-gradient(90deg,#eef2f6 25%,#f7f9fb 50%,#eef2f6 75%);background-size:200% 100%;animation:execShimmer 1.25s infinite}
+@keyframes execShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(max-width:800px){.exec-toolbar{align-items:flex-start;flex-direction:column}.exec-toolbar-actions{width:100%}.exec-mini-btn{flex:1}}
+
+
+/* ===== PREMIUM V2.1 MODULE EXPERIENCE ===== */
+.module-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:0 0 13px}
+.module-metric{background:#fff;border:1px solid #e3eaf2;border-radius:14px;padding:14px 15px;box-shadow:0 6px 18px rgba(17,38,62,.035)}
+.module-metric-label{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.065em;color:#8290a1}
+.module-metric-value{font-size:20px;font-weight:800;letter-spacing:-.025em;color:#122b43;margin-top:6px}
+.module-metric-sub{font-size:8px;color:#91a0af;margin-top:3px}
+.table-card{overflow:hidden}.table-wrap{border:1px solid #e7edf4;border-radius:12px;max-height:560px;overflow:auto;background:#fff}
+.table-wrap .table{border-collapse:separate;border-spacing:0;min-width:max-content;width:100%}
+.table-wrap .table thead th{position:sticky;top:0;z-index:4;background:#f7f9fc;box-shadow:inset 0 -1px 0 #e4eaf1;white-space:nowrap}
+.table-wrap .table th:first-child,.table-wrap .table td:first-child{position:sticky;left:0;z-index:2;background:#fff}
+.table-wrap .table thead th:first-child{z-index:6;background:#f7f9fc}
+.table-wrap .table tbody tr:hover td{background:#f8fbff}.table-wrap .table tbody tr:hover td:first-child{background:#f8fbff}
+.table-wrap .table td{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.table-headbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:12px}
+.table-meta{font-size:9px;color:#75869a;text-align:right}.table-meta b{color:#263c53}
+.filter-help{font-size:8px;color:#94a1af;margin-left:auto;white-space:nowrap}
+@media(max-width:1000px){.module-summary{grid-template-columns:repeat(2,1fr)}.filter-help{display:none}}
+@media(max-width:600px){.module-summary{grid-template-columns:1fr}}
+
+
+/* ===== PREMIUM V3 FULL BATCH ===== */
+.ops-strip{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;margin:0 0 13px}
+.ops-card{background:#fff;border:1px solid #e3eaf2;border-radius:14px;padding:14px 15px}
+.ops-card h4{font-size:10px;margin:0 0 10px;color:#173149}
+.ops-bars{display:grid;gap:8px}.ops-row{display:grid;grid-template-columns:120px 1fr 72px;gap:10px;align-items:center;font-size:8px;color:#617286}
+.ops-track{height:7px;background:#edf2f7;border-radius:99px;overflow:hidden}.ops-fill{height:100%;background:#4c7cf0;border-radius:99px}
+.ops-value{text-align:right;font-weight:800;color:#20384f}
+.quick-chips{display:flex;gap:7px;flex-wrap:wrap}.quick-chip{border:1px solid #dfe7ef;background:#f8fafc;border-radius:999px;padding:6px 9px;font-size:8px;font-weight:750;color:#52667b;cursor:pointer}
+.quick-chip.active,.quick-chip:hover{background:#edf4ff;border-color:#c9daf8;color:#225ec8}
+.sortable{cursor:pointer;user-select:none}.sortable:hover{background:#edf3fb!important}.sort-mark{font-size:7px;color:#6e86a0;margin-left:4px}
+.row-risk{font-weight:800;color:#c95050}.row-warn{font-weight:800;color:#b77a21}
+.data-quality{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.dq-chip{font-size:8px;border-radius:999px;padding:5px 8px;background:#f7f9fb;border:1px solid #e4eaf1;color:#6e7e8f}.dq-chip b{color:#263d54}
+.pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:8px;color:#77889a}
+.pagination-actions{display:flex;gap:6px}.pagination button{border:1px solid #dfe6ee;background:#fff;border-radius:8px;padding:6px 9px;font-size:8px;cursor:pointer}.pagination button:disabled{opacity:.4;cursor:default}
+@media(max-width:1000px){.ops-strip{grid-template-columns:1fr}}
+
+
+/* ===== V4 PROFESSIONAL BATCH ===== */
+.module-insights{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 14px}.insight-card{background:#fff;border:1px solid #e3eaf2;border-radius:14px;padding:14px 15px}.insight-card h4{font-size:10px;margin:0 0 10px;color:#173149}.rank-list{display:grid;gap:8px}.rank-row{display:grid;grid-template-columns:minmax(110px,1.2fr) 1fr 78px;gap:9px;align-items:center;font-size:8px}.rank-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#53677c}.rank-track{height:7px;background:#edf2f7;border-radius:99px;overflow:hidden}.rank-fill{height:100%;background:#4c7cf0;border-radius:99px}.rank-value{text-align:right;font-weight:800;color:#20384f}.signal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.signal{padding:10px;border:1px solid #e5ebf2;border-radius:11px;background:#fafcfe}.signal-label{font-size:7px;text-transform:uppercase;letter-spacing:.06em;color:#8494a6;font-weight:800}.signal-value{font-size:15px;font-weight:850;color:#102a43;margin-top:3px}.signal-sub{font-size:7px;color:#8796a6;margin-top:2px}.pager-select{border:1px solid #dfe6ee;background:#fff;border-radius:8px;padding:5px 7px;font-size:8px;color:#52667b}.table-card{overflow:visible}.table-wrap{max-height:520px}.table tbody tr:hover{background:#f8fbff}.table td{max-width:260px}.module-empty{padding:42px 18px;text-align:center;color:#7c8da0}.module-empty b{display:block;color:#243b53;font-size:12px;margin-bottom:5px}@media(max-width:1000px){.module-insights{grid-template-columns:1fr}.signal-grid{grid-template-columns:1fr 1fr}}
+
+/* ===== V5 PRODUCTION CANDIDATE ===== */
+.net-state{position:fixed;right:18px;bottom:18px;z-index:9999;display:none;align-items:center;gap:7px;padding:9px 12px;border-radius:10px;background:#fff3f3;border:1px solid #ffd5d8;color:#9c3340;font-size:9px;font-weight:750;box-shadow:0 10px 28px rgba(30,45,65,.12)}
+.net-state.show{display:flex}.net-dot{width:7px;height:7px;border-radius:50%;background:#dc5966}
+.btn.busy{opacity:.7;pointer-events:none}.btn.busy:after{content:"";display:inline-block;width:10px;height:10px;margin-left:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:v5spin .7s linear infinite}
+@keyframes v5spin{to{transform:rotate(360deg)}}
+.module-empty{padding:42px 20px;text-align:center;color:#7a8999}.module-empty strong{display:block;color:#263d54;font-size:12px;margin-bottom:5px}
+.table-wrap{scrollbar-gutter:stable}.table-wrap:focus-within{outline:2px solid rgba(49,105,214,.08);outline-offset:2px}
+@media(max-width:760px){
+  .content{padding:14px}.page-head{gap:10px;align-items:flex-start}.page-actions{width:100%;flex-wrap:wrap}
+  .filters{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}.filters select,.filters input{min-width:150px}.filters #tableSearch{min-width:210px!important}
+  .topbar{padding-left:14px;padding-right:14px}.topbar-page-copy span{display:none}.client-switcher{max-width:180px}
+  .exec-hero{padding:20px}.exec-hero h2{font-size:22px}.exec-status-row{gap:5px}
+  .table-wrap{max-height:62vh}.pagination{align-items:flex-start;flex-direction:column}
+}
+
 </style>
 </head>
 <body data-bha-build="2026-09-28-provider-v1">
@@ -82,12 +173,13 @@ const modules={
 };
 const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Multi-specialty'}];
 const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
-let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};
+function freshState(){return {session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false,dashboard:null,dashboardKey:null,tableSort:{key:'',dir:'asc'},tablePage:1,tablePageSize:100,quickAge:''}}
+let state=freshState();
 // Short-lived in-memory cache: improves repeat client switching without persisting PHI.
 const recordsCache=new Map();
-const SEARCH_TEXT_CACHE=new WeakMap();
+let SEARCH_TEXT_CACHE=new WeakMap();
 const RECORD_CACHE_TTL_MS=30000;
-function clearRecordsCache(){recordsCache.clear();}
+function clearRecordsCache(){recordsCache.clear();SEARCH_TEXT_CACHE=new WeakMap();Object.values(state.charts||{}).forEach(c=>{try{c?.destroy?.()}catch(_){}});state.charts={};state.dashboard=null;state.dashboardKey=null;}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function parseNumericValue(v){
   if(v===null||v===undefined||v==='')return null;
@@ -431,8 +523,9 @@ function shell(){
     ? `<div class="client-switcher"><label>Client / Practice</label><select id="globalClientSelect"><option value="__ALL__">All Clients</option>${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div>`
     : `<div class="crumb">${esc(clientName())}</div>`;
   const activeModule=modules[state.section]||modules.overview;
-  return `<div class="layout"><aside class="sidebar"><div class="side-brand"><div class="side-logo"><img src="${BHA_LOGO}" alt="Bright Health Alliance"></div><div class="side-brand-copy"><strong>BHA RCM Portal</strong><span>Revenue Cycle Management</span></div></div><div class="side-divider"></div><nav class="nav">${navHtml()}</nav><div class="side-footer"><div class="side-footer-dot"></div><div><strong>Secure Workspace</strong><span>Protected client access</span></div></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><div class="topbar-page-icon">${navIcon(state.section)}</div><div class="topbar-page-copy"><span>BRIGHT HEALTH ALLIANCE</span><strong>${esc(activeModule.label)}</strong></div>${clientControl}</div><div class="top-actions"><span class="role-badge">${esc(getRole())}</span><div class="avatar">${esc(initials(state.profile?.name))}</div><button id="logoutBtn" class="btn btn-light btn-small logout-btn"><span>↪</span> Logout</button></div></header><div class="content"><div id="sectionRoot"></div></div></main></div>`;
+  return `<div class="layout"><aside class="sidebar"><div class="side-brand"><div class="side-logo"><img src="${BHA_LOGO}" alt="Bright Health Alliance"></div><div class="side-brand-copy"><strong>BHA RCM Portal</strong><span>Revenue Cycle Management</span></div></div><div class="side-divider"></div><nav class="nav">${navHtml()}</nav><div class="side-footer"><div class="side-footer-dot"></div><div><strong>Secure Workspace</strong><span>Protected client access</span></div></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><div class="topbar-page-icon">${navIcon(state.section)}</div><div class="topbar-page-copy"><span>BRIGHT HEALTH ALLIANCE</span><strong>${esc(activeModule.label)}</strong></div>${clientControl}</div><div class="top-actions"><span class="role-badge">${esc(getRole())}</span><div class="avatar">${esc(initials(state.profile?.name))}</div><button id="logoutBtn" class="btn btn-light btn-small logout-btn"><span>↪</span> Logout</button></div></header><div class="content"><div id="sectionRoot"></div></div></main><div id="netState" class="net-state"><span class="net-dot"></span><span>Internet connection lost. Data actions may be unavailable.</span></div></div>`;
 }
+function syncNetworkState(){const el=document.getElementById('netState');if(el)el.classList.toggle('show',navigator.onLine===false)}
 function navIcon(key){
   const paths={
     overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -456,22 +549,32 @@ function uniqueValues(module,key){
 }
 function globalFilters(){
   const mods=state.section==='overview'?['ar','denials','verification','auth','charges','payments']:[state.section];
-  const payers=[...new Set(['Medicare','Medicaid','Aetna','Cigna','UnitedHealth','BlueCross','Humana',...mods.flatMap(m=>uniqueValues(m,'payer'))])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  const providers=[...new Set(mods.flatMap(m=>uniqueValues(m,'provider')))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const payers=[...new Set(mods.flatMap(m=>getRecords(m).map(r=>r.payer_name||r.payer).filter(Boolean)))].filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b)));
+  const providers=[...new Set(mods.flatMap(m=>getRecords(m).map(r=>r.provider).filter(Boolean)))].filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b)));
   const statuses=[...new Set(mods.flatMap(m=>uniqueValues(m,'status')))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
   return `<div class="filters"><span class="filter-title">Filters</span><select id="payerFilter"><option value="">All Payers</option>${payers.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="providerFilter"><option value="">All Providers</option>${providers.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="statusFilter"><option value="">All Statuses</option>${statuses.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="dateFrom" type="date" aria-label="From date" title="From date"><input id="dateTo" type="date" aria-label="To date" title="To date"><input id="tableSearch" placeholder="Search patient, ID, payer..." style="min-width:220px"><button class="btn btn-light btn-small" id="clearFilters">Clear filters</button></div>`;
 }
-function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload File</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Rows in the selected AR data</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Posting Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Posted amount ÷ total deposits</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Posting</h3><p class="cap">Total deposits compared with posted amounts</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
-function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
+function overviewHtml(){
+  const selectedName=state.client?.name||(hasAllClients()?'All Authorized Clients':clientName());
+  return `<div class="exec-hero"><div class="exec-hero-row"><div><div class="exec-kicker">Executive Revenue Cycle Intelligence</div><h2>${esc(selectedName)}</h2><p>Executive visibility into receivables, aging, denials and payment activity.</p><div class="exec-status-row"><span class="exec-status-chip">Workspace <b>${state.client?'Client':'Portfolio'}</b></span><span class="exec-status-chip">Access <b>${esc(getRole().toUpperCase())}</b></span><span class="exec-status-chip">Analytics <b>Server-side</b></span></div></div><div class="exec-live">Server-side RCM summary</div></div></div><div class="exec-toolbar"><div class="exec-toolbar-note">Metrics reflect the currently selected client workspace and imported datasets.</div><div class="exec-toolbar-actions"><button class="exec-mini-btn" id="refreshExecutive">↻ Refresh metrics</button></div></div><div id="overviewRoot"><div class="exec-loading"><div style="max-width:460px;margin:auto;display:grid;gap:10px"><div class="loading-skeleton"></div><div class="loading-skeleton" style="width:78%;margin:auto"></div></div></div></div>`;
+}
+function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent" title="Exports all filtered records">Export Filtered CSV</button>`)+globalFilters()+`<div id="moduleSummary"></div><div class="card table-card"><div class="table-headbar"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
 function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the exact column order and row order from the uploaded file. The original header names are also retained.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Import Batch History</h3><p class="cap">Review individual CSV imports and delete only the selected batch. Available to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="batchClient">${state.clients.map(c=>`<option value="${esc(c.id)}" ${String(state.client?.id||state.profile?.client_id||'')===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="batchModule">${choices}</select></div></div><button class="btn btn-light btn-small" id="refreshBatches">Refresh Batch History</button><div id="batchHistory" style="margin-top:12px"></div>`:`<div class="notice">Admin access required to view import batches.</div>`}</div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
-function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;let html=state.section==='overview'?overviewHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section);root.innerHTML=`<div class="section active">${html}${state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')renderOverview();if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity()}
+function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;let html=state.section==='overview'?overviewHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section);root.innerHTML=`<div class="section active">${html}${state.section!=='overview'&&state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')void renderOverview();else setTimeout(enhanceVisibleTables,0);if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity()}
 function bindSection(){
-  document.querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>{
-    state.section=b.dataset.section;
+  syncNetworkState();
+  const refreshExecutive=document.getElementById('refreshExecutive');
+  if(refreshExecutive)refreshExecutive.onclick=async()=>{refreshExecutive.disabled=true;refreshExecutive.textContent='Refreshing…';state.dashboard=null;state.dashboardKey=null;await renderOverview(true);if(document.getElementById('refreshExecutive')){document.getElementById('refreshExecutive').disabled=false;document.getElementById('refreshExecutive').textContent='↻ Refresh metrics'}};
+
+  document.querySelectorAll('[data-section]').forEach(b=>b.onclick=async()=>{
+    const nextSection=b.dataset.section;
+    if(nextSection!==state.section){state.tablePage=1;state.tableSort={key:'',dir:'asc'};state.quickAge=''}
+    state.section=nextSection;
     document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));
+    if(['ar','denials','verification','auth','charges','payments'].includes(state.section)){try{await loadData()}catch(e){toast(e.message||'Unable to load module data')}}
     renderSection();
   });
   document.getElementById('logoutBtn')?.addEventListener('click',logout);
@@ -485,7 +588,8 @@ function bindSection(){
     clientSelect.disabled=true;
     toast('Loading selected client…');
     try{
-      await loadData();
+      state.dashboard=null;state.dashboardKey=null;
+      if(['ar','denials','verification','auth','charges','payments'].includes(state.section))await loadData();
       renderSection();
       toast(state.client?`Showing ${state.client.name}`:'Showing All Clients');
     }catch(err){
@@ -499,9 +603,10 @@ function bindSection(){
   };
   document.getElementById('clearFilters')?.addEventListener('click',()=>{
     ['payerFilter','providerFilter','statusFilter','dateFrom','dateTo','tableSearch'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
-    state.section==='overview'?renderOverview():renderModule(state.section);
+    state.quickAge='';state.tablePage=1;state.section==='overview'?renderOverview():renderModule(state.section);
   });
-  ['payerFilter','providerFilter','statusFilter','dateFrom','dateTo','tableSearch'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>state.section==='overview'?renderOverview():renderModule(state.section)));
+  ['payerFilter','providerFilter','statusFilter','dateFrom','dateTo'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>{state.tablePage=1;state.section==='overview'?renderOverview():renderModule(state.section)}));
+  let searchTimer=null;document.getElementById('tableSearch')?.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.tablePage=1;state.section==='overview'?renderOverview():renderModule(state.section)},180)});
   document.getElementById('startImport')?.addEventListener('click',importCsv);
   document.getElementById('csvFile')?.addEventListener('change',e=>{const f=e.target.files?.[0],out=document.getElementById('selectedFileInfo');if(out)out.textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`:''});
   document.getElementById('exportCurrent')?.addEventListener('click',()=>exportCurrentModule(state.section));
@@ -536,7 +641,7 @@ function filteredRows(m){
     // Always scope locally as a second guard; missing client_id must never pass a client-scoped view.
     if(selected && String(r.client_id||'')!==String(selected)) return false;
     if(getRole()==='provider' && String(r.provider||'').trim().toLowerCase()!==String(state.profile?.provider_name||'').trim().toLowerCase()) return false;
-    if(payer && String(r.payer||'').toLowerCase()!==payer.toLowerCase()) return false;
+    if(payer && String(r.payer_name||r.payer||'').toLowerCase()!==payer.toLowerCase()) return false;
     if(provider && String(r.provider||'').toLowerCase()!==provider.toLowerCase()) return false;
     if(status && String(r.status||'').toLowerCase()!==status.toLowerCase()) return false;
     const date=recordDate(m,r);
@@ -561,127 +666,117 @@ function exportCurrentModule(m){
   });
   const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
   const csv=[keys.join(','),...rows.map(r=>keys.map(k=>escCsv(r[k])).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`bha_${m}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);audit('csv_export',{module:m,client_id:state.client?.id||null,rows:rows.length});toast(`Exported ${rows.toLocaleString()} records`)}
+
+function moneyNum(v){return parseNumericValue(v)||0}
+function rowAge(r){const d=Number(r.days||r.age||0);if(Number.isFinite(d)&&d>0)return d;const b=String(r.bucket||'');const map={'0-30':15,'31-60':45,'61-90':75,'91-120':105,'121-180':150,'181-240':210,'241-365':300,'365+':366};return map[b]||0}
+function sortRows(rows){const {key,dir}=state.tableSort||{};if(!key)return rows;return [...rows].sort((a,b)=>{let x=a[key],y=b[key];const nx=parseNumericValue(x),ny=parseNumericValue(y);if(nx!==null&&ny!==null){x=nx;y=ny}else{x=String(x??'').toLowerCase();y=String(y??'').toLowerCase()}return (x<y?-1:x>y?1:0)*(dir==='asc'?1:-1)})}
+function arOpsHtml(rows){
+ if(state.section!=='ar'||!rows.length)return '';
+ const total=rows.reduce((a,r)=>a+moneyNum(r.balance),0);
+ const groups=[['0–30',r=>rowAge(r)<=30],['31–60',r=>rowAge(r)>30&&rowAge(r)<=60],['61–90',r=>rowAge(r)>60&&rowAge(r)<=90],['91–120',r=>rowAge(r)>90&&rowAge(r)<=120],['121+',r=>rowAge(r)>120]].map(([label,fn])=>{const rr=rows.filter(fn),bal=rr.reduce((a,r)=>a+moneyNum(r.balance),0);return {label,count:rr.length,bal}});
+ const max=Math.max(...groups.map(x=>x.bal),1),aged=rows.filter(r=>rowAge(r)>90).length,high=rows.filter(r=>moneyNum(r.balance)>=1000).length,missing=rows.filter(r=>!(r.payer_name||r.payer)).length;
+ return `<div class="ops-strip"><div class="ops-card"><h4>Filtered Aging Snapshot</h4><div class="ops-bars">${groups.map(x=>`<div class="ops-row"><span>${x.label} · ${x.count.toLocaleString()}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(2,x.bal/max*100)}%"></div></div><span class="ops-value">${compactMoney(x.bal)}</span></div>`).join('')}</div></div><div class="ops-card"><h4>Quick Focus</h4><div class="quick-chips"><button class="quick-chip ${state.quickAge===''?'active':''}" data-age="">All AR</button><button class="quick-chip ${state.quickAge==='91'?'active':''}" data-age="91">91+ Days · ${aged.toLocaleString()}</button><button class="quick-chip ${state.quickAge==='1000'?'active':''}" data-age="1000">$1K+ Balance · ${high.toLocaleString()}</button></div><div class="data-quality"><span class="dq-chip">Rows <b>${rows.length.toLocaleString()}</b></span><span class="dq-chip">Missing payer <b>${missing.toLocaleString()}</b></span><span class="dq-chip">Balance <b>${compactMoney(total)}</b></span></div></div></div>`;
+}
+function bindQuickFocus(){document.querySelectorAll('[data-age]').forEach(b=>b.onclick=()=>{state.quickAge=b.dataset.age||'';state.tablePage=1;renderModule(state.section)})}
+function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=>{const k=String(keyFn(r)||'').trim();if(!k)return;m.set(k,(m.get(k)||0)+Number(valueFn(r)||0))});return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,limit)}
+function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
+function moduleInsightsHtml(m,rows){if(!rows.length)return '';
+ if(m==='ar'){const top=topGroups(rows,r=>r.payer_name||r.payer,r=>moneyNum(r.balance));const old=rows.filter(r=>rowAge(r)>90),oldBal=old.reduce((a,r)=>a+moneyNum(r.balance),0),high=rows.filter(r=>moneyNum(r.balance)>=1000);return `<div class="module-insights">${rankHtml('Top Payers by AR Balance',top,compactMoney)}<div class="insight-card"><h4>Collection Risk Signals</h4><div class="signal-grid"><div class="signal"><div class="signal-label">91+ Claims</div><div class="signal-value">${old.length.toLocaleString()}</div><div class="signal-sub">${compactMoney(oldBal)} outstanding</div></div><div class="signal"><div class="signal-label">$1K+ Claims</div><div class="signal-value">${high.length.toLocaleString()}</div><div class="signal-sub">high-balance inventory</div></div></div></div></div>`}
+ if(m==='denials'){const reasons=topGroups(rows,r=>r.denial||r.denial_description||'Unspecified',()=>1);const exposure=topGroups(rows,r=>r.payer_name||r.payer,r=>moneyNum(r.balance));return `<div class="module-insights">${rankHtml('Top Denial Reasons',reasons,v=>Number(v).toLocaleString())}${rankHtml('Denial Exposure by Payer',exposure,compactMoney)}</div>`}
+ if(m==='payments'){const payers=topGroups(rows,r=>r.payer,r=>moneyNum(r.posted_amount));const pending=rows.filter(r=>/pending|partial|unposted/i.test(String(r.status||''))).length;return `<div class="module-insights">${rankHtml('Top Payers by Posted Amount',payers,compactMoney)}<div class="insight-card"><h4>Posting Signals</h4><div class="signal-grid"><div class="signal"><div class="signal-label">Pending / Partial</div><div class="signal-value">${pending.toLocaleString()}</div><div class="signal-sub">filtered records</div></div><div class="signal"><div class="signal-label">Avg Posted</div><div class="signal-value">${compactMoney(rows.reduce((a,r)=>a+moneyNum(r.posted_amount),0)/Math.max(rows.length,1))}</div><div class="signal-sub">per payment record</div></div></div></div></div>`}
+ if(m==='verification'){const statuses=topGroups(rows,r=>r.iv_status||r.coverage_status_active_inactive||r.status||'Unspecified',()=>1);const insurers=topGroups(rows,r=>r.insurance_name||r.insurance_company_name||r.payer,()=>1);return `<div class="module-insights">${rankHtml('Verification Status Mix',statuses,v=>Number(v).toLocaleString())}${rankHtml('Top Insurance Plans',insurers,v=>Number(v).toLocaleString())}</div>`}
+ if(m==='auth'){const statuses=topGroups(rows,r=>r.auth_status||r.status||'Unspecified',()=>1);const payers=topGroups(rows,r=>r.payer,()=>1);return `<div class="module-insights">${rankHtml('Authorization Status Mix',statuses,v=>Number(v).toLocaleString())}${rankHtml('Authorization Volume by Payer',payers,v=>Number(v).toLocaleString())}</div>`}
+ if(m==='charges'){const payers=topGroups(rows,r=>r.payer,r=>moneyNum(r.charge||r.charges));const providers=topGroups(rows,r=>r.provider,r=>moneyNum(r.charge||r.charges));return `<div class="module-insights">${rankHtml('Charge Value by Payer',payers,compactMoney)}${rankHtml('Charge Value by Provider',providers,compactMoney)}</div>`}
+ return ''}
+function renderModuleSummary(m,rows){
+  const host=document.getElementById('moduleSummary');if(!host)return;
+  if(!rows.length){host.innerHTML='';return}
+  const num=(r,k)=>parseNumericValue(r[k])||0;
+  const sum=(k)=>rows.reduce((a,r)=>a+num(r,k),0);
+  const card=(label,value,sub='')=>`<div class="module-metric"><div class="module-metric-label">${label}</div><div class="module-metric-value">${value}</div><div class="module-metric-sub">${sub}</div></div>`;
+  if(m==='ar'){
+    const bal=sum('balance'),old=rows.filter(r=>{const b=String(r.bucket||'');const d=Number(r.days||r.age||0);return ['91-120','121-180','181-240','241-365','365+'].includes(b)||d>90}).reduce((a,r)=>a+num(r,'balance'),0);
+    const payers=new Set(rows.map(r=>r.payer_name||r.payer).filter(Boolean)).size;
+    const avg=rows.length?bal/rows.length:0;
+    host.innerHTML=`<div class="module-summary">${card('Filtered AR',compactMoney(bal),`${rows.length.toLocaleString()} claims`)}${card('AR 91+ Days',compactMoney(old),bal?`${Math.round(old/bal*100)}% of filtered AR`:'0% of filtered AR')}${card('Average Balance',compactMoney(avg),'per filtered claim')}${card('Payer Mix',payers.toLocaleString(),'unique payers')}</div>`;
+  }else if(m==='denials'){
+    host.innerHTML=`<div class="module-summary">${card('Filtered Denials',rows.length.toLocaleString(),'records')}${card('Denial Balance',compactMoney(sum('balance')),'filtered exposure')}${card('Open / Appealed',rows.filter(r=>/open|appeal/i.test(String(r.status||''))).length.toLocaleString(),'records requiring follow-up')}${card('Payers',new Set(rows.map(r=>r.payer_name||r.payer).filter(Boolean)).size.toLocaleString(),'unique payers')}</div>`;
+  }else if(m==='payments'){
+    const posted=sum('posted_amount'),dep=sum('total_deposit_amount');
+    host.innerHTML=`<div class="module-summary">${card('Payment Records',rows.length.toLocaleString(),'filtered records')}${card('Posted Amount',compactMoney(posted),'posted')}${card('Deposits',compactMoney(dep),'total deposits')}${card('Posting Rate',dep?pct(posted/dep*100):'—','posted ÷ deposits')}</div>`;
+  }else{
+    host.innerHTML=`<div class="module-summary">${card('Filtered Records',rows.length.toLocaleString(),'current filter result')}${card('Statuses',new Set(rows.map(r=>r.status).filter(Boolean)).size.toLocaleString(),'unique statuses')}${card('Payers',new Set(rows.map(r=>r.payer_name||r.payer).filter(Boolean)).size.toLocaleString(),'unique payers')}${card('Workspace',state.client?'Client':'Portfolio','current scope')}</div>`;
+  }
+}
 function renderModule(m){
-  const rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
-  // IMPORTANT: The portal must preserve the uploaded file's column order.
-  // Do NOT reorder known fields using the module schema. `__source_columns`
-  // records the exact canonical column sequence created from the source
-  // headers during import. For legacy records without that metadata, the
-  // JavaScript object insertion order is used as the best available order.
-  const cols=[];
-  const seen=new Set();
-  rows.forEach(r=>{
-    sourceColumnKeys(m,r).forEach(k=>{
-      if(!seen.has(k)){
-        seen.add(k);
-        cols.push(k);
-      }
-    });
-  });
-  const shown=rows.slice(0,500);
-  const headerRows=new Map();
-  rows.forEach(r=>{sourceColumnKeys(m,r).forEach(c=>{if(!headerRows.has(c))headerRows.set(c,r)})});
-  table.innerHTML=`<thead><tr>${cols.map(c=>`<th>${esc(sourceHeaderLabel(headerRows.get(c)||rows[0],c))}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${moneyFields.has(c)?money(r[c]):c==='status'?statusPill(r[c]):esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody>`;
-  if(!rows.length)table.innerHTML+=`<tbody><tr><td colspan="${cols.length}" class="empty">No records match the current filters.</td></tr></tbody>`;
-  const meta=document.getElementById('tableMeta');if(meta)meta.innerHTML=`Showing <b>${shown.length.toLocaleString()}</b> of <b>${rows.length.toLocaleString()}</b> filtered records${rows.length>500?' · Showing first 500':''}`;
+  let rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
+  renderModuleSummary(m,rows);
+  document.getElementById('v3Ops')?.remove();
+  const summaryHost=document.getElementById('moduleSummary');
+  if(summaryHost){const holder=document.createElement('div');holder.id='v3Ops';holder.innerHTML=(m==='ar'?arOpsHtml(rows):'')+moduleInsightsHtml(m,rows);summaryHost.insertAdjacentElement('afterend',holder);if(m==='ar')bindQuickFocus()}
+  const colsMap={
+    ar:['payer_name','patient','patient_acct_no','patient_dob','group_no','subscriber_no','claim_date','dos','days','latest_transfer_date','last_submission_date','claim_first_submitted_date','charges','balance','status','action'],
+    denials:['patient','patient_id','claim_id','dos','payer','provider','cpt','charge','balance','denial','status','action','work_date'],
+    verification:['patient','patinet_name','member_id','member_id_policy_number','insurance_name','insurance_company_name','coverage_status_active_inactive','auth_required','auth_status','iv_status','effective_date','comments','notes_red_flags'],
+    auth:['patient','patient_id','payer','provider','status','auth_status','authorization_no','start_date','end_date','units','action'],
+    charges:['patient','patient_id','claim_id','dos','payer','provider','cpt','charge','charges','status','claim_date'],
+    payments:['payment_id','payer','payment_date','posted_date','check_no','posted_amount','total_deposit_amount','status']
+  };
+  const allCols=colsMap[m]||Object.keys(rows[0]||{}).filter(k=>!k.startsWith('__'));
+  const cols=allCols.filter(c=>rows.some(r=>r[c]!==undefined&&r[c]!==null&&String(r[c]).trim()!==''));
+  rows=sortRows(rows);
+  const pageSize=state.tablePageSize||100,totalPages=Math.max(1,Math.ceil(rows.length/pageSize));
+  state.tablePage=Math.min(Math.max(1,state.tablePage||1),totalPages);
+  const from=(state.tablePage-1)*pageSize,shown=rows.slice(from,from+pageSize);
+  const label=k=>k.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()).replace('Dos','Service Date');
+  const mark=c=>state.tableSort?.key===c?`<span class="sort-mark">${state.tableSort.dir==='asc'?'▲':'▼'}</span>`:'';
+  table.innerHTML=`<thead><tr>${cols.map(c=>`<th class="sortable" data-sort="${esc(c)}">${esc(label(c))}${mark(c)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>{const raw=r[c],val=moneyFields.has(c)?money(raw):String(raw??'');let cls='';if(m==='ar'&&c==='days'){const d=Number(raw||0);cls=d>120?'row-risk':d>90?'row-warn':''}return `<td class="${cls}" title="${esc(String(raw??''))}">${c==='status'?statusPill(raw):esc(val)}</td>`}).join('')}</tr>`).join('')}</tbody>`;
+  if(!rows.length)table.innerHTML=`<tbody><tr><td><div class="module-empty"><strong>No records match this view</strong>Adjust the filters or select another client workspace.</div></td></tr></tbody>`;
+  const meta=document.getElementById('tableMeta');if(meta)meta.innerHTML=`<b>${rows.length.toLocaleString()}</b> filtered records · rows <b>${rows.length?(from+1).toLocaleString():0}–${Math.min(from+shown.length,rows.length).toLocaleString()}</b>`;
+  let pager=document.getElementById('tablePager');const wrap=table.closest('.table-wrap');if(!pager&&wrap){pager=document.createElement('div');pager.id='tablePager';pager.className='pagination';wrap.insertAdjacentElement('afterend',pager)}
+  if(pager)pager.innerHTML=`<span>Page <b>${state.tablePage}</b> of <b>${totalPages}</b> · <select id="pageSizeSelect" class="pager-select"><option value="50" ${pageSize===50?'selected':''}>50</option><option value="100" ${pageSize===100?'selected':''}>100</option><option value="250" ${pageSize===250?'selected':''}>250</option></select> rows/page</span><div class="pagination-actions"><button id="prevPage" ${state.tablePage<=1?'disabled':''}>← Previous</button><button id="nextPage" ${state.tablePage>=totalPages?'disabled':''}>Next →</button></div>`;
+  document.getElementById('prevPage')?.addEventListener('click',()=>{if(state.tablePage>1){state.tablePage--;renderModule(m)}});
+  document.getElementById('nextPage')?.addEventListener('click',()=>{if(state.tablePage<totalPages){state.tablePage++;renderModule(m)}});
+  document.getElementById('pageSizeSelect')?.addEventListener('change',e=>{state.tablePageSize=Number(e.target.value)||100;state.tablePage=1;renderModule(m)});
+  table.querySelectorAll('[data-sort]').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(state.tableSort?.key===key)state.tableSort.dir=state.tableSort.dir==='asc'?'desc':'asc';else state.tableSort={key,dir:'asc'};state.tablePage=1;renderModule(m)});
+  enhanceVisibleTables();
 }
 function statusPill(v){const s=String(v||'');let c='';if(/paid|posted|verified|approved|accepted|overturned/i.test(s))c='green';else if(/pending|partial|process|expiring|appealed/i.test(s))c='amber';else if(/denied|failed|open|rejected/i.test(s))c='red';else if(/submitted/i.test(s))c='blue';return `<span class="pill ${c}">${esc(s||'—')}</span>`}
-function renderOverview(){
-  const ar=filteredRows('ar'),den=filteredRows('denials'),pay=filteredRows('payments'),ver=filteredRows('verification'),auth=filteredRows('auth');
-  const sumValid=(rows,field)=>rows.reduce((sum,r)=>{const n=parseNumericValue(r[field]);return sum+(n===null?0:n);},0);
-  const totalAR=sumValid(ar,'balance'),claims=ar.length,denAmt=sumValid(den,'balance'),deposits=sumValid(pay,'total_deposit_amount'),posted=sumValid(pay,'posted_amount');
-  const invalidARBalances=ar.filter(r=>parseNumericValue(r.balance)===null).length;
-  const actions=den.filter(r=>/open|appealed/i.test(r.status)).length+ver.filter(r=>/failed|pending/i.test(r.status)).length+auth.filter(r=>/denied|expiring/i.test(r.status)).length;
-  document.getElementById('kpiAR').textContent=money(totalAR);
-  document.getElementById('kpiClaims').textContent=claims.toLocaleString();
-  document.getElementById('kpiDenials').textContent=money(denAmt);
-  document.getElementById('kpiCollection').textContent=(deposits>0?Math.round(posted/deposits*100)+'%':'—');
-  document.getElementById('kpiActions').textContent=actions;
-  document.getElementById('exceptionList').innerHTML=[
-    ['Open denials',den.filter(r=>/open/i.test(r.status)).length,'red'],
-    ['Verification failures',ver.filter(r=>/failed/i.test(r.status)).length,'amber'],
-    ['Authorizations expiring',auth.filter(r=>/expiring/i.test(r.status)).length,'amber'],
-    ['Pending payments',pay.filter(r=>/pending/i.test(r.status)).length,'blue']
-  ].map(x=>`<div class="stat-row"><span>${x[0]}</span><b class="pill ${x[2]}">${x[1]}</b></div>`).join('');
-  const workflow=[['AR',ar.length],['Denials',den.length],['Verification',ver.length],['Prior Auth',auth.length],['Charges',filteredRows('charges').length],['Payments',pay.length]];
-  const workflowMax=Math.max(0,...workflow.map(x=>x[1]));
-  document.getElementById('workflowStats').innerHTML=workflow.map(x=>{const width=workflowMax?x[1]/workflowMax*100:0;return `<div style="margin:0 0 12px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px"><span>${x[0]}</span><b>${x[1].toLocaleString()}</b></div><div class="progress"><span style="width:${width}%"></span></div></div>`}).join('');
-  // Build AR aging categories from the actual source data instead of a fixed list.
-  // This supports client-specific buckets such as 121-180, 181-240, 241-365 and 365+.
-  const normalizeBucketLabel=value=>String(value??'').trim().toLowerCase()
-    .replace(/[–—]/g,'-').replace(/\bdays?\b/g,'').replace(/\s+/g,'')
-    .replace(/to/g,'-').replace(/plus/g,'+');
-  const bucketForRecord=r=>{
-    // Accept common source-column variants without tying the dashboard to one client's CSV.
-    const candidates=[r.bucket,r.aging_bucket,r.age_bucket,r.ar_bucket,r.aging,r.aging_period,r.age_range,r.days_bucket];
-    let rawValue=candidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='' );
-    if(rawValue===undefined){
-      const key=Object.keys(r).find(k=>/^(aging|age)[ _-]*(bucket|range|period)$/i.test(k));
-      if(key)rawValue=r[key];
-    }
-    let raw=normalizeBucketLabel(rawValue);
-    if(raw && !['null','na','n/a','-','—','unclassified','unknown'].includes(raw)){
-      // Normalize numeric ranges (e.g. "121 to 180 days", "0 – 30", "365+ days")
-      const compact=raw.replace(/\+/g,'+');
-      const range=compact.match(/^(\d+)-?(\d+)$/);
-      if(range){
-        const lo=Number(range[1]),hi=Number(range[2]);
-        if(lo===0&&hi===30)return '0-30';
-        if(lo===31&&hi===60)return '31-60';
-        if(lo===61&&hi===90)return '61-90';
-        if(lo===91&&hi===120)return '91-120';
-        if(lo===121&&hi===180)return '121-180';
-        if(lo===181&&hi===240)return '181-240';
-        if(lo===241&&hi===365)return '241-365';
-        return `${lo}-${hi}`;
-      }
-      const plus=compact.match(/^(\d+)\+$/);if(plus)return Number(plus[1])>=365?'365+':`${plus[1]}+`;
-      return raw;
-    }
-    const ageCandidates=[r.age,r.age_days,r.days_outstanding,r.days_in_ar];
-    const ageValue=ageCandidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='');
-    const age=parseNumericValue(ageValue);
-    if(age===null||age<0)return 'unclassified';
-    if(age<=30)return '0-30';if(age<=60)return '31-60';if(age<=90)return '61-90';if(age<=120)return '91-120';
-    if(age<=180)return '121-180';if(age<=240)return '181-240';if(age<=365)return '241-365';return '365+';
-  };
-  const agingTotals=new Map();
-  ar.forEach(r=>{
-    const bucket=bucketForRecord(r);
-    const amount=parseNumericValue(r.balance);
-    if(amount===null)return;
-    agingTotals.set(bucket,(agingTotals.get(bucket)||0)+amount);
-  });
-  const bucketStart=label=>{
-    const match=String(label).match(/^(\d+)/);
-    return match?Number(match[1]):Number.MAX_SAFE_INTEGER;
-  };
-  const bucketRank=label=>String(label)==='unclassified'?Number.MAX_SAFE_INTEGER:String(label)==='365+'?365:Number.MAX_SAFE_INTEGER-1;
-  const agingLabels=[...agingTotals.keys()].sort((a,b)=>bucketStart(a)-bucketStart(b)||bucketRank(a)-bucketRank(b)||a.localeCompare(b));
-  const agingValues=agingLabels.map(label=>agingTotals.get(label));
-  const agingChartTotal=agingValues.reduce((sum,n)=>sum+n,0);
-  const arChartHost=document.getElementById('arChart')?.parentElement;
-  let reconciliation=document.getElementById('arChartReconciliation');
-  if(!reconciliation&&arChartHost){reconciliation=document.createElement('div');reconciliation.id='arChartReconciliation';reconciliation.className='muted';reconciliation.style.cssText='font-size:12px;margin-top:8px';arChartHost.appendChild(reconciliation);}
-  if(reconciliation){const diff=totalAR-agingChartTotal;reconciliation.textContent=`Chart total: ${money(agingChartTotal)} · KPI total: ${money(totalAR)} · Difference: ${money(diff)}${invalidARBalances?` · ${invalidARBalances} AR rows have missing/non-numeric balances`:''}`;reconciliation.style.color=Math.abs(diff)>0.01||invalidARBalances?'#b45309':'#15803d';}
-  drawChart('arChart','bar',agingLabels,['AR Balance'],[agingValues]);
-
-  // Group denial reasons case-insensitively while retaining a readable source label.
-  const reasonMap=new Map();
-  den.forEach(r=>{
-    const source=String(r.denial??'').trim()||'Unspecified';
-    const key=source.toLowerCase().replace(/\s+/g,' ');
-    const amount=parseNumericValue(r.balance);
-    const item=reasonMap.get(key)||{label:source,amount:0};
-    if(amount!==null)item.amount+=amount;
-    reasonMap.set(key,item);
-  });
-  const sortedReasons=[...reasonMap.values()].sort((a,b)=>b.amount-a.amount);
-  const topReasons=sortedReasons.slice(0,7);const otherReasonTotal=sortedReasons.slice(7).reduce((sum,x)=>sum+x.amount,0);
-  if(otherReasonTotal!==0)topReasons.push({label:'Other reasons',amount:otherReasonTotal});
-  drawChart('denialChart','doughnut',topReasons.map(x=>x.label),['Denial Balance'],[topReasons.map(x=>x.amount)]);
-  drawChart('paymentChart','bar',['Total Deposits','Posted Amount'],['Amount'],[[deposits,posted]]);
+function compactMoney(v){const n=Number(v||0),a=Math.abs(n);if(a>=1000000)return '$'+(n/1000000).toFixed(a>=10000000?1:2).replace(/\.0$/,'')+'M';if(a>=1000)return '$'+(n/1000).toFixed(a>=100000?0:1).replace(/\.0$/,'')+'K';return money(n)}
+function pct(v){return v===null||v===undefined||v===''?'—':`${Math.round(Number(v)||0)}%`}
+function dashboardSummaryZero(){return {total_ar:0,ar_claims:0,denial_count:0,open_denials:0,posting_rate:null,denial_amount:0,posted_amount:0,total_deposits:0,payment_records:0}}
+function mergeDashboardSummaries(items){const o=dashboardSummaryZero();items.forEach(x=>{if(!x)return;['total_ar','ar_claims','denial_count','open_denials','denial_amount','posted_amount','total_deposits','payment_records'].forEach(k=>o[k]+=Number(x[k]||0))});o.posting_rate=o.total_deposits>0?o.posted_amount/o.total_deposits*100:null;return o}
+function mergeAging(items){const map=new Map(),order=['0-30','31-60','61-90','91-120','121-180','181-240','241-365','365+'];items.flat().forEach(x=>{const k=String(x?.bucket||'Unclassified'),c=map.get(k)||{bucket:k,claim_count:0,balance:0};c.claim_count+=Number(x?.claim_count||0);c.balance+=Number(x?.balance||0);map.set(k,c)});return [...map.values()].sort((a,b)=>(order.indexOf(a.bucket)<0?999:order.indexOf(a.bucket))-(order.indexOf(b.bucket)<0?999:order.indexOf(b.bucket))||a.bucket.localeCompare(b.bucket))}
+async function fetchExecutiveDashboard(){
+  if(DEMO_MODE){await loadData();return {summary:dashboardSummaryZero(),aging:[]}}
+  if(getRole()==='provider'){
+    await loadData();const ar=filteredRows('ar'),den=filteredRows('denials'),pay=filteredRows('payments'),sum=(rows,k)=>rows.reduce((a,r)=>a+(parseNumericValue(r[k])||0),0);
+    return {summary:{total_ar:sum(ar,'balance'),ar_claims:ar.length,denial_count:den.length,open_denials:den.filter(r=>/open/i.test(r.status)).length,posting_rate:sum(pay,'total_deposit_amount')?sum(pay,'posted_amount')/sum(pay,'total_deposit_amount')*100:null,denial_amount:sum(den,'balance'),posted_amount:sum(pay,'posted_amount'),total_deposits:sum(pay,'total_deposit_amount'),payment_records:pay.length},aging:[]};
+  }
+  const ids=state.client?.id?[state.client.id]:state.clients.map(c=>c.id);if(!ids.length)return {summary:dashboardSummaryZero(),aging:[]};
+  const results=await Promise.all(ids.map(async id=>{const [sr,ar]=await Promise.all([sb.rpc('app_dashboard_summary',{p_client_id:id}),sb.rpc('app_dashboard_ar_aging',{p_client_id:id})]);if(sr.error)throw sr.error;if(ar.error)throw ar.error;return {summary:sr.data||dashboardSummaryZero(),aging:ar.data||[]}}));
+  return {summary:mergeDashboardSummaries(results.map(x=>x.summary)),aging:mergeAging(results.map(x=>x.aging))}
 }
+async function renderOverview(force=false){
+  const root=document.getElementById('overviewRoot');if(!root)return;const key=`${getRole()}:${state.client?.id||'__ALL__'}:${state.clients.map(c=>c.id).join(',')}`;
+  if(!force&&state.dashboard&&state.dashboardKey===key){paintExecutiveDashboard(state.dashboard);return}
+  root.innerHTML='<div class="exec-loading">Loading executive metrics…</div>';
+  try{const data=await fetchExecutiveDashboard();if(!document.getElementById('overviewRoot'))return;state.dashboard=data;state.dashboardKey=key;paintExecutiveDashboard(data)}
+  catch(e){if(document.getElementById('overviewRoot'))root.innerHTML=`<div class="exec-error">Unable to load executive dashboard: ${esc(e.message||e)}</div>`}
+}
+function paintExecutiveDashboard(data){
+  const root=document.getElementById('overviewRoot');if(!root)return;const x=data?.summary||dashboardSummaryZero(),aging=data?.aging||[],hasData=Number(x.ar_claims||0)+Number(x.denial_count||0)+Number(x.payment_records||0)>0;
+  if(!hasData){const canImport=['admin','user'].includes(getRole());root.innerHTML=`<div class="exec-empty"><div class="exec-empty-icon">▦</div><h3>No RCM data available yet</h3><p>${canImport?'This workspace is ready. Import the client’s first RCM dataset to activate executive analytics.':'No RCM dataset has been published to this workspace yet.'}</p>${canImport?'<div class="exec-empty-actions"><button class="exec-mini-btn" id="emptyGoImports">Open File Imports</button></div>':''}</div>`;if(canImport){const b=document.getElementById('emptyGoImports');if(b)b.onclick=()=>{state.section='imports';document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));renderSection()}}return}
+  const maxBal=Math.max(0,...aging.map(a=>Number(a.balance||0))),oldBal=aging.filter(a=>['91-120','121-180','181-240','241-365','365+'].includes(String(a.bucket))).reduce((n,a)=>n+Number(a.balance||0),0),oldPct=Number(x.total_ar)>0?oldBal/Number(x.total_ar)*100:0,top=aging.reduce((best,a)=>Number(a.balance||0)>Number(best?.balance||-1)?a:best,null);
+  root.innerHTML=`<div class="exec-grid">
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Total AR</div><div class="exec-kpi-icon">$</div></div><div class="exec-kpi-value">${compactMoney(x.total_ar)}</div><div class="exec-kpi-sub">${Number(x.ar_claims||0).toLocaleString()} claims outstanding</div></div>
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Denial Inventory</div><div class="exec-kpi-icon">!</div></div><div class="exec-kpi-value">${Number(x.denial_count||0)>0?compactMoney(x.denial_amount):'No data'}</div><div class="exec-kpi-sub">${Number(x.denial_count||0)>0?`${Number(x.denial_count||0).toLocaleString()} denial records`:'No denial dataset imported'}</div></div>
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Payment Posting</div><div class="exec-kpi-icon">✓</div></div><div class="exec-kpi-value">${Number(x.payment_records||0)>0?pct(x.posting_rate):'No data'}</div><div class="exec-kpi-sub">${Number(x.payment_records||0)>0?`${compactMoney(x.posted_amount)} posted of ${compactMoney(x.total_deposits)}`:'No payment dataset imported'}</div></div>
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">AR 91+ Days</div><div class="exec-kpi-icon">↗</div></div><div class="exec-kpi-value">${compactMoney(oldBal)}</div><div class="exec-kpi-sub">${Math.round(oldPct)}% of total AR</div></div></div>
+  <div class="exec-main-grid"><div class="exec-card"><div class="exec-card-head"><div><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance and claim volume by aging bucket</p></div><span class="exec-card-badge">${compactMoney(x.total_ar)} total</span></div>${aging.length?`<div class="exec-aging-list">${aging.map(a=>{const bal=Number(a.balance||0),w=maxBal?Math.max(2,bal/maxBal*100):0;return `<div class="exec-aging-row"><div><div class="exec-aging-label">${esc(a.bucket)}</div><div class="exec-aging-meta">${Number(a.claim_count||0).toLocaleString()} claims</div></div><div class="exec-aging-track"><div class="exec-aging-fill ${['91-120','121-180'].includes(String(a.bucket))?'warn':['181-240','241-365','365+'].includes(String(a.bucket))?'risk':''}" style="width:${w}%"></div></div><div class="exec-aging-amount">${compactMoney(bal)}</div></div>`}).join('')}</div>`:'<div class="empty">No AR aging data available.</div>'}</div>
+  <div class="exec-card"><div class="exec-card-head"><div><h3>Executive Insights</h3><p class="cap">Priority indicators from the selected workspace</p></div><span class="exec-card-badge">${Number(x.ar_claims||0).toLocaleString()} AR claims</span></div><div class="exec-insights"><div class="exec-insight ${oldPct>=40?'priority':'good'}"><div class="exec-insight-label">AR older than 90 days</div><div class="exec-insight-value">${compactMoney(oldBal)} · ${Math.round(oldPct)}%</div><div class="exec-insight-copy">${oldPct>=40?'A material share of receivables is concentrated in 91+ day aging.':'91+ day AR is a smaller share of the current receivable balance.'}</div></div><div class="exec-insight"><div class="exec-insight-label">Largest aging bucket</div><div class="exec-insight-value">${top?esc(top.bucket):'—'}</div><div class="exec-insight-copy">${top?`${compactMoney(top.balance)} across ${Number(top.claim_count||0).toLocaleString()} claims.`:'No aging distribution available.'}</div></div><div class="exec-insight"><div class="exec-insight-label">Denial dataset</div><div class="exec-insight-value">${Number(x.denial_count||0)>0?compactMoney(x.denial_amount):'Not available'}</div><div class="exec-insight-copy">${Number(x.denial_count||0)>0?`${Number(x.denial_count||0).toLocaleString()} denial records are included in this workspace.`:'No denial dataset is currently available for this client.'}</div></div></div><div class="exec-footnote">Posting rate is based on posted amount ÷ total deposit amount in the imported payment dataset; it is not a collection-rate metric.</div></div></div>`;
+}
+function enhanceVisibleTables(){document.querySelectorAll('.table-wrap td').forEach(td=>{const t=(td.textContent||'').trim();if(t&&!td.title)td.title=t})}
 function drawChart(id,type,labels,datasets,values){
   const el=document.getElementById(id);
   if(!el)return;
@@ -1106,13 +1201,38 @@ async function createUser(){
   if(error||data?.error){err.innerHTML=`<div class="error">${esc(error?.message||data?.error||'Unable to create user')}</div>`;return}
   closeModal();await loadUsers();toast('User created successfully')
 }
-async function login(){const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value,err=document.getElementById('loginError');if(DEMO_MODE){const u=demoUsers.find(x=>x.email.toLowerCase()===email.toLowerCase()&&x.active);const pass={admin:'Admin@123',user:'User@123',client:'Client@123',provider:'Provider@123'}[u?.role];if(!u||password!==pass){err.innerHTML='<div class="error">Invalid demo credentials.</div>';return}state.session={user:{id:u.id,email:u.email}};state.profile=u;await enterApp();return}const {data,error}=await sb.auth.signInWithPassword({email,password});if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}state.session=data.session;await loadProfile();await enterApp()}
+async function login(){
+  const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value,err=document.getElementById('loginError'),btn=document.querySelector('#loginForm button[type="submit"],#loginForm .login-submit');
+  if(err)err.innerHTML='';
+  if(!email||!password){if(err)err.innerHTML='<div class="error">Enter your email and password.</div>';return}
+  if(navigator.onLine===false){if(err)err.innerHTML='<div class="error">No internet connection. Reconnect and try again.</div>';return}
+  const original=btn?.innerHTML||'';
+  if(btn){btn.disabled=true;btn.classList.add('busy');btn.innerHTML='<span>Signing in…</span>'}
+  try{
+    if(DEMO_MODE){
+      const u=demoUsers.find(x=>x.email.toLowerCase()===email.toLowerCase()&&x.active),pass={admin:'Admin@123',user:'User@123',client:'Client@123',provider:'Provider@123'}[u?.role];
+      if(!u||password!==pass)throw new Error('Invalid demo credentials.');
+      state.session={user:{id:u.id,email:u.email}};state.profile=u;await enterApp();return
+    }
+    const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error)throw error;
+    state.session=data.session;
+    await loadProfile();
+    await enterApp();
+  }catch(e){
+    const msg=/failed to fetch|networkerror|network request/i.test(String(e?.message||e))?'Unable to reach the secure server. Check your internet connection and try again.':String(e?.message||'Unable to sign in.');
+    if(err)err.innerHTML=`<div class="error">${esc(msg)}</div>`;
+  }finally{
+    const liveBtn=document.querySelector('#loginForm button[type="submit"],#loginForm .login-submit');
+    if(liveBtn){liveBtn.disabled=false;liveBtn.classList.remove('busy');if(original)liveBtn.innerHTML=original}
+  }
+}
 async function loadProfile(){const {data,error}=await sb.from('profiles').select('id,name,email,role,client_id,provider_name,access_all,active').eq('id',state.session.user.id).single();if(error)throw error;if(!data.active)throw new Error('This account is disabled.');state.profile=data}
 async function enterApp(){
   try{
     await loadClients();
     if(!state.client&&state.profile.client_id) state.client=state.clients.find(c=>c.id===state.profile.client_id)||null;
-    await loadData();
+    state.records={};state.dataCapped=false;state.dashboard=null;state.dashboardKey=null;
     document.getElementById('app').innerHTML=shell();
     renderSection();
     const selector=document.getElementById('globalClientSelect');
@@ -1123,9 +1243,31 @@ async function enterApp(){
     if(x)x.innerHTML=`<div class="error">${esc(e.message||e)}</div>`;
   }
 }
-async function logout(){if(!DEMO_MODE)await sb.auth.signOut();clearRecordsCache();state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};document.getElementById('app').innerHTML=loginView();bindLogin()}
+async function logout(){
+  const btn=document.getElementById('logoutBtn');if(btn){btn.disabled=true;btn.classList.add('busy')}
+  try{if(!DEMO_MODE)await sb.auth.signOut()}catch(e){console.warn('Sign out request failed:',e)}
+  clearRecordsCache();
+  state=freshState();
+  document.getElementById('app').innerHTML=loginView();
+  bindLogin();
+}
 function bindLogin(){document.getElementById('loginForm')?.addEventListener('submit',e=>{e.preventDefault();login()})}
-async function boot(){document.getElementById('app').innerHTML=loginView();bindLogin();if(DEMO_MODE)return;const {data}=await sb.auth.getSession();if(data.session){state.session=data.session;try{await loadProfile();await enterApp()}catch(e){await sb.auth.signOut()}}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_OUT'){document.getElementById('app').innerHTML=loginView();bindLogin()}})}
+async function boot(){
+  document.getElementById('app').innerHTML=loginView();bindLogin();
+  window.addEventListener('online',syncNetworkState);window.addEventListener('offline',syncNetworkState);
+  if(DEMO_MODE)return;
+  try{
+    const {data,error}=await sb.auth.getSession();if(error)throw error;
+    if(data.session){state.session=data.session;await loadProfile();await enterApp()}
+  }catch(e){
+    console.warn('Session restore failed:',e);
+    try{await sb.auth.signOut()}catch(_){}
+    document.getElementById('app').innerHTML=loginView();bindLogin();
+  }
+  sb.auth.onAuthStateChange((event)=>{
+    if(event==='SIGNED_OUT'){state=freshState();document.getElementById('app').innerHTML=loginView();bindLogin()}
+  })
+}
 boot();
 </script>
 </body></html>
