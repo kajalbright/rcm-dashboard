@@ -65,6 +65,22 @@ body{background:linear-gradient(135deg,#f6f8fc 0%,#f3f7fb 50%,#f8fafc 100%)}
 @media(max-width:900px){.login-shell{grid-template-columns:1fr;min-height:auto;max-width:560px}.login-brand-panel{display:none}.mobile-login-logo{display:flex!important;justify-content:center;margin:0 auto 24px!important;width:160px}.mobile-login-logo img{width:100%;height:auto;object-fit:contain}.login-card{padding:42px 34px}.topbar-page-copy{display:none}.client-switcher{border-left:0;padding-left:0}}
 @media(max-width:800px){.sidebar{width:74px;padding:18px 9px}.side-brand{justify-content:center;padding-left:0;padding-right:0}.side-logo{width:47px;height:47px}.side-brand-copy,.side-divider,.side-footer,.nav-label{display:none}.nav button{justify-content:center;padding:11px 0}.nav button span:not(.nav-icon){display:none}.nav button:before{left:-1px}.main{margin-left:74px;width:calc(100% - 74px)}.topbar{padding:0 14px}.content{padding:20px 14px}.top-actions .role-badge{display:none}.logout-btn span{display:none}.login{padding:14px}.login-card{padding:34px 24px}.login-shell{border-radius:22px}}
 
+
+/* ===== PREMIUM EXECUTIVE OVERVIEW V1 ===== */
+.exec-hero{position:relative;overflow:hidden;border-radius:22px;padding:24px 26px;margin-bottom:16px;background:linear-gradient(135deg,#071a2b 0%,#0b3150 68%,#0b4a58 100%);color:#fff;box-shadow:0 18px 42px rgba(8,32,53,.14)}
+.exec-hero:after{content:"";position:absolute;width:300px;height:300px;border-radius:50%;right:-110px;top:-150px;background:radial-gradient(circle,rgba(63,209,191,.22),transparent 68%)}
+.exec-hero-row{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;gap:18px}.exec-kicker{font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#79ddd1}
+.exec-hero h2{font-size:26px;margin:7px 0 6px;letter-spacing:-.025em}.exec-hero p{margin:0;color:#b7c8d7;font-size:11px;line-height:1.6}
+.exec-live{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);padding:8px 11px;border-radius:999px;font-size:9px;font-weight:700;color:#dce9f2;white-space:nowrap}.exec-live:before{content:"";width:7px;height:7px;border-radius:50%;background:#25c997;box-shadow:0 0 0 4px rgba(37,201,151,.12)}
+.exec-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:16px}.exec-kpi{background:#fff;border:1px solid #e4ebf3;border-radius:17px;padding:18px;box-shadow:0 9px 26px rgba(16,35,58,.05);position:relative;overflow:hidden}
+.exec-kpi-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.exec-kpi-label{font-size:9px;font-weight:800;letter-spacing:.055em;text-transform:uppercase;color:#728297}.exec-kpi-icon{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#eef4ff;color:#2463eb;font-size:13px}
+.exec-kpi-value{font-size:26px;font-weight:800;letter-spacing:-.035em;color:#10243a;margin:11px 0 4px}.exec-kpi-sub{font-size:9px;color:#8a98a9}
+.exec-main-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.75fr);gap:15px}.exec-card{background:#fff;border:1px solid #e4ebf3;border-radius:17px;padding:19px;box-shadow:0 9px 28px rgba(16,35,58,.05);min-width:0}.exec-card h3{font-size:13px;margin:0;color:#172b41}.exec-card .cap{font-size:9px;color:#8290a1;margin:5px 0 15px}
+.exec-aging-list{display:grid;gap:10px}.exec-aging-row{display:grid;grid-template-columns:64px minmax(0,1fr) 90px;gap:10px;align-items:center;font-size:10px}.exec-aging-label{font-weight:800;color:#52677d}.exec-aging-track{height:8px;border-radius:999px;background:#edf1f6;overflow:hidden}.exec-aging-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2b6ef2,#6d91f5)}.exec-aging-amount{text-align:right;font-weight:800;color:#263b51}.exec-aging-meta{font-size:8px;color:#95a1af;font-weight:600}
+.exec-insights{display:grid;gap:10px}.exec-insight{padding:12px 13px;border:1px solid #e9eef4;background:#fafcfe;border-radius:12px}.exec-insight-label{font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:#8a98a9;font-weight:800}.exec-insight-value{font-size:15px;font-weight:800;color:#183149;margin-top:5px}.exec-insight-copy{font-size:9px;color:#77879a;margin-top:3px;line-height:1.45}
+.exec-empty{padding:48px 24px;text-align:center;border:1px dashed #cbd7e5;background:#fbfcfe;border-radius:16px}.exec-empty-icon{width:48px;height:48px;border-radius:14px;background:#edf4ff;color:#2463eb;display:grid;place-items:center;margin:0 auto 13px;font-size:20px}.exec-empty h3{margin:0 0 6px;font-size:15px}.exec-empty p{margin:0 auto;max-width:430px;font-size:10px;line-height:1.6;color:#7b8999}.exec-loading{padding:42px;text-align:center;color:#748397;font-size:11px}.exec-error{padding:14px;border:1px solid #ffd5d9;background:#fff6f6;color:#a42b38;border-radius:12px;font-size:10px}
+@media(max-width:1100px){.exec-grid{grid-template-columns:repeat(2,1fr)}.exec-main-grid{grid-template-columns:1fr}}@media(max-width:650px){.exec-grid{grid-template-columns:1fr}.exec-hero-row{align-items:flex-start;flex-direction:column}.exec-aging-row{grid-template-columns:52px minmax(0,1fr) 78px}}
+
 </style>
 </head>
 <body data-bha-build="2026-09-28-provider-v1">
@@ -82,12 +98,12 @@ const modules={
 };
 const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Multi-specialty'}];
 const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
-let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false};
+let state={session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false,dashboard:null,dashboardKey:null};
 // Short-lived in-memory cache: improves repeat client switching without persisting PHI.
 const recordsCache=new Map();
 const SEARCH_TEXT_CACHE=new WeakMap();
 const RECORD_CACHE_TTL_MS=30000;
-function clearRecordsCache(){recordsCache.clear();}
+function clearRecordsCache(){recordsCache.clear();state.dashboard=null;state.dashboardKey=null;}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function parseNumericValue(v){
   if(v===null||v===undefined||v==='')return null;
@@ -461,17 +477,21 @@ function globalFilters(){
   const statuses=[...new Set(mods.flatMap(m=>uniqueValues(m,'status')))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
   return `<div class="filters"><span class="filter-title">Filters</span><select id="payerFilter"><option value="">All Payers</option>${payers.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="providerFilter"><option value="">All Providers</option>${providers.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="statusFilter"><option value="">All Statuses</option>${statuses.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="dateFrom" type="date" aria-label="From date" title="From date"><input id="dateTo" type="date" aria-label="To date" title="To date"><input id="tableSearch" placeholder="Search patient, ID, payer..." style="min-width:220px"><button class="btn btn-light btn-small" id="clearFilters">Clear filters</button></div>`;
 }
-function overviewHtml(){return pageHead('Executive Overview','A high-level view of revenue cycle performance, outstanding work and exceptions.',canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Upload File</button>':'')+globalFilters()+`<div class="grid-kpi"><div class="kpi"><div class="label">Total AR</div><div class="value" id="kpiAR">$0</div><div class="sub">Outstanding balance</div></div><div class="kpi"><div class="label">Claims in AR</div><div class="value" id="kpiClaims">0</div><div class="sub">Rows in the selected AR data</div></div><div class="kpi"><div class="label">Denial Amount</div><div class="value" id="kpiDenials">$0</div><div class="sub">Current denial inventory</div></div><div class="kpi"><div class="label">Posting Rate</div><div class="value" id="kpiCollection">0%</div><div class="sub">Posted amount ÷ total deposits</div></div><div class="kpi"><div class="label">Action Items</div><div class="value" id="kpiActions">0</div><div class="sub">Items requiring attention</div></div></div><div class="cards2"><div class="card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance by aging bucket</p><div class="chart-box"><canvas id="arChart"></canvas></div></div><div class="card"><h3>RCM Exceptions</h3><p class="cap">Operational items that may need follow-up</p><div class="stat-list" id="exceptionList"></div></div></div><div class="cards3" style="margin-top:15px"><div class="card"><h3>Denial Reasons</h3><p class="cap">Top denial categories</p><div class="chart-box" style="height:220px"><canvas id="denialChart"></canvas></div></div><div class="card"><h3>Payment Posting</h3><p class="cap">Total deposits compared with posted amounts</p><div class="chart-box" style="height:220px"><canvas id="paymentChart"></canvas></div></div><div class="card"><h3>Workflow Status</h3><p class="cap">Current volume across major RCM steps</p><div id="workflowStats"></div></div></div>`}
+function overviewHtml(){
+  const selectedName=state.client?.name||(hasAllClients()?'All Authorized Clients':clientName());
+  return `<div class="exec-hero"><div class="exec-hero-row"><div><div class="exec-kicker">Executive Revenue Cycle Intelligence</div><h2>${esc(selectedName)}</h2><p>Fast server-side visibility into receivables, denials, payment posting and AR aging.</p></div><div class="exec-live">Live RCM summary</div></div></div><div id="overviewRoot"><div class="exec-loading">Loading executive metrics…</div></div>`;
+}
 function moduleHtml(module){const labels={ar:['AR Management','Accounts receivable, aging and payer balances.'],denials:['Denial Management','Denial inventory, reason codes and follow-up status.'],verification:['Insurance Verification','Eligibility and benefit verification activity.'],auth:['Prior Authorization','Authorization status and upcoming expirations.'],charges:['Charge Submission','Charges and claims submitted for adjudication.'],payments:['Payment Posting','Posted, partial and pending payments.']};return pageHead(labels[module][0],labels[module][1],(canUpload()?`<button class="btn btn-primary btn-small" data-section="imports">Upload ${labels[module][0]}</button>`:'')+`<button class="btn btn-light btn-small" id="exportCurrent">Export CSV</button>`)+globalFilters()+`<div class="card table-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h3>${labels[module][0]}</h3><p class="cap">${labels[module][1]}</p></div><span class="table-meta" id="tableMeta"></span></div><div class="table-wrap"><table class="table" id="dataTable"></table></div></div>`}
 function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('CSV / Excel Imports','Upload operational CSV or Excel files into the selected client workspace.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+`<div class="upload-panel"><div class="card"><h3>Import RCM Data</h3><p class="cap">Admin and RCM Operations users can upload CSV or Excel files. Column mapping is header-based to prevent values from shifting into the wrong fields. The dashboard preserves the exact column order and row order from the uploaded file. The original header names are also retained.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Supported Standard Fields</h3><p class="cap">These headers are mapped automatically. Extra columns are preserved.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Import Batch History</h3><p class="cap">Review individual CSV imports and delete only the selected batch. Available to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="batchClient">${state.clients.map(c=>`<option value="${esc(c.id)}" ${String(state.client?.id||state.profile?.client_id||'')===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="batchModule">${choices}</select></div></div><button class="btn btn-light btn-small" id="refreshBatches">Refresh Batch History</button><div id="batchHistory" style="margin-top:12px"></div>`:`<div class="notice">Admin access required to view import batches.</div>`}</div><div class="card" style="margin-top:15px"><h3>Admin Data Management</h3><p class="cap">Delete all imported records for one client and one module. This action is permanent and is available only to Admin.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="deleteDataModule">${choices}</select></div></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn">Delete Imported Data</button>`:`<div class="notice">Admin access required for data deletion.</div>`}</div></div>`}
 function usersHtml(){return pageHead('Users & Access','Create and manage administrator, RCM user and client viewer accounts.',`<button class="btn btn-primary btn-small" id="newUser">+ Create User</button>`)+`<div class="notice admin-note">Admin controls: edit user profile/access, enable or disable access, or permanently delete a user account.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Client</th><th>Status</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>`}
 function clientsHtml(){return pageHead('Clients & Practices','Create and manage client/practice workspaces used for role-based access.',`<button class="btn btn-primary btn-small" id="newClient">+ Create Client</button>`)+`<div class="notice admin-note">Deleting a client permanently removes its RCM records. Existing users assigned to that client become unassigned.</div><div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Client / Practice</th><th>Specialty</th><th>Status</th><th>Users</th><th>Created</th><th>Actions</th></tr></thead><tbody id="clientsBody"></tbody></table></div></div>`}
 function activityHtml(){return pageHead('Activity Log','Administrative and data-import events for accountability.')+`<div class="card table-card"><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
-function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;let html=state.section==='overview'?overviewHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section);root.innerHTML=`<div class="section active">${html}${state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')renderOverview();if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity()}
+function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;let html=state.section==='overview'?overviewHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section);root.innerHTML=`<div class="section active">${html}${state.section!=='overview'&&state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')void renderOverview();if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity()}
 function bindSection(){
-  document.querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-section]').forEach(b=>b.onclick=async()=>{
     state.section=b.dataset.section;
     document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));
+    if(['ar','denials','verification','auth','charges','payments'].includes(state.section)){try{await loadData()}catch(e){toast(e.message||'Unable to load module data')}}
     renderSection();
   });
   document.getElementById('logoutBtn')?.addEventListener('click',logout);
@@ -485,7 +505,8 @@ function bindSection(){
     clientSelect.disabled=true;
     toast('Loading selected client…');
     try{
-      await loadData();
+      state.dashboard=null;state.dashboardKey=null;
+      if(['ar','denials','verification','auth','charges','payments'].includes(state.section))await loadData();
       renderSection();
       toast(state.client?`Showing ${state.client.name}`:'Showing All Clients');
     }catch(err){
@@ -586,101 +607,39 @@ function renderModule(m){
   const meta=document.getElementById('tableMeta');if(meta)meta.innerHTML=`Showing <b>${shown.length.toLocaleString()}</b> of <b>${rows.length.toLocaleString()}</b> filtered records${rows.length>500?' · Showing first 500':''}`;
 }
 function statusPill(v){const s=String(v||'');let c='';if(/paid|posted|verified|approved|accepted|overturned/i.test(s))c='green';else if(/pending|partial|process|expiring|appealed/i.test(s))c='amber';else if(/denied|failed|open|rejected/i.test(s))c='red';else if(/submitted/i.test(s))c='blue';return `<span class="pill ${c}">${esc(s||'—')}</span>`}
-function renderOverview(){
-  const ar=filteredRows('ar'),den=filteredRows('denials'),pay=filteredRows('payments'),ver=filteredRows('verification'),auth=filteredRows('auth');
-  const sumValid=(rows,field)=>rows.reduce((sum,r)=>{const n=parseNumericValue(r[field]);return sum+(n===null?0:n);},0);
-  const totalAR=sumValid(ar,'balance'),claims=ar.length,denAmt=sumValid(den,'balance'),deposits=sumValid(pay,'total_deposit_amount'),posted=sumValid(pay,'posted_amount');
-  const invalidARBalances=ar.filter(r=>parseNumericValue(r.balance)===null).length;
-  const actions=den.filter(r=>/open|appealed/i.test(r.status)).length+ver.filter(r=>/failed|pending/i.test(r.status)).length+auth.filter(r=>/denied|expiring/i.test(r.status)).length;
-  document.getElementById('kpiAR').textContent=money(totalAR);
-  document.getElementById('kpiClaims').textContent=claims.toLocaleString();
-  document.getElementById('kpiDenials').textContent=money(denAmt);
-  document.getElementById('kpiCollection').textContent=(deposits>0?Math.round(posted/deposits*100)+'%':'—');
-  document.getElementById('kpiActions').textContent=actions;
-  document.getElementById('exceptionList').innerHTML=[
-    ['Open denials',den.filter(r=>/open/i.test(r.status)).length,'red'],
-    ['Verification failures',ver.filter(r=>/failed/i.test(r.status)).length,'amber'],
-    ['Authorizations expiring',auth.filter(r=>/expiring/i.test(r.status)).length,'amber'],
-    ['Pending payments',pay.filter(r=>/pending/i.test(r.status)).length,'blue']
-  ].map(x=>`<div class="stat-row"><span>${x[0]}</span><b class="pill ${x[2]}">${x[1]}</b></div>`).join('');
-  const workflow=[['AR',ar.length],['Denials',den.length],['Verification',ver.length],['Prior Auth',auth.length],['Charges',filteredRows('charges').length],['Payments',pay.length]];
-  const workflowMax=Math.max(0,...workflow.map(x=>x[1]));
-  document.getElementById('workflowStats').innerHTML=workflow.map(x=>{const width=workflowMax?x[1]/workflowMax*100:0;return `<div style="margin:0 0 12px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px"><span>${x[0]}</span><b>${x[1].toLocaleString()}</b></div><div class="progress"><span style="width:${width}%"></span></div></div>`}).join('');
-  // Build AR aging categories from the actual source data instead of a fixed list.
-  // This supports client-specific buckets such as 121-180, 181-240, 241-365 and 365+.
-  const normalizeBucketLabel=value=>String(value??'').trim().toLowerCase()
-    .replace(/[–—]/g,'-').replace(/\bdays?\b/g,'').replace(/\s+/g,'')
-    .replace(/to/g,'-').replace(/plus/g,'+');
-  const bucketForRecord=r=>{
-    // Accept common source-column variants without tying the dashboard to one client's CSV.
-    const candidates=[r.bucket,r.aging_bucket,r.age_bucket,r.ar_bucket,r.aging,r.aging_period,r.age_range,r.days_bucket];
-    let rawValue=candidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='' );
-    if(rawValue===undefined){
-      const key=Object.keys(r).find(k=>/^(aging|age)[ _-]*(bucket|range|period)$/i.test(k));
-      if(key)rawValue=r[key];
-    }
-    let raw=normalizeBucketLabel(rawValue);
-    if(raw && !['null','na','n/a','-','—','unclassified','unknown'].includes(raw)){
-      // Normalize numeric ranges (e.g. "121 to 180 days", "0 – 30", "365+ days")
-      const compact=raw.replace(/\+/g,'+');
-      const range=compact.match(/^(\d+)-?(\d+)$/);
-      if(range){
-        const lo=Number(range[1]),hi=Number(range[2]);
-        if(lo===0&&hi===30)return '0-30';
-        if(lo===31&&hi===60)return '31-60';
-        if(lo===61&&hi===90)return '61-90';
-        if(lo===91&&hi===120)return '91-120';
-        if(lo===121&&hi===180)return '121-180';
-        if(lo===181&&hi===240)return '181-240';
-        if(lo===241&&hi===365)return '241-365';
-        return `${lo}-${hi}`;
-      }
-      const plus=compact.match(/^(\d+)\+$/);if(plus)return Number(plus[1])>=365?'365+':`${plus[1]}+`;
-      return raw;
-    }
-    const ageCandidates=[r.age,r.age_days,r.days_outstanding,r.days_in_ar];
-    const ageValue=ageCandidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='');
-    const age=parseNumericValue(ageValue);
-    if(age===null||age<0)return 'unclassified';
-    if(age<=30)return '0-30';if(age<=60)return '31-60';if(age<=90)return '61-90';if(age<=120)return '91-120';
-    if(age<=180)return '121-180';if(age<=240)return '181-240';if(age<=365)return '241-365';return '365+';
-  };
-  const agingTotals=new Map();
-  ar.forEach(r=>{
-    const bucket=bucketForRecord(r);
-    const amount=parseNumericValue(r.balance);
-    if(amount===null)return;
-    agingTotals.set(bucket,(agingTotals.get(bucket)||0)+amount);
-  });
-  const bucketStart=label=>{
-    const match=String(label).match(/^(\d+)/);
-    return match?Number(match[1]):Number.MAX_SAFE_INTEGER;
-  };
-  const bucketRank=label=>String(label)==='unclassified'?Number.MAX_SAFE_INTEGER:String(label)==='365+'?365:Number.MAX_SAFE_INTEGER-1;
-  const agingLabels=[...agingTotals.keys()].sort((a,b)=>bucketStart(a)-bucketStart(b)||bucketRank(a)-bucketRank(b)||a.localeCompare(b));
-  const agingValues=agingLabels.map(label=>agingTotals.get(label));
-  const agingChartTotal=agingValues.reduce((sum,n)=>sum+n,0);
-  const arChartHost=document.getElementById('arChart')?.parentElement;
-  let reconciliation=document.getElementById('arChartReconciliation');
-  if(!reconciliation&&arChartHost){reconciliation=document.createElement('div');reconciliation.id='arChartReconciliation';reconciliation.className='muted';reconciliation.style.cssText='font-size:12px;margin-top:8px';arChartHost.appendChild(reconciliation);}
-  if(reconciliation){const diff=totalAR-agingChartTotal;reconciliation.textContent=`Chart total: ${money(agingChartTotal)} · KPI total: ${money(totalAR)} · Difference: ${money(diff)}${invalidARBalances?` · ${invalidARBalances} AR rows have missing/non-numeric balances`:''}`;reconciliation.style.color=Math.abs(diff)>0.01||invalidARBalances?'#b45309':'#15803d';}
-  drawChart('arChart','bar',agingLabels,['AR Balance'],[agingValues]);
-
-  // Group denial reasons case-insensitively while retaining a readable source label.
-  const reasonMap=new Map();
-  den.forEach(r=>{
-    const source=String(r.denial??'').trim()||'Unspecified';
-    const key=source.toLowerCase().replace(/\s+/g,' ');
-    const amount=parseNumericValue(r.balance);
-    const item=reasonMap.get(key)||{label:source,amount:0};
-    if(amount!==null)item.amount+=amount;
-    reasonMap.set(key,item);
-  });
-  const sortedReasons=[...reasonMap.values()].sort((a,b)=>b.amount-a.amount);
-  const topReasons=sortedReasons.slice(0,7);const otherReasonTotal=sortedReasons.slice(7).reduce((sum,x)=>sum+x.amount,0);
-  if(otherReasonTotal!==0)topReasons.push({label:'Other reasons',amount:otherReasonTotal});
-  drawChart('denialChart','doughnut',topReasons.map(x=>x.label),['Denial Balance'],[topReasons.map(x=>x.amount)]);
-  drawChart('paymentChart','bar',['Total Deposits','Posted Amount'],['Amount'],[[deposits,posted]]);
+function compactMoney(v){const n=Number(v||0),a=Math.abs(n);if(a>=1000000)return '$'+(n/1000000).toFixed(a>=10000000?1:2).replace(/\.0$/,'')+'M';if(a>=1000)return '$'+(n/1000).toFixed(a>=100000?0:1).replace(/\.0$/,'')+'K';return money(n)}
+function pct(v){return v===null||v===undefined||v===''?'—':`${Math.round(Number(v)||0)}%`}
+function dashboardSummaryZero(){return {total_ar:0,ar_claims:0,denial_count:0,open_denials:0,posting_rate:null,denial_amount:0,posted_amount:0,total_deposits:0,payment_records:0}}
+function mergeDashboardSummaries(items){const o=dashboardSummaryZero();items.forEach(x=>{if(!x)return;['total_ar','ar_claims','denial_count','open_denials','denial_amount','posted_amount','total_deposits','payment_records'].forEach(k=>o[k]+=Number(x[k]||0))});o.posting_rate=o.total_deposits>0?o.posted_amount/o.total_deposits*100:null;return o}
+function mergeAging(items){const map=new Map(),order=['0-30','31-60','61-90','91-120','121-180','181-240','241-365','365+'];items.flat().forEach(x=>{const k=String(x?.bucket||'Unclassified'),c=map.get(k)||{bucket:k,claim_count:0,balance:0};c.claim_count+=Number(x?.claim_count||0);c.balance+=Number(x?.balance||0);map.set(k,c)});return [...map.values()].sort((a,b)=>(order.indexOf(a.bucket)<0?999:order.indexOf(a.bucket))-(order.indexOf(b.bucket)<0?999:order.indexOf(b.bucket))||a.bucket.localeCompare(b.bucket))}
+async function fetchExecutiveDashboard(){
+  if(DEMO_MODE){await loadData();return {summary:dashboardSummaryZero(),aging:[]}}
+  if(getRole()==='provider'){
+    await loadData();const ar=filteredRows('ar'),den=filteredRows('denials'),pay=filteredRows('payments'),sum=(rows,k)=>rows.reduce((a,r)=>a+(parseNumericValue(r[k])||0),0);
+    return {summary:{total_ar:sum(ar,'balance'),ar_claims:ar.length,denial_count:den.length,open_denials:den.filter(r=>/open/i.test(r.status)).length,posting_rate:sum(pay,'total_deposit_amount')?sum(pay,'posted_amount')/sum(pay,'total_deposit_amount')*100:null,denial_amount:sum(den,'balance'),posted_amount:sum(pay,'posted_amount'),total_deposits:sum(pay,'total_deposit_amount'),payment_records:pay.length},aging:[]};
+  }
+  const ids=state.client?.id?[state.client.id]:state.clients.map(c=>c.id);if(!ids.length)return {summary:dashboardSummaryZero(),aging:[]};
+  const results=await Promise.all(ids.map(async id=>{const [sr,ar]=await Promise.all([sb.rpc('app_dashboard_summary',{p_client_id:id}),sb.rpc('app_dashboard_ar_aging',{p_client_id:id})]);if(sr.error)throw sr.error;if(ar.error)throw ar.error;return {summary:sr.data||dashboardSummaryZero(),aging:ar.data||[]}}));
+  return {summary:mergeDashboardSummaries(results.map(x=>x.summary)),aging:mergeAging(results.map(x=>x.aging))}
+}
+async function renderOverview(force=false){
+  const root=document.getElementById('overviewRoot');if(!root)return;const key=`${getRole()}:${state.client?.id||'__ALL__'}:${state.clients.map(c=>c.id).join(',')}`;
+  if(!force&&state.dashboard&&state.dashboardKey===key){paintExecutiveDashboard(state.dashboard);return}
+  root.innerHTML='<div class="exec-loading">Loading executive metrics…</div>';
+  try{const data=await fetchExecutiveDashboard();if(!document.getElementById('overviewRoot'))return;state.dashboard=data;state.dashboardKey=key;paintExecutiveDashboard(data)}
+  catch(e){if(document.getElementById('overviewRoot'))root.innerHTML=`<div class="exec-error">Unable to load executive dashboard: ${esc(e.message||e)}</div>`}
+}
+function paintExecutiveDashboard(data){
+  const root=document.getElementById('overviewRoot');if(!root)return;const x=data?.summary||dashboardSummaryZero(),aging=data?.aging||[],hasData=Number(x.ar_claims||0)+Number(x.denial_count||0)+Number(x.payment_records||0)>0;
+  if(!hasData){root.innerHTML=`<div class="exec-empty"><div class="exec-empty-icon">▦</div><h3>No RCM data available yet</h3><p>This client workspace is ready. Import AR, denial, verification or payment data to populate the executive dashboard.</p></div>`;return}
+  const maxBal=Math.max(0,...aging.map(a=>Number(a.balance||0))),oldBal=aging.filter(a=>['91-120','121-180','181-240','241-365','365+'].includes(String(a.bucket))).reduce((n,a)=>n+Number(a.balance||0),0),oldPct=Number(x.total_ar)>0?oldBal/Number(x.total_ar)*100:0,top=aging.reduce((best,a)=>Number(a.balance||0)>Number(best?.balance||-1)?a:best,null);
+  root.innerHTML=`<div class="exec-grid">
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Total AR</div><div class="exec-kpi-icon">$</div></div><div class="exec-kpi-value">${compactMoney(x.total_ar)}</div><div class="exec-kpi-sub">${Number(x.ar_claims||0).toLocaleString()} claims outstanding</div></div>
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Denial Inventory</div><div class="exec-kpi-icon">!</div></div><div class="exec-kpi-value">${compactMoney(x.denial_amount)}</div><div class="exec-kpi-sub">${Number(x.denial_count||0).toLocaleString()} denial records</div></div>
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Posting Rate</div><div class="exec-kpi-icon">✓</div></div><div class="exec-kpi-value">${pct(x.posting_rate)}</div><div class="exec-kpi-sub">${compactMoney(x.posted_amount)} posted of ${compactMoney(x.total_deposits)}</div></div>
+  <div class="exec-kpi"><div class="exec-kpi-top"><div class="exec-kpi-label">Open Denials</div><div class="exec-kpi-icon">↗</div></div><div class="exec-kpi-value">${Number(x.open_denials||0).toLocaleString()}</div><div class="exec-kpi-sub">${Number(x.payment_records||0).toLocaleString()} payment records</div></div></div>
+  <div class="exec-main-grid"><div class="exec-card"><h3>AR Aging Distribution</h3><p class="cap">Outstanding balance and claim volume by aging bucket</p>${aging.length?`<div class="exec-aging-list">${aging.map(a=>{const bal=Number(a.balance||0),w=maxBal?Math.max(2,bal/maxBal*100):0;return `<div class="exec-aging-row"><div><div class="exec-aging-label">${esc(a.bucket)}</div><div class="exec-aging-meta">${Number(a.claim_count||0).toLocaleString()} claims</div></div><div class="exec-aging-track"><div class="exec-aging-fill" style="width:${w}%"></div></div><div class="exec-aging-amount">${compactMoney(bal)}</div></div>`}).join('')}</div>`:'<div class="empty">No AR aging data available.</div>'}</div>
+  <div class="exec-card"><h3>Executive Insights</h3><p class="cap">At-a-glance indicators from the current client data</p><div class="exec-insights"><div class="exec-insight"><div class="exec-insight-label">AR older than 90 days</div><div class="exec-insight-value">${compactMoney(oldBal)} · ${Math.round(oldPct)}%</div><div class="exec-insight-copy">Share of total receivables in 91+ day buckets.</div></div><div class="exec-insight"><div class="exec-insight-label">Largest aging bucket</div><div class="exec-insight-value">${top?esc(top.bucket):'—'}</div><div class="exec-insight-copy">${top?`${compactMoney(top.balance)} across ${Number(top.claim_count||0).toLocaleString()} claims.`:'No aging distribution available.'}</div></div><div class="exec-insight"><div class="exec-insight-label">Denial exposure</div><div class="exec-insight-value">${compactMoney(x.denial_amount)}</div><div class="exec-insight-copy">${Number(x.denial_count||0).toLocaleString()} denial records in the selected workspace.</div></div></div></div></div>`;
 }
 function drawChart(id,type,labels,datasets,values){
   const el=document.getElementById(id);
@@ -1112,7 +1071,7 @@ async function enterApp(){
   try{
     await loadClients();
     if(!state.client&&state.profile.client_id) state.client=state.clients.find(c=>c.id===state.profile.client_id)||null;
-    await loadData();
+    state.records={};state.dataCapped=false;state.dashboard=null;state.dashboardKey=null;
     document.getElementById('app').innerHTML=shell();
     renderSection();
     const selector=document.getElementById('globalClientSelect');
