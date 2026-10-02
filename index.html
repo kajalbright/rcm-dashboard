@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
 /* V6 PREMIUM COMPLETE LOCAL BATCH foundation */
 const BHA_PREMIUM_MODULES = {
  executive:true,
@@ -478,7 +479,7 @@ body{background:var(--v8-bg)}
 
 </style>
 </head>
-<body data-bha-build="2026-10-02-v24-navigation-stable">
+<body data-bha-build="2026-10-02-v25-client-nav-repair">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -883,9 +884,31 @@ function navIcon(key){
   return `<svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[key]||paths.overview}</svg>`;
 }
 function communicationUnreadCount(){return Object.values(state.commUnread||{}).reduce((a,b)=>a+Number(b||0),0)}
+async function navigateToSection(nextSection){
+  try{
+    nextSection=String(nextSection||'');
+    if(!nextSection||nextSection===state.section)return;
+    if(!sectionAllowed(nextSection))return toast('This section is not available for your role.');
+    state.tablePage=1;state.tableSort={key:'',dir:'asc'};state.quickAge='';
+    state.section=nextSection;
+    document.querySelectorAll('aside.sidebar nav [data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));
+    renderSection();
+    const title=document.querySelector('.topbar-page-copy strong');
+    const icon=document.querySelector('.topbar-page-icon');
+    if(title)title.textContent=(modules[nextSection]?.label||(nextSection==='communication'?'Communication Center':nextSection==='imports'?'Data Operations':nextSection));
+    if(icon)icon.innerHTML=navIcon(nextSection);
+    if(['ar','denials','verification','auth','charges','payments'].includes(nextSection)){
+      await loadData();
+      if(state.section===nextSection)renderSection();
+    }
+  }catch(err){
+    console.error('Navigation failed',nextSection,err);
+    toast(err?.message||'Unable to open this section.');
+  }
+}
 function navHtml(){
  const r=getRole(),allowed=new Set(allowedSections());let html='';
- const add=(label,keys)=>{const visible=keys.filter(k=>allowed.has(k));if(!visible.length)return;html+=`<div class="nav-label">${label}</div>`;visible.forEach(k=>{const label=k==='communication'?'Communication Center':k==='automation'?'Automation Network':k==='imports'?'Data Operations':modules[k]?.label||k;const unread=k==='communication'?communicationUnreadCount():0;html+=`<button data-section="${k}" class="${state.section===k?'active':''}"><span class="nav-icon">${navIcon(k)}</span><span>${esc(label)}</span>${unread?`<span class="comm-nav-badge">${unread}</span>`:''}</button>`})};
+ const add=(label,keys)=>{const visible=keys.filter(k=>allowed.has(k));if(!visible.length)return;html+=`<div class="nav-label">${label}</div>`;visible.forEach(k=>{const label=k==='communication'?'Communication Center':k==='automation'?'Automation Network':k==='imports'?'Data Operations':modules[k]?.label||k;const unread=k==='communication'?communicationUnreadCount():0;html+=`<button type="button" data-section="${k}" onclick="navigateToSection(\'${k}\')" class="${state.section===k?'active':''}"><span class="nav-icon">${navIcon(k)}</span><span>${esc(label)}</span>${unread?`<span class="comm-nav-badge">${unread}</span>`:''}</button>`})};
  if(r==='user'){add('My Work',['overview','ar','denials','verification','auth','charges','payments']);add('Collaboration',['communication']);add('Operations',['imports'])}
  else if(r==='client'){add('Practice Performance',['overview','ar','denials','charges','payments']);add('RCM Operations',['verification','auth']);add('Collaboration',['communication'])}
  else if(r==='provider'){add('My Provider View',['overview','ar','denials','verification','auth','charges']);add('Collaboration',['communication'])}
@@ -1308,7 +1331,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V24 Navigation Stable';
+const V6_BUILD='V25 Client Nav Repair';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -1601,7 +1624,7 @@ function v15ProviderOverview(){
   ['charges','Charge Submission','Review your mapped charges and submission activity.']
  ];
  root.innerHTML=`<div class="v15-provider-home"><div class="v15-provider-notice"><div><span>Provider identity</span><strong>${esc(mapped||'Not configured')}</strong></div><p>${mapped?'All operational module views apply an additional provider-name filter in the browser. Production RLS should enforce the same restriction server-side.':'Your account does not have a provider_name mapping. Ask an administrator to configure it before using clinical revenue data.'}</p></div><div class="v15-role-grid">${items.map(([k,t,d])=>`<button class="v15-role-card" data-section="${k}" ${mapped?'':'disabled'}><span class="nav-icon">${navIcon(k)}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div><span>→</span></button>`).join('')}</div></div>`;
- document.querySelectorAll('#overviewRoot [data-section]').forEach(b=>b.onclick=()=>{if(!b.disabled){state.section=b.dataset.section;renderSection();loadData().then(()=>state.section===b.dataset.section&&renderSection()).catch(e=>toast(e.message||'Unable to load data'))}});
+ document.querySelectorAll('#overviewRoot [data-section]').forEach(b=>b.onclick=()=>{if(!b.disabled)void navigateToSection(b.dataset.section)});
 }
 async function renderOverview(force=false){
  if(getRole()==='provider'){v15ProviderOverview();return}
@@ -1621,7 +1644,7 @@ async function renderOverview(force=false){
 }
 function paintExecutiveDashboard(data){
   const root=document.getElementById('overviewRoot');if(!root)return;const x=data?.summary||dashboardSummaryZero(),aging=data?.aging||[],hasData=Number(x.ar_claims||0)+Number(x.denial_count||0)+Number(x.payment_records||0)>0;
-  if(!hasData){const canImport=['admin','user'].includes(getRole());root.innerHTML=`<div class="exec-empty"><div class="exec-empty-icon">▦</div><h3>No RCM data available yet</h3><p>${canImport?'This workspace is ready. Import the client’s first RCM dataset to activate executive analytics.':'No RCM dataset has been published to this workspace yet.'}</p>${canImport?'<div class="exec-empty-actions"><button class="exec-mini-btn" id="emptyGoImports">Open File Imports</button></div>':''}</div>`;if(canImport){const b=document.getElementById('emptyGoImports');if(b)b.onclick=()=>{state.section='imports';document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));renderSection()}}return}
+  if(!hasData){const canImport=['admin','user'].includes(getRole());root.innerHTML=`<div class="exec-empty"><div class="exec-empty-icon">▦</div><h3>No RCM data available yet</h3><p>${canImport?'This workspace is ready. Import the client’s first RCM dataset to activate executive analytics.':'No RCM dataset has been published to this workspace yet.'}</p>${canImport?'<div class="exec-empty-actions"><button class="exec-mini-btn" id="emptyGoImports">Open File Imports</button></div>':''}</div>`;if(canImport){const b=document.getElementById('emptyGoImports');if(b)b.onclick=()=>void navigateToSection('imports')}return}
   const maxBal=Math.max(0,...aging.map(a=>Number(a.balance||0))),oldBal=aging.filter(a=>['91-120','121-180','181-240','241-365','365+'].includes(String(a.bucket))).reduce((n,a)=>n+Number(a.balance||0),0),oldPct=Number(x.total_ar)>0?oldBal/Number(x.total_ar)*100:0,top=aging.reduce((best,a)=>Number(a.balance||0)>Number(best?.balance||-1)?a:best,null);
   const arRiskPct=Number(x.total_ar)>0?oldBal/Number(x.total_ar)*100:0, denialPct=Number(x.total_ar)>0?Number(x.denial_amount||0)/Number(x.total_ar)*100:0, postingVariance=Math.abs(Number(x.total_deposits||0)-Number(x.posted_amount||0));
   root.innerHTML=`<div class="exec-grid">
@@ -2159,21 +2182,8 @@ async function boot(){
   window.addEventListener('pagehide',()=>{Object.values(state.charts||{}).forEach(c=>{try{c?.destroy?.()}catch(_){}})});
   document.getElementById('app').innerHTML=loginView();bindLogin();
   window.addEventListener('online',syncNetworkState);window.addEventListener('offline',syncNetworkState);
-  document.addEventListener('click',async e=>{
-    const b=e.target.closest?.('aside.sidebar nav [data-section]');
-    if(!b)return;
-    e.preventDefault();
-    const nextSection=b.dataset.section;
-    if(!nextSection||nextSection===state.section)return;
-    if(!sectionAllowed(nextSection))return toast('This section is not available for your role.');
-    state.tablePage=1;state.tableSort={key:'',dir:'asc'};state.quickAge='';
-    state.section=nextSection;
-    document.querySelectorAll('aside.sidebar nav [data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));
-    renderSection();
-    if(['ar','denials','verification','auth','charges','payments'].includes(nextSection)){
-      try{await loadData();if(state.section===nextSection)renderSection()}catch(err){toast(err?.message||'Unable to load module data')}
-    }
-  });
+  // Sidebar buttons call navigateToSection() directly; handlers survive all live updates.
+
   document.addEventListener('click',e=>{
     const t=e.target.closest?.('#v6Print,#v6ShortcutsBtn,#v6CloseShortcuts');
     if(!t)return;
