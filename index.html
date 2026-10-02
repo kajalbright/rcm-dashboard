@@ -478,7 +478,7 @@ body{background:var(--v8-bg)}
 
 </style>
 </head>
-<body data-bha-build="2026-10-02-v23-production-repair">
+<body data-bha-build="2026-10-02-v24-navigation-stable">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -1153,14 +1153,24 @@ function startCommRealtime(){
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'communication_messages'},payload=>{
       const m=payload.new||{};const allowed=commClients().some(c=>String(c.id)===String(m.client_id));if(!allowed)return;
       if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id)===String(m.client_id))appendIncomingMessage(m);
-      else{state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;const nav=document.querySelector('aside.sidebar nav');if(nav)nav.innerHTML=navHtml()}
+      else{state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;updateCommunicationBadge()}
    }).subscribe();
+}
+function updateCommunicationBadge(){
+  const btn=document.querySelector('aside.sidebar nav [data-section="communication"]');
+  if(!btn)return;
+  const unread=communicationUnreadCount();
+  let badge=btn.querySelector('.comm-nav-badge');
+  if(unread){
+    if(!badge){badge=document.createElement('span');badge.className='comm-nav-badge';btn.appendChild(badge)}
+    badge.textContent=String(unread);
+  }else badge?.remove();
 }
 async function productionAutoSync(){
   if(DEMO_MODE||!state.session?.user)return;
   try{
     await commRefreshUnread();
-    const nav=document.querySelector('aside.sidebar nav');if(nav)nav.innerHTML=navHtml();
+    updateCommunicationBadge();
     if(state.section==='communication'){
       const c=commCurrentWorkspace();if(!c)return;
       const {data,error}=await sb.from('communication_messages').select('id,created_at').eq('client_id',c.id).order('created_at',{ascending:false}).limit(1);
@@ -1187,18 +1197,8 @@ function bindSection(){
   const refreshExecutive=document.getElementById('refreshExecutive');
   if(refreshExecutive)refreshExecutive.onclick=async()=>{refreshExecutive.disabled=true;refreshExecutive.textContent='Refreshing…';state.dashboard=null;state.dashboardKey=null;await renderOverview(true);if(document.getElementById('refreshExecutive')){document.getElementById('refreshExecutive').disabled=false;document.getElementById('refreshExecutive').textContent='↻ Refresh'}};
 
-  document.querySelectorAll('[data-section]').forEach(b=>b.onclick=async()=>{
-    const nextSection=b.dataset.section;
-    if(nextSection!==state.section){state.tablePage=1;state.tableSort={key:'',dir:'asc'};state.quickAge=''}
-    state.section=nextSection;
-    document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));
-    if(['ar','denials','verification','auth','charges','payments'].includes(state.section)){
-      renderSection();
-      try{await loadData();if(state.section===nextSection)renderSection()}catch(e){toast(e.message||'Unable to load module data')}
-      return;
-    }
-    renderSection();
-  });
+  // Sidebar navigation uses one delegated listener installed at boot, so live badge updates cannot break clicks.
+
   document.getElementById('logoutBtn')?.addEventListener('click',logout);
   const clientSelect=document.getElementById('globalClientSelect');
   if(clientSelect) clientSelect.onchange=async e=>{
@@ -1308,7 +1308,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V23 Production Repair';
+const V6_BUILD='V24 Navigation Stable';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -2134,7 +2134,7 @@ async function enterApp(){
     renderSection();
     const selector=document.getElementById('globalClientSelect');
     if(selector) selector.value=state.client?.id||'__ALL__';
-    startProductionSync();startCommRealtime();
+    updateCommunicationBadge();startProductionSync();startCommRealtime();
   }catch(e){
     document.getElementById('app').innerHTML=loginView();
     const x=document.getElementById('loginError');
@@ -2159,6 +2159,21 @@ async function boot(){
   window.addEventListener('pagehide',()=>{Object.values(state.charts||{}).forEach(c=>{try{c?.destroy?.()}catch(_){}})});
   document.getElementById('app').innerHTML=loginView();bindLogin();
   window.addEventListener('online',syncNetworkState);window.addEventListener('offline',syncNetworkState);
+  document.addEventListener('click',async e=>{
+    const b=e.target.closest?.('aside.sidebar nav [data-section]');
+    if(!b)return;
+    e.preventDefault();
+    const nextSection=b.dataset.section;
+    if(!nextSection||nextSection===state.section)return;
+    if(!sectionAllowed(nextSection))return toast('This section is not available for your role.');
+    state.tablePage=1;state.tableSort={key:'',dir:'asc'};state.quickAge='';
+    state.section=nextSection;
+    document.querySelectorAll('aside.sidebar nav [data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===state.section));
+    renderSection();
+    if(['ar','denials','verification','auth','charges','payments'].includes(nextSection)){
+      try{await loadData();if(state.section===nextSection)renderSection()}catch(err){toast(err?.message||'Unable to load module data')}
+    }
+  });
   document.addEventListener('click',e=>{
     const t=e.target.closest?.('#v6Print,#v6ShortcutsBtn,#v6CloseShortcuts');
     if(!t)return;
