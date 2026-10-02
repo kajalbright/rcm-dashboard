@@ -478,7 +478,7 @@ body{background:var(--v8-bg)}
 
 </style>
 </head>
-<body data-bha-build="2026-10-02-v22-production-sync-fix">
+<body data-bha-build="2026-10-02-v23-production-repair">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -1041,7 +1041,7 @@ function commCurrentWorkspace(){
 }
 function commStatusClass(v){v=String(v||'Open').toLowerCase();return v.includes('resolved')?'comm-resolved':v.includes('progress')?'comm-progress':'comm-open'}
 state.commUnread=state.commUnread||{};
-function communicationUnreadCount(){return Object.values(state.commUnread||{}).reduce((a,b)=>a+Number(b||0),0)}
+
 function commUnreadFor(w){return Number(state.commUnread?.[String(w)]||0)}
 async function commRefreshUnread(){
   if(DEMO_MODE||!state.session?.user)return;
@@ -1049,10 +1049,9 @@ async function commRefreshUnread(){
   try{
     for(const c of clients){
       const w=String(c.id);
-      const [{data:read},{count,error}]=await Promise.all([
-        sb.from('communication_reads').select('last_read_at').eq('client_id',w).eq('user_id',state.session.user.id).maybeSingle(),
-        sb.from('communication_messages').select('id',{count:'exact',head:true}).eq('client_id',w).neq('sender_id',state.session.user.id).gt('created_at',read?.last_read_at||'1970-01-01T00:00:00Z')
-      ]);
+      const {data:read,error:readError}=await sb.from('communication_reads').select('last_read_at').eq('client_id',w).eq('user_id',state.session.user.id).maybeSingle();
+      if(readError)continue;
+      const {count,error}=await sb.from('communication_messages').select('id',{count:'exact',head:true}).eq('client_id',w).neq('sender_id',state.session.user.id).gt('created_at',read?.last_read_at||'1970-01-01T00:00:00Z');
       if(!error)state.commUnread[w]=count||0;
     }
   }catch(e){console.warn('Unread refresh failed',e)}
@@ -1076,14 +1075,14 @@ async function renderCommunication(){
       commLastFingerprint=msgs?.length?`${msgs[msgs.length-1].id}|${msgs[msgs.length-1].created_at}`:'empty';
       await sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:w,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'});
       state.commUnread[w]=0;
-      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Production workspace</span></header><div class="comm-message-list" id="commMessages">${msgs?.length?msgs.map(m=>`<div class="comm-message ${String(m.sender_id)===String(state.session.user.id)?'mine':''}"><div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
+      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Production workspace</span></header><div class="comm-message-list" id="commMessages">${msgs?.length?msgs.map(m=>`<div class="comm-message ${String(m.sender_id)===String(state.session.user.id)?'mine':''}" data-message-id="${esc(m.id)}"><div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
       const list=document.getElementById('commMessages');if(list)list.scrollTop=list.scrollHeight;
     }else if(state.commTab==='requests'){
       const {data:reqs,error}=await sb.from('communication_requests').select('id,request_type,subject,details,status,created_at,updated_at').eq('client_id',w).order('created_at',{ascending:false}).limit(500);
       if(error)throw error;
       body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Requests</h3><p>Structured work items with clear ownership and status.</p></div><button class="btn btn-primary btn-small" id="commNewRequest">+ New Request</button></div><div id="commRequestArea">${commRequestTable(reqs||[],w)}</div></section></div>`;
     }else{
-      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Documents</h3><p>Document exchange will be enabled after production storage policies and retention controls are configured.</p></div></div><div class="comm-doc-grid">${['Monthly Reports','Payer Correspondence','ERA / EOB','Authorization Documents','Provider Documents','Client Reports'].map(x=>`<button class="comm-doc" data-doc="${esc(x)}"><strong>${esc(x)}</strong><span>Storage not enabled</span></button>`).join('')}</div><div class="comm-security"><b>Document storage:</b> Upload/download remains disabled until the production storage layer has client isolation, audit controls and retention rules.</div></section></div>`;
+      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Documents</h3><p>Document exchange will be enabled after production storage policies and retention controls are configured.</p></div></div><div class="comm-doc-grid">${['Monthly Reports','Payer Correspondence','ERA / EOB','Authorization Documents','Provider Documents','Client Reports'].map(x=>`<div class="comm-doc comm-doc-disabled"><strong>${esc(x)}</strong><span>Coming after secure storage activation</span></div>`).join('')}</div><div class="comm-security"><b>Secure Documents:</b> This area is intentionally read-only until client-isolated storage, audit logging and retention controls are activated.</div></section></div>`;
     }
     bindCommunication();
   }catch(e){console.error(e);body.innerHTML=`<div class="notice danger-note">Unable to load Communication Center: ${esc(e.message||e)}</div>`}
@@ -1128,11 +1127,35 @@ function bindCommunication(){
     if(error)return toast(error.message||'Status could not be updated.');
     await audit('communication_request_status',{request_id:sel.dataset.reqStatus,status:sel.value});void renderCommunication();
   });
-  document.querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>toast('Production document storage is not enabled yet.'));
 }
 
 
-let productionSyncTimer=null,commLastFingerprint='';
+let productionSyncTimer=null,commLastFingerprint='',commRealtimeChannel=null;
+function stopCommRealtime(){
+  if(commRealtimeChannel){try{sb.removeChannel(commRealtimeChannel)}catch(_){}commRealtimeChannel=null}
+}
+function appendIncomingMessage(m){
+  if(state.section!=='communication'||state.commTab!=='messages')return;
+  const c=commCurrentWorkspace();if(!c||String(m.client_id)!==String(c.id))return;
+  if(document.querySelector(`[data-message-id="${CSS.escape(String(m.id))}"]`))return;
+  const list=document.getElementById('commMessages');if(!list)return;
+  list.querySelector('.comm-empty')?.remove();
+  const mine=String(m.sender_id)===String(state.session?.user?.id);
+  const div=document.createElement('div');div.className=`comm-message ${mine?'mine':''}`;div.dataset.messageId=String(m.id);
+  div.innerHTML=`<div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small>`;
+  list.appendChild(div);list.scrollTop=list.scrollHeight;
+  commLastFingerprint=`${m.id}|${m.created_at}`;
+  if(!mine){state.commUnread[String(c.id)]=0;void sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:c.id,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'})}
+}
+function startCommRealtime(){
+  stopCommRealtime();if(DEMO_MODE||!state.session?.user)return;
+  commRealtimeChannel=sb.channel(`bha-communication-${state.session.user.id}-${Date.now()}`)
+   .on('postgres_changes',{event:'INSERT',schema:'public',table:'communication_messages'},payload=>{
+      const m=payload.new||{};const allowed=commClients().some(c=>String(c.id)===String(m.client_id));if(!allowed)return;
+      if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id)===String(m.client_id))appendIncomingMessage(m);
+      else{state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;const nav=document.querySelector('aside.sidebar nav');if(nav)nav.innerHTML=navHtml()}
+   }).subscribe();
+}
 async function productionAutoSync(){
   if(DEMO_MODE||!state.session?.user)return;
   try{
@@ -1152,7 +1175,7 @@ async function productionAutoSync(){
 function startProductionSync(){
   if(productionSyncTimer)clearInterval(productionSyncTimer);
   void productionAutoSync();
-  productionSyncTimer=setInterval(productionAutoSync,5000);
+  productionSyncTimer=setInterval(productionAutoSync,2000);
 }
 function stopProductionSync(){if(productionSyncTimer){clearInterval(productionSyncTimer);productionSyncTimer=null}}
 
@@ -1285,7 +1308,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V22 Production Sync Fix';
+const V6_BUILD='V23 Production Repair';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -1826,31 +1849,16 @@ async function insertRecords(module,rows,clientId,mode){
   if(rows.length>50000)throw new Error('Maximum 50,000 rows per import.');
   const batchId=crypto.randomUUID?.()||`batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const importedAt=new Date().toISOString();
-
-  // external_id is database metadata only. It is never added to `data`, so it
-  // cannot create an extra visible Row ID column in the portal.
-  const naturalIdKeys=['claim_id','payment_id','authnum','patient_id'];
   const payload=rows.map((r,index)=>{
-    // IMPORTANT: external_id is the stable, non-visible source-order key.
-    // Never use a business field such as claim_id/payment_id here: doing so
-    // makes the database free to return rows in an arbitrary order and can
-    // break when the same business ID appears in another upload.
     const sourceIndex=Number.isFinite(Number(r?.__source_row_index))?Number(r.__source_row_index):index;
-    const data={
-      ...r,
-      __source_row_index:sourceIndex,
-      __imported_at:importedAt,
-      __source_batch_id:batchId
-    };
-    const sequence=String(sourceIndex+1).padStart(8,'0');
-    return {external_id:`${batchId}:${sequence}`,data};
+    const data={...r,__source_row_index:sourceIndex,__imported_at:importedAt,__source_batch_id:batchId};
+    return {external_id:`${batchId}:${String(sourceIndex+1).padStart(8,'0')}`,data};
   });
-  const {data,error}=await sb.rpc('app_import_rcm_records',{p_client_id:clientId,p_module:module,p_mode:mode,p_rows:payload,p_import_batch_id:batchId});
+  const {data,error}=await sb.functions.invoke('rcm-import',{body:{client_id:clientId,module,mode,rows:payload,import_batch_id:batchId}});
   if(error)throw new Error(error.message||'Import failed.');
+  if(data?.error)throw new Error(data.error);
   clearRecordsCache();
-  await audit('csv_import',{module,client_id:clientId,rows:rows.length,mode,batch_id:batchId,file_type:'csv_or_excel'});
-  if(data&&typeof data==='object'&&!data.import_batch_id)data.import_batch_id=batchId;
-  return data||{import_batch_id:batchId};
+  return data||{import_batch_id:batchId,inserted:rows.length};
 }
 function downloadTemplate(){const m=document.getElementById('importModule').value,s=schemas[m],headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
 let v14LoadSeq=0;
@@ -2126,7 +2134,7 @@ async function enterApp(){
     renderSection();
     const selector=document.getElementById('globalClientSelect');
     if(selector) selector.value=state.client?.id||'__ALL__';
-    startProductionSync();
+    startProductionSync();startCommRealtime();
   }catch(e){
     document.getElementById('app').innerHTML=loginView();
     const x=document.getElementById('loginError');
@@ -2134,7 +2142,7 @@ async function enterApp(){
   }
 }
 async function logout(){
-  stopProductionSync();
+  stopProductionSync();stopCommRealtime();
   const btn=document.getElementById('logoutBtn');if(btn){btn.disabled=true;btn.classList.add('busy')}
   try{if(!DEMO_MODE)await sb.auth.signOut()}catch(e){console.warn('Sign out request failed:',e)}
   clearRecordsCache();
@@ -2174,7 +2182,7 @@ async function boot(){
     document.getElementById('app').innerHTML=loginView();bindLogin();
   }
   sb.auth.onAuthStateChange((event)=>{
-    if(event==='SIGNED_OUT'){state=freshState();document.getElementById('app').innerHTML=loginView();bindLogin()}
+    if(event==='SIGNED_OUT'){stopProductionSync();stopCommRealtime();clearRecordsCache();state=freshState();document.getElementById('app').innerHTML=loginView();bindLogin()}
   })
 }
 window.addEventListener('keydown',e=>{
