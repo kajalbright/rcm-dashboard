@@ -10,7 +10,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+const BHA_BUILD_ID='2026-10-02-v39-live-communication-sync';
+</script>
 <script>
 /* V6 PREMIUM COMPLETE LOCAL BATCH foundation */
 const BHA_PREMIUM_MODULES = {
@@ -915,13 +917,16 @@ function navIcon(key){
 }
 function communicationUnreadCount(){
   ensureCommState();
-  const openId=(state.section==='communication'&&state.commTab==='messages')?String(commCurrentWorkspace()?.id||''):'';
-  if(openId)state.commUnread[openId]=0;
   if(['client','provider'].includes(commRole())){
-    const id=state.client?.id||commCurrentWorkspace()?.id;
-    return id?commUnreadFor(String(id)):0;
+    const id=state.client?.id?String(state.client.id):'';
+    if(!id)return 0;
+    if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id||'')===id){
+      state.commUnread[id]=0;
+      return 0;
+    }
+    return commUnreadFor(id);
   }
-  return Object.entries(state.commUnread||{}).reduce((a,[id,n])=>a+(String(id)===openId?0:Number(n||0)),0);
+  return Object.values(state.commUnread||{}).reduce((a,b)=>a+Number(b||0),0);
 }
 async function navigateToSection(nextSection){
   try{
@@ -1095,9 +1100,16 @@ function commClients(){
   return [];
 }
 function commCurrentWorkspace(){
-  const allowed=commClients(),selected=state.client?.id?String(state.client.id):'',remembered=state.commClient?String(state.commClient):'';
-  const wanted=['client','provider'].includes(commRole())?(selected||remembered):(remembered||selected||String(commWorkspace()||''));
-  const c=allowed.find(x=>String(x.id)===wanted)||allowed.find(x=>String(x.id)===selected)||allowed[0]||null;
+  const allowed=commClients();
+  const selectedId=state.client?.id?String(state.client.id):'';
+  const remembered=state.commClient?String(state.commClient):'';
+  const role=commRole();
+  const wanted=(role==='client'||role==='provider')
+    ? (selectedId||remembered)
+    : (remembered||selectedId||String(commWorkspace()||''));
+  const c=allowed.find(x=>String(x.id)===wanted)
+    ||allowed.find(x=>String(x.id)===selectedId)
+    ||allowed[0]||null;
   state.commClient=c?String(c.id):'';
   return c;
 }
@@ -1127,6 +1139,12 @@ function communicationHtml(){
   return pageHead('Communication Center',subtitle)+`<div class="comm-shell"><div class="comm-tabs"><button data-comm-tab="messages">Messages</button><button data-comm-tab="requests">Requests</button></div><div id="commBody"><div class="comm-empty">Loading workspace…</div></div></div>`;
 }
 async function renderCommunication(){
+  if(['client','provider'].includes(commRole())&&state.client?.id){
+    state.commClient=String(state.client.id);
+    ensureCommState();
+    state.commUnread[String(state.client.id)]=0;
+    updateCommunicationBadge();
+  }
   const body=document.getElementById('commBody');if(!body)return;
   ensureCommState();
   state.commTab=['messages','requests'].includes(state.commTab)?state.commTab:'messages';
@@ -1215,7 +1233,7 @@ function appendIncomingMessage(m){
   div.innerHTML=`<div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small>`;
   list.appendChild(div);list.scrollTop=list.scrollHeight;
   commLastFingerprint=`${m.id}|${m.created_at}`;
-  if(!mine){ensureCommState();state.commUnread[String(c.id)]=0;updateCommunicationBadge();void markCommRead(String(c.id))}
+  if(!mine){ensureCommState();state.commUnread[String(c.id)]=((state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id||'')===String(c.id))?0:0);updateCommunicationBadge();void markCommRead(String(c.id))}
 }
 function startCommRealtime(){
   stopCommRealtime();if(DEMO_MODE||!state.session?.user)return;
@@ -1276,6 +1294,9 @@ function bindSection(){
     if(value!=='__ALL__'&&!nextClient){toast('Selected client was not found.');return;}
     const previousClient=state.client;
     state.client=nextClient;
+    state.commClient=nextClient?.id?String(nextClient.id):'';
+    if(nextClient?.id){ensureCommState();state.commUnread[String(nextClient.id)]=0;}
+    commLastFingerprint='';
     state.commClient=nextClient?String(nextClient.id):'';commLastFingerprint='';
     state.records={};state.filters={};state.quickAge='';state.tablePage=1;SEARCH_TEXT_CACHE=new WeakMap();
     clientSelect.disabled=true;
