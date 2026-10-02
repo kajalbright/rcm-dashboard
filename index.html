@@ -478,7 +478,7 @@ body{background:var(--v8-bg)}
 
 </style>
 </head>
-<body data-bha-build="2026-10-02-v21-production-connected">
+<body data-bha-build="2026-10-02-v22-production-sync-fix">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -1073,6 +1073,7 @@ async function renderCommunication(){
     if(state.commTab==='messages'){
       const {data:msgs,error}=await sb.from('communication_messages').select('id,sender_id,sender_role,sender_name,message,created_at').eq('client_id',w).order('created_at',{ascending:true}).limit(500);
       if(error)throw error;
+      commLastFingerprint=msgs?.length?`${msgs[msgs.length-1].id}|${msgs[msgs.length-1].created_at}`:'empty';
       await sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:w,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'});
       state.commUnread[w]=0;
       body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Production workspace</span></header><div class="comm-message-list" id="commMessages">${msgs?.length?msgs.map(m=>`<div class="comm-message ${String(m.sender_id)===String(state.session.user.id)?'mine':''}"><div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
@@ -1095,14 +1096,19 @@ function commRequestTable(reqs,w){
 function bindCommunication(){
   document.querySelectorAll('[data-comm-tab]').forEach(b=>b.onclick=()=>{state.commTab=b.dataset.commTab;void renderCommunication()});
   document.querySelectorAll('[data-comm-client]').forEach(b=>b.onclick=()=>{state.commClient=b.dataset.commClient;void renderCommunication()});
+  document.getElementById('commText')?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('commSend')?.click()}});
   document.getElementById('commSend')?.addEventListener('click',async()=>{
     const el=document.getElementById('commText'),text=el?.value.trim();if(!text)return;
     const c=commCurrentWorkspace();if(!c)return;
-    const btn=document.getElementById('commSend');btn.disabled=true;
+    const btn=document.getElementById('commSend');btn.disabled=true;if(el)el.disabled=true;
     const payload={client_id:c.id,sender_id:state.session.user.id,sender_role:commRole(),sender_name:state.profile?.name||state.profile?.email||commRole(),message:text};
+    if(el)el.value='';
+    const list=document.getElementById('commMessages');
+    const optimistic=document.createElement('div');optimistic.className='comm-message mine comm-sending';optimistic.innerHTML=`<div>${esc(text)}</div><small>Sending…</small>`;list?.appendChild(optimistic);if(list)list.scrollTop=list.scrollHeight;
     const {error}=await sb.from('communication_messages').insert(payload);
-    if(error){btn.disabled=false;return toast(error.message||'Message could not be sent.')}
-    await audit('communication_message_sent',{client_id:c.id});void renderCommunication();
+    if(error){optimistic.remove();if(el){el.value=text;el.disabled=false}btn.disabled=false;return toast(error.message||'Message could not be sent.')}
+    btn.disabled=false;if(el)el.disabled=false;
+    void audit('communication_message_sent',{client_id:c.id});void renderCommunication();
   });
   document.getElementById('commNewRequest')?.addEventListener('click',()=>{
     const area=document.getElementById('commRequestArea');
@@ -1124,6 +1130,31 @@ function bindCommunication(){
   });
   document.querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>toast('Production document storage is not enabled yet.'));
 }
+
+
+let productionSyncTimer=null,commLastFingerprint='';
+async function productionAutoSync(){
+  if(DEMO_MODE||!state.session?.user)return;
+  try{
+    await commRefreshUnread();
+    const nav=document.querySelector('aside.sidebar nav');if(nav)nav.innerHTML=navHtml();
+    if(state.section==='communication'){
+      const c=commCurrentWorkspace();if(!c)return;
+      const {data,error}=await sb.from('communication_messages').select('id,created_at').eq('client_id',c.id).order('created_at',{ascending:false}).limit(1);
+      if(!error){
+        const fp=data?.[0]?`${data[0].id}|${data[0].created_at}`:'empty';
+        if(commLastFingerprint&&fp!==commLastFingerprint)void renderCommunication();
+        commLastFingerprint=fp;
+      }
+    }
+  }catch(e){console.warn('Production sync failed',e)}
+}
+function startProductionSync(){
+  if(productionSyncTimer)clearInterval(productionSyncTimer);
+  void productionAutoSync();
+  productionSyncTimer=setInterval(productionAutoSync,5000);
+}
+function stopProductionSync(){if(productionSyncTimer){clearInterval(productionSyncTimer);productionSyncTimer=null}}
 
 function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;if(!sectionAllowed(state.section)){state.section='overview'}let html;try{html=state.section==='overview'?overviewHtml():state.section==='communication'?communicationHtml():state.section==='automation'?automationHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section)}catch(e){console.error('Section render failed',state.section,e);html=pageHead('Unable to open section','A rendering error occurred.')+`<div class="notice danger-note">${esc(e.message||e)}</div>`};root.innerHTML=`<div class="section active">${html}${state.section!=='overview'&&state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')void renderOverview();else setTimeout(enhanceVisibleTables,0);if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity();if(state.section==='communication')void renderCommunication()}
 function bindSection(){
@@ -1153,6 +1184,7 @@ function bindSection(){
     if(value!=='__ALL__'&&!nextClient){toast('Selected client was not found.');return;}
     const previousClient=state.client;
     state.client=nextClient;
+    state.records={};state.filters={};state.quickAge='';state.tablePage=1;SEARCH_TEXT_CACHE=new WeakMap();
     clientSelect.disabled=true;
     toast('Loading selected client…');
     try{
@@ -1253,7 +1285,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V21 Production Connected';
+const V6_BUILD='V22 Production Sync Fix';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -1444,14 +1476,17 @@ function renderModule(m){
   // Source-faithful table contract:
   // Detailed Records mirrors the imported spreadsheet structure instead of a hard-coded module layout.
   // Keep every imported column (including fully blank columns) and preserve original source order/header text.
-  const sourceRow=rows.find(r=>Array.isArray(r?.__source_columns)&&r.__source_columns.length)||rows[0]||{};
-  const cols=sourceColumnKeys(m,sourceRow);
+  const sourceRows=rows.filter(r=>Array.isArray(r?.__source_columns)&&r.__source_columns.length);
+  const sourceRow=sourceRows[0]||rows[0]||{};
+  const cols=[];const seenCols=new Set();
+  sourceRows.forEach(r=>sourceColumnKeys(m,r).forEach(c=>{if(!seenCols.has(c)){seenCols.add(c);cols.push(c)}}));
+  if(!cols.length)sourceColumnKeys(m,sourceRow).forEach(c=>{if(!seenCols.has(c)){seenCols.add(c);cols.push(c)}});
   // Preserve upload/source row order by default. Sorting is only applied after the user explicitly clicks a column.
   if(state.tableSort?.key)rows=sortRows(rows);
   const pageSize=state.tablePageSize||50,totalPages=Math.max(1,Math.ceil(rows.length/pageSize));
   state.tablePage=Math.min(Math.max(1,state.tablePage||1),totalPages);
   const from=(state.tablePage-1)*pageSize,shown=rows.slice(from,from+pageSize);
-  const label=k=>sourceHeaderLabel(sourceRow,k);
+  const label=k=>{const owner=sourceRows.find(r=>r?.__source_headers&&Object.prototype.hasOwnProperty.call(r.__source_headers,k))||sourceRow;return sourceHeaderLabel(owner,k)};
   const mark=c=>state.tableSort?.key===c?`<span class="sort-mark">${state.tableSort.dir==='asc'?'▲':'▼'}</span>`:'';
   table.innerHTML=`<thead><tr>${cols.map(c=>`<th class="sortable" data-sort="${esc(c)}">${esc(label(c))}${mark(c)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>{const raw=r[c],val=moneyFields.has(c)?money(raw):String(raw??'');let cls='';if(m==='ar'&&c==='days'){const d=Number(raw||0);cls=d>120?'row-risk':d>90?'row-warn':''}return `<td class="${cls}" title="${esc(String(raw??''))}">${esc(val)}</td>`}).join('')}</tr>`).join('')}</tbody>`;
   if(!rows.length)table.innerHTML=`<tbody><tr><td><div class="module-empty"><strong>No records match this view</strong>Adjust the filters or select another client workspace.</div></td></tr></tbody>`;
@@ -1838,7 +1873,7 @@ async function loadData(){
  const selectedClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
  const scope=selectedClientId?`client:${selectedClientId}`:'all:authorized',cacheKey=`${scope}|${target}`;
  const cached=recordsCache.get(cacheKey);
- if(cached&&Date.now()-cached.savedAt<RECORD_CACHE_TTL_MS){state.records={...(state.records||{}),...(cached.records||{})};state.dataCapped=cached.dataCapped;return}
+ if(cached&&Date.now()-cached.savedAt<RECORD_CACHE_TTL_MS){state.records={...(state.records||{}),[target]:(cached.records?.[target]||[])};state.dataCapped=cached.dataCapped;return}
  const seq=++v14LoadSeq,firstSize=500,maxRows=10000;
  let q=sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id');
  if(selectedClientId)q=q.eq('client_id',selectedClientId);q=q.eq('module',target);
@@ -1846,7 +1881,7 @@ async function loadData(){
  if(first.error)throw first.error;
  const firstRecords=v14HydrateRows(first.data||[]);
  Object.keys(firstRecords).forEach(m=>{firstRecords[m]=firstRecords[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
- state.records={...(state.records||{}),...firstRecords};state.dataCapped=false;
+ state.records={...(state.records||{}),[target]:(firstRecords[target]||[])};state.dataCapped=false;
  if((first.data||[]).length<firstSize){recordsCache.set(cacheKey,{records:firstRecords,dataCapped:false,savedAt:Date.now()});return}
  v14LoadingModules.set(cacheKey,true);
  // Remaining pages load without blocking the screen.
@@ -1866,7 +1901,7 @@ async function loadData(){
     recordsCache.set(cacheKey,{records,dataCapped:source.length>=maxRows,savedAt:Date.now()});
     const currentClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
     const sameScope=String(currentClientId||'')===String(selectedClientId||'');
-    if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),...records};state.dataCapped=source.length>=maxRows}
+    if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),[target]:(records[target]||[])};state.dataCapped=source.length>=maxRows}
     if(seq===v14LoadSeq&&sameScope&&state.section===target)renderModule(target);
    }catch(e){console.error('Background module load failed',e)}
    finally{v14LoadingModules.delete(cacheKey)}
@@ -2091,6 +2126,7 @@ async function enterApp(){
     renderSection();
     const selector=document.getElementById('globalClientSelect');
     if(selector) selector.value=state.client?.id||'__ALL__';
+    startProductionSync();
   }catch(e){
     document.getElementById('app').innerHTML=loginView();
     const x=document.getElementById('loginError');
@@ -2098,6 +2134,7 @@ async function enterApp(){
   }
 }
 async function logout(){
+  stopProductionSync();
   const btn=document.getElementById('logoutBtn');if(btn){btn.disabled=true;btn.classList.add('busy')}
   try{if(!DEMO_MODE)await sb.auth.signOut()}catch(e){console.warn('Sign out request failed:',e)}
   clearRecordsCache();
