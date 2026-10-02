@@ -478,7 +478,7 @@ body{background:var(--v8-bg)}
 
 </style>
 </head>
-<body data-bha-build="2026-10-02-v20-production-hardened">
+<body data-bha-build="2026-10-02-v21-production-connected">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -882,17 +882,7 @@ function navIcon(key){
   };
   return `<svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[key]||paths.overview}</svg>`;
 }
-function communicationUnreadCount(){
-  try{
-    const role=getRole();
-    const workspaces=((role==='admin'||(role==='user'&&hasAllClients()))&&state.clients.length)?state.clients.map(c=>String(c.id)):[String(state.client?.id||state.profile?.client_id||'workspace')];
-    return workspaces.reduce((total,w)=>{
-      const msgs=JSON.parse(localStorage.getItem(`bha_comm_messages_${w}`)||'[]');
-      const last=Number(localStorage.getItem(`bha_comm_read_${role}_${w}`)||0);
-      return total+msgs.filter(m=>Number(m.ts)>last&&String(m.role||'')!==role).length;
-    },0);
-  }catch(_){return 0}
-}
+function communicationUnreadCount(){return Object.values(state.commUnread||{}).reduce((a,b)=>a+Number(b||0),0)}
 function navHtml(){
  const r=getRole(),allowed=new Set(allowedSections());let html='';
  const add=(label,keys)=>{const visible=keys.filter(k=>allowed.has(k));if(!visible.length)return;html+=`<div class="nav-label">${label}</div>`;visible.forEach(k=>{const label=k==='communication'?'Communication Center':k==='automation'?'Automation Network':k==='imports'?'Data Operations':modules[k]?.label||k;const unread=k==='communication'?communicationUnreadCount():0;html+=`<button data-section="${k}" class="${state.section===k?'active':''}"><span class="nav-icon">${navIcon(k)}</span><span>${esc(label)}</span>${unread?`<span class="comm-nav-badge">${unread}</span>`:''}</button>`})};
@@ -1037,91 +1027,105 @@ function activityHtml(){
  return pageHead('Audit & Activity','Review administrative, access and data-governance events.')+
  `<div id="auditMetrics"></div><div class="v11-toolbar"><div class="v11-search"><span>⌕</span><input id="auditSearch" placeholder="Search actor, event or workspace"></div><select id="auditTypeFilter"><option value="">All events</option><option value="data">Data</option><option value="user">Users</option><option value="client">Clients</option><option value="destructive">Destructive</option></select></div><div class="card table-card"><div class="table-headbar"><div><h3>Audit Trail</h3><p class="cap">Readable event summaries; technical payload is available in Details.</p></div><span class="table-meta" id="auditCountMeta"></span></div><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Event</th><th>Actor</th><th>Workspace</th><th>Description</th><th></th></tr></thead><tbody id="activityBody"></tbody></table></div></div>`}
 function commRole(){return getRole()}
-function commWorkspace(){
-  if(commRole()==='client')return String(state.profile?.client_id||state.client?.id||'workspace');
-  return String(state.client?.id||state.profile?.client_id||'workspace');
-}
+function commWorkspace(){return String(state.client?.id||state.profile?.client_id||'')}
 function commClients(){
   if(['admin','user'].includes(commRole())&&state.clients.length)return state.clients;
   const c=state.client||state.clients.find(x=>String(x.id)===String(state.profile?.client_id));
-  return c?[c]:[{id:commWorkspace(),name:'My Practice'}];
+  return c?[c]:[];
 }
-function commGet(key,fallback=[]){try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch(_){return fallback}}
-function commSet(key,val){localStorage.setItem(key,JSON.stringify(val))}
-function commMsgKey(w){return `bha_comm_messages_${w}`}
-function commReqKey(w){return `bha_comm_requests_${w}`}
-function commReadKey(w){return `bha_comm_read_${commRole()}_${w}`}
 function commCurrentWorkspace(){
-  const allowed=commClients();
-  const wanted=String(state.commClient||commWorkspace());
-  const found=allowed.find(c=>String(c.id)===wanted);
-  const c=found||allowed[0];
-  state.commClient=String(c?.id||commWorkspace());
-  return c||{id:commWorkspace(),name:'My Practice'};
+  const allowed=commClients(),wanted=String(state.commClient||commWorkspace());
+  const c=allowed.find(x=>String(x.id)===wanted)||allowed[0]||null;
+  state.commClient=c?String(c.id):'';
+  return c;
 }
 function commStatusClass(v){v=String(v||'Open').toLowerCase();return v.includes('resolved')?'comm-resolved':v.includes('progress')?'comm-progress':'comm-open'}
-function communicationHtml(){
-  const role=commRole();
-  const subtitle=role==='client'?'Connect with your Bright Health Alliance team.':'Manage client conversations, requests and documents.';
-  return pageHead('Communication Center',subtitle)+`<div class="comm-shell"><div class="comm-tabs"><button data-comm-tab="messages">Messages</button><button data-comm-tab="requests">Requests</button><button data-comm-tab="documents">Documents</button></div><div id="commBody"></div></div>`;
+state.commUnread=state.commUnread||{};
+function communicationUnreadCount(){return Object.values(state.commUnread||{}).reduce((a,b)=>a+Number(b||0),0)}
+function commUnreadFor(w){return Number(state.commUnread?.[String(w)]||0)}
+async function commRefreshUnread(){
+  if(DEMO_MODE||!state.session?.user)return;
+  const clients=commClients(); if(!clients.length)return;
+  try{
+    for(const c of clients){
+      const w=String(c.id);
+      const [{data:read},{count,error}]=await Promise.all([
+        sb.from('communication_reads').select('last_read_at').eq('client_id',w).eq('user_id',state.session.user.id).maybeSingle(),
+        sb.from('communication_messages').select('id',{count:'exact',head:true}).eq('client_id',w).neq('sender_id',state.session.user.id).gt('created_at',read?.last_read_at||'1970-01-01T00:00:00Z')
+      ]);
+      if(!error)state.commUnread[w]=count||0;
+    }
+  }catch(e){console.warn('Unread refresh failed',e)}
 }
-function renderCommunication(){
+function communicationHtml(){
+  const role=commRole(),subtitle=role==='client'?'Connect with your Bright Health Alliance team.':'Manage client conversations and requests.';
+  return pageHead('Communication Center',subtitle)+`<div class="comm-shell"><div class="comm-tabs"><button data-comm-tab="messages">Messages</button><button data-comm-tab="requests">Requests</button><button data-comm-tab="documents">Documents</button></div><div id="commBody"><div class="comm-empty">Loading workspace…</div></div></div>`;
+}
+async function renderCommunication(){
   const body=document.getElementById('commBody');if(!body)return;
   state.commTab=state.commTab||'messages';
-  document.querySelectorAll('[data-comm-tab]').forEach(b=>b.classList.toggle('active',b.dataset.commTab===state.commTab));
-  const client=commCurrentWorkspace(),w=String(client.id),name=client.name||client.practice_name||'Client';
-  const clientRail=['admin','user'].includes(commRole())?`<aside class="comm-clients"><div class="comm-rail-title">Client workspaces</div>${commClients().map(c=>{const id=String(c.id),active=id===w;return `<button class="${active?'active':''}" data-comm-client="${esc(id)}"><strong>${esc(c.name||c.practice_name||'Client')}</strong><span>${commUnreadFor(id)} unread</span></button>`}).join('')}</aside>`:'';
-  if(state.commTab==='messages'){
-    localStorage.setItem(commReadKey(w),String(Date.now()));
-    const msgs=commGet(commMsgKey(w),[]);
-    body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Local workspace</span></header><div class="comm-message-list" id="commMessages">${msgs.length?msgs.map(m=>`<div class="comm-message ${String(m.role)===commRole()?'mine':''}"><div>${esc(m.text)}</div><small>${esc(m.sender||String(m.role).toUpperCase())} · ${new Date(m.ts).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
-    const list=document.getElementById('commMessages');if(list)list.scrollTop=list.scrollHeight;
-  }else if(state.commTab==='requests'){
-    const reqs=commGet(commReqKey(w),[]);
-    body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Requests</h3><p>Structured work items with clear ownership and status.</p></div><button class="btn btn-primary btn-small" id="commNewRequest">+ New Request</button></div><div id="commRequestArea">${commRequestTable(reqs,w)}</div></section></div>`;
-  }else{
-    body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Documents</h3><p>Organized document categories for secure client exchange.</p></div></div><div class="comm-doc-grid">${['Monthly Reports','Payer Correspondence','ERA / EOB','Authorization Documents','Provider Documents','Client Reports'].map(x=>`<button class="comm-doc" data-doc="${esc(x)}"><strong>${esc(x)}</strong><span>Open secure category</span></button>`).join('')}</div><div class="comm-security"><b>Production storage gate:</b> PHI upload/download remains disabled in this local build until authenticated storage policies, client isolation, audit events and retention rules are enabled.</div></section></div>`;
-  }
-  bindCommunication();
-}
-function commUnreadFor(w){
-  const msgs=commGet(commMsgKey(w),[]),last=Number(localStorage.getItem(commReadKey(w))||0);
-  return msgs.filter(m=>Number(m.ts)>last&&String(m.role)!==commRole()).length;
+  document.querySelectorAll('[data-comm-tab]').forEach(x=>x.classList.toggle('active',x.dataset.commTab===state.commTab));
+  const client=commCurrentWorkspace();
+  if(!client){body.innerHTML='<div class="comm-empty">No client workspace is assigned to this account.</div>';return}
+  const w=String(client.id),name=client.name||client.practice_name||'Client';
+  const clientRail=['admin','user'].includes(commRole())?`<aside class="comm-clients"><div class="comm-rail-title">Client workspaces</div>${commClients().map(c=>{const id=String(c.id);return `<button class="${id===w?'active':''}" data-comm-client="${esc(id)}"><strong>${esc(c.name||'Client')}</strong><span>${commUnreadFor(id)} unread</span></button>`}).join('')}</aside>`:'';
+  try{
+    if(state.commTab==='messages'){
+      const {data:msgs,error}=await sb.from('communication_messages').select('id,sender_id,sender_role,sender_name,message,created_at').eq('client_id',w).order('created_at',{ascending:true}).limit(500);
+      if(error)throw error;
+      await sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:w,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'});
+      state.commUnread[w]=0;
+      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Production workspace</span></header><div class="comm-message-list" id="commMessages">${msgs?.length?msgs.map(m=>`<div class="comm-message ${String(m.sender_id)===String(state.session.user.id)?'mine':''}"><div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
+      const list=document.getElementById('commMessages');if(list)list.scrollTop=list.scrollHeight;
+    }else if(state.commTab==='requests'){
+      const {data:reqs,error}=await sb.from('communication_requests').select('id,request_type,subject,details,status,created_at,updated_at').eq('client_id',w).order('created_at',{ascending:false}).limit(500);
+      if(error)throw error;
+      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Requests</h3><p>Structured work items with clear ownership and status.</p></div><button class="btn btn-primary btn-small" id="commNewRequest">+ New Request</button></div><div id="commRequestArea">${commRequestTable(reqs||[],w)}</div></section></div>`;
+    }else{
+      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Documents</h3><p>Document exchange will be enabled after production storage policies and retention controls are configured.</p></div></div><div class="comm-doc-grid">${['Monthly Reports','Payer Correspondence','ERA / EOB','Authorization Documents','Provider Documents','Client Reports'].map(x=>`<button class="comm-doc" data-doc="${esc(x)}"><strong>${esc(x)}</strong><span>Storage not enabled</span></button>`).join('')}</div><div class="comm-security"><b>Document storage:</b> Upload/download remains disabled until the production storage layer has client isolation, audit controls and retention rules.</div></section></div>`;
+    }
+    bindCommunication();
+  }catch(e){console.error(e);body.innerHTML=`<div class="notice danger-note">Unable to load Communication Center: ${esc(e.message||e)}</div>`}
 }
 function commRequestTable(reqs,w){
   if(!reqs.length)return '<div class="comm-empty">No requests for this workspace.</div>';
   const manage=['admin','user'].includes(commRole());
-  return `<div class="table-wrap"><table class="table"><thead><tr><th>Request</th><th>Type</th><th>Created</th><th>Status</th>${manage?'<th>Action</th>':''}</tr></thead><tbody>${reqs.map(r=>`<tr><td><strong>${esc(r.subject)}</strong><div class="comm-sub">${esc(r.message)}</div></td><td>${esc(r.type)}</td><td>${new Date(r.created).toLocaleString()}</td><td><span class="comm-status ${commStatusClass(r.status)}">${esc(r.status)}</span></td>${manage?`<td><select data-req-status="${esc(r.id)}"><option ${r.status==='Open'?'selected':''}>Open</option><option ${r.status==='In Progress'?'selected':''}>In Progress</option><option ${r.status==='Resolved'?'selected':''}>Resolved</option></select></td>`:''}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="table"><thead><tr><th>Request</th><th>Type</th><th>Created</th><th>Status</th>${manage?'<th>Action</th>':''}</tr></thead><tbody>${reqs.map(r=>`<tr><td><strong>${esc(r.subject)}</strong><div class="comm-sub">${esc(r.details)}</div></td><td>${esc(r.request_type)}</td><td>${new Date(r.created_at).toLocaleString()}</td><td><span class="comm-status ${commStatusClass(r.status)}">${esc(r.status)}</span></td>${manage?`<td><select data-req-status="${esc(r.id)}"><option ${r.status==='Open'?'selected':''}>Open</option><option ${r.status==='In Progress'?'selected':''}>In Progress</option><option ${r.status==='Resolved'?'selected':''}>Resolved</option></select></td>`:''}</tr>`).join('')}</tbody></table></div>`;
 }
 function bindCommunication(){
-  document.querySelectorAll('[data-comm-tab]').forEach(b=>b.onclick=()=>{state.commTab=b.dataset.commTab;renderCommunication()});
-  document.querySelectorAll('[data-comm-client]').forEach(b=>b.onclick=()=>{state.commClient=b.dataset.commClient;renderCommunication()});
-  document.getElementById('commSend')?.addEventListener('click',()=>{
+  document.querySelectorAll('[data-comm-tab]').forEach(b=>b.onclick=()=>{state.commTab=b.dataset.commTab;void renderCommunication()});
+  document.querySelectorAll('[data-comm-client]').forEach(b=>b.onclick=()=>{state.commClient=b.dataset.commClient;void renderCommunication()});
+  document.getElementById('commSend')?.addEventListener('click',async()=>{
     const el=document.getElementById('commText'),text=el?.value.trim();if(!text)return;
-    const c=commCurrentWorkspace(),w=String(c.id),msgs=commGet(commMsgKey(w),[]);
-    msgs.push({id:'MSG-'+Date.now(),text,role:commRole(),sender:commRole()==='client'?'Client':'BHA '+commRole(),ts:Date.now()});
-    commSet(commMsgKey(w),msgs);renderCommunication();
+    const c=commCurrentWorkspace();if(!c)return;
+    const btn=document.getElementById('commSend');btn.disabled=true;
+    const payload={client_id:c.id,sender_id:state.session.user.id,sender_role:commRole(),sender_name:state.profile?.name||state.profile?.email||commRole(),message:text};
+    const {error}=await sb.from('communication_messages').insert(payload);
+    if(error){btn.disabled=false;return toast(error.message||'Message could not be sent.')}
+    await audit('communication_message_sent',{client_id:c.id});void renderCommunication();
   });
   document.getElementById('commNewRequest')?.addEventListener('click',()=>{
     const area=document.getElementById('commRequestArea');
     area.innerHTML=`<div class="comm-request-form"><div class="field"><label>Request Type</label><select id="commReqType"><option>Request Claim Review</option><option>Billing Question</option><option>Request Report</option><option>General Request</option></select></div><div class="field"><label>Subject</label><input id="commReqSubject" maxlength="120"></div><div class="field"><label>Details</label><textarea id="commReqMessage" maxlength="2000"></textarea></div><div><button class="btn btn-primary btn-small" id="commReqSave">Submit Request</button> <button class="btn btn-light btn-small" id="commReqCancel">Cancel</button></div></div>`;
-    document.getElementById('commReqCancel').onclick=renderCommunication;
-    document.getElementById('commReqSave').onclick=()=>{
-      const subject=document.getElementById('commReqSubject').value.trim(),message=document.getElementById('commReqMessage').value.trim();
-      if(!subject||!message)return toast('Subject and details are required.');
-      const w=String(commCurrentWorkspace().id),reqs=commGet(commReqKey(w),[]);
-      reqs.unshift({id:'REQ-'+Date.now(),type:document.getElementById('commReqType').value,subject,message,status:'Open',created:new Date().toISOString(),updated:new Date().toISOString()});
-      commSet(commReqKey(w),reqs);toast('Request created.');renderCommunication();
+    document.getElementById('commReqCancel').onclick=()=>void renderCommunication();
+    document.getElementById('commReqSave').onclick=async()=>{
+      const subject=document.getElementById('commReqSubject').value.trim(),details=document.getElementById('commReqMessage').value.trim(),c=commCurrentWorkspace();
+      if(!subject||!details)return toast('Subject and details are required.');
+      const btn=document.getElementById('commReqSave');btn.disabled=true;
+      const {error}=await sb.from('communication_requests').insert({client_id:c.id,created_by:state.session.user.id,request_type:document.getElementById('commReqType').value,subject,details,status:'Open'});
+      if(error){btn.disabled=false;return toast(error.message||'Request could not be created.')}
+      await audit('communication_request_created',{client_id:c.id});toast('Request created.');void renderCommunication();
     };
   });
-  document.querySelectorAll('[data-req-status]').forEach(sel=>sel.onchange=()=>{
-    const w=String(commCurrentWorkspace().id),reqs=commGet(commReqKey(w),[]),r=reqs.find(x=>x.id===sel.dataset.reqStatus);
-    if(r){r.status=sel.value;r.updated=new Date().toISOString();commSet(commReqKey(w),reqs);renderCommunication()}
+  document.querySelectorAll('[data-req-status]').forEach(sel=>sel.onchange=async()=>{
+    const {error}=await sb.from('communication_requests').update({status:sel.value,updated_at:new Date().toISOString()}).eq('id',sel.dataset.reqStatus);
+    if(error)return toast(error.message||'Status could not be updated.');
+    await audit('communication_request_status',{request_id:sel.dataset.reqStatus,status:sel.value});void renderCommunication();
   });
-  document.querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>toast(`${b.dataset.doc} is ready as a secure category. Upload/download is locked in this local build.`));
+  document.querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>toast('Production document storage is not enabled yet.'));
 }
 
-function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;if(!sectionAllowed(state.section)){state.section='overview'}let html;try{html=state.section==='overview'?overviewHtml():state.section==='communication'?communicationHtml():state.section==='automation'?automationHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section)}catch(e){console.error('Section render failed',state.section,e);html=pageHead('Unable to open section','A local rendering error occurred.')+`<div class="notice danger-note">${esc(e.message||e)}</div>`};root.innerHTML=`<div class="section active">${html}${state.section!=='overview'&&state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')void renderOverview();else setTimeout(enhanceVisibleTables,0);if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity();if(state.section==='communication')renderCommunication()}
+function renderSection(){const root=document.getElementById('sectionRoot');if(!root)return;if(!sectionAllowed(state.section)){state.section='overview'}let html;try{html=state.section==='overview'?overviewHtml():state.section==='communication'?communicationHtml():state.section==='automation'?automationHtml():state.section==='imports'?importsHtml():state.section==='users'?usersHtml():state.section==='clients'?clientsHtml():state.section==='activity'?activityHtml():moduleHtml(state.section)}catch(e){console.error('Section render failed',state.section,e);html=pageHead('Unable to open section','A rendering error occurred.')+`<div class="notice danger-note">${esc(e.message||e)}</div>`};root.innerHTML=`<div class="section active">${html}${state.section!=='overview'&&state.dataCapped?'<div class="notice" style="margin-top:12px">This workspace contains more than 20,000 records. The portal is showing the newest 20,000 records. Use module/date filters or a server-side report for larger datasets.</div>':''}</div>`;bindSection();if(state.section==='overview')void renderOverview();else setTimeout(enhanceVisibleTables,0);if(['ar','denials','verification','auth','charges','payments'].includes(state.section))renderModule(state.section);if(state.section==='imports')renderSchemaHelp();if(state.section==='users')loadUsers();if(state.section==='clients')loadClientAdmin();if(state.section==='activity')loadActivity();if(state.section==='communication')void renderCommunication()}
 function bindSection(){
   syncNetworkState();
   document.getElementById('v13Report')?.addEventListener('click',v13PrintReport);
@@ -1249,7 +1253,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V20 Production Hardened Local';
+const V6_BUILD='V21 Production Connected';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -1478,12 +1482,29 @@ async function fetchExecutiveDashboard(){
   return {summary:mergeDashboardSummaries(results.map(x=>x.summary)),aging:mergeAging(results.map(x=>x.aging))}
 }
 
-function v13GoalKey(){return `bha_goals_${state.client?.id||state.profile?.client_id||'portfolio'}`}
-function v13GoalsGet(){try{return JSON.parse(localStorage.getItem(v13GoalKey())||'{}')}catch(_){return {}}}
-function v13OpenGoals(){
- const g=v13GoalsGet();
- document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="v13GoalsModal"><div class="modal"><div class="modal-head"><h3>Performance Goals</h3><button class="btn btn-light btn-small" onclick="document.getElementById('v13GoalsModal')?.remove()">Close</button></div><p class="cap">Optional client-specific targets. Targets do not alter source data or calculated KPIs.</p><div class="modal-grid"><div class="field"><label>AR 91+ Target (%)</label><input id="v13GoalAr" type="number" min="0" max="100" step="0.1" value="${esc(g.ar91??'')}"></div><div class="field"><label>Denial Exposure Target (%)</label><input id="v13GoalDenial" type="number" min="0" max="100" step="0.1" value="${esc(g.denial??'')}"></div><div class="field"><label>Payment Posting Target (%)</label><input id="v13GoalPosting" type="number" min="0" max="100" step="0.1" value="${esc(g.posting??'')}"></div></div><button class="btn btn-primary btn-small" id="v13SaveGoals">Save Goals</button></div></div>`);
- document.getElementById('v13SaveGoals').onclick=()=>{localStorage.setItem(v13GoalKey(),JSON.stringify({ar91:document.getElementById('v13GoalAr').value,denial:document.getElementById('v13GoalDenial').value,posting:document.getElementById('v13GoalPosting').value}));document.getElementById('v13GoalsModal')?.remove();if(state.dashboard)paintExecutiveDashboard(state.dashboard);toast('Goals saved.')};
+function v13GoalKey(){return String(state.client?.id||state.profile?.client_id||'')}
+state.goalCache=state.goalCache||{};
+function v13GoalsGet(){return state.goalCache[v13GoalKey()]||{}}
+async function v13LoadGoals(){
+ const id=v13GoalKey();if(!id||id==='portfolio')return {};
+ const {data,error}=await sb.from('performance_goals').select('ar_91_target,denial_target,posting_target').eq('client_id',id).maybeSingle();
+ if(error){console.warn('Goal load failed',error);return state.goalCache[id]||{}}
+ state.goalCache[id]=data?{ar91:data.ar_91_target,denial:data.denial_target,posting:data.posting_target}:{};
+ return state.goalCache[id];
+}
+async function v13OpenGoals(){
+ if(getRole()!=='admin')return;
+ const id=v13GoalKey();if(!id)return toast('Select a client before setting goals.');
+ const g=await v13LoadGoals();
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="v13GoalsModal"><div class="modal"><div class="modal-head"><h3>Performance Goals</h3><button class="btn btn-light btn-small" onclick="document.getElementById('v13GoalsModal')?.remove()">Close</button></div><p class="cap">Client-specific targets stored in the production workspace. Targets do not alter source data or calculated KPIs.</p><div class="modal-grid"><div class="field"><label>AR 91+ Target (%)</label><input id="v13GoalAr" type="number" min="0" max="100" step="0.1" value="${esc(g.ar91??'')}"></div><div class="field"><label>Denial Target (%)</label><input id="v13GoalDenial" type="number" min="0" max="100" step="0.1" value="${esc(g.denial??'')}"></div><div class="field"><label>Posting Target (%)</label><input id="v13GoalPosting" type="number" min="0" max="100" step="0.1" value="${esc(g.posting??'')}"></div></div><button class="btn btn-primary btn-small" id="v13SaveGoals">Save Goals</button></div></div>`);
+ document.getElementById('v13SaveGoals').onclick=async()=>{
+   const payload={client_id:id,ar_91_target:document.getElementById('v13GoalAr').value||null,denial_target:document.getElementById('v13GoalDenial').value||null,posting_target:document.getElementById('v13GoalPosting').value||null,updated_by:state.session.user.id,updated_at:new Date().toISOString()};
+   const btn=document.getElementById('v13SaveGoals');btn.disabled=true;
+   const {error}=await sb.from('performance_goals').upsert(payload,{onConflict:'client_id'});
+   if(error){btn.disabled=false;return toast(error.message||'Goals could not be saved.')}
+   state.goalCache[id]={ar91:payload.ar_91_target,denial:payload.denial_target,posting:payload.posting_target};
+   await audit('performance_goals_updated',{client_id:id});document.getElementById('v13GoalsModal')?.remove();if(state.dashboard)paintExecutiveDashboard(state.dashboard);toast('Goals saved.');
+ };
 }
 function v13GoalAndAlerts(x,oldPct){
  const g=v13GoalsGet(),denialPct=Number(x.total_ar)>0?Number(x.denial_amount||0)/Number(x.total_ar)*100:null,posting=Number.isFinite(Number(x.posting_rate))?Number(x.posting_rate):null;
