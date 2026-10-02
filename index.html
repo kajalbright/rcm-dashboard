@@ -506,7 +506,7 @@ body{background:var(--v8-bg)}
 @media(max-width:700px){.practice-options{grid-template-columns:1fr}.practice-access-title,.practice-access-footer{align-items:stretch;flex-direction:column}}
 </style>
 </head>
-<body data-bha-build="2026-10-02-v37-multi-practice-switching-final">
+<body data-bha-build="2026-10-02-v38-client-workspace-sync-final">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -913,7 +913,16 @@ function navIcon(key){
   };
   return `<svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[key]||paths.overview}</svg>`;
 }
-function communicationUnreadCount(){return Object.values(state.commUnread||{}).reduce((a,b)=>a+Number(b||0),0)}
+function communicationUnreadCount(){
+  ensureCommState();
+  const openId=(state.section==='communication'&&state.commTab==='messages')?String(commCurrentWorkspace()?.id||''):'';
+  if(openId)state.commUnread[openId]=0;
+  if(['client','provider'].includes(commRole())){
+    const id=state.client?.id||commCurrentWorkspace()?.id;
+    return id?commUnreadFor(String(id)):0;
+  }
+  return Object.entries(state.commUnread||{}).reduce((a,[id,n])=>a+(String(id)===openId?0:Number(n||0)),0);
+}
 async function navigateToSection(nextSection){
   try{
     nextSection=String(nextSection||'');
@@ -1086,8 +1095,9 @@ function commClients(){
   return [];
 }
 function commCurrentWorkspace(){
-  const allowed=commClients(),wanted=String(state.commClient||commWorkspace());
-  const c=allowed.find(x=>String(x.id)===wanted)||allowed[0]||null;
+  const allowed=commClients(),selected=state.client?.id?String(state.client.id):'',remembered=state.commClient?String(state.commClient):'';
+  const wanted=['client','provider'].includes(commRole())?(selected||remembered):(remembered||selected||String(commWorkspace()||''));
+  const c=allowed.find(x=>String(x.id)===wanted)||allowed.find(x=>String(x.id)===selected)||allowed[0]||null;
   state.commClient=c?String(c.id):'';
   return c;
 }
@@ -1102,6 +1112,9 @@ async function commRefreshUnread(){
   try{
     for(const c of clients){
       const w=String(c.id);
+      if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id||'')===w){
+        ensureCommState();state.commUnread[w]=0;continue;
+      }
       const {data:read,error:readError}=await sb.from('communication_reads').select('last_read_at').eq('client_id',w).eq('user_id',state.session.user.id).maybeSingle();
       if(readError)continue;
       const {count,error}=await sb.from('communication_messages').select('id',{count:'exact',head:true}).eq('client_id',w).neq('sender_id',state.session.user.id).gt('created_at',read?.last_read_at||'1970-01-01T00:00:00Z');
@@ -1127,8 +1140,10 @@ async function renderCommunication(){
       const {data:msgs,error}=await sb.from('communication_messages').select('id,sender_id,sender_role,sender_name,message,created_at').eq('client_id',w).order('created_at',{ascending:true}).limit(500);
       if(error)throw error;
       commLastFingerprint=msgs?.length?`${msgs[msgs.length-1].id}|${msgs[msgs.length-1].created_at}`:'empty';
-      await sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:w,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'});
-      ensureCommState();state.commUnread[w]=0;
+      const readAt=new Date().toISOString();
+      const {error:markReadError}=await sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:w,last_read_at:readAt},{onConflict:'user_id,client_id'});
+      if(markReadError)console.warn('Could not persist communication read marker',markReadError);
+      ensureCommState();state.commUnread[w]=0;updateCommunicationBadge();
       body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Production workspace</span></header><div class="comm-message-list" id="commMessages">${msgs?.length?msgs.map(m=>`<div class="comm-message ${String(m.sender_id)===String(state.session.user.id)?'mine':''}" data-message-id="${esc(m.id)}"><div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
       const list=document.getElementById('commMessages');if(list)list.scrollTop=list.scrollHeight;
     }else if(state.commTab==='requests'){
@@ -1200,15 +1215,14 @@ function appendIncomingMessage(m){
   div.innerHTML=`<div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small>`;
   list.appendChild(div);list.scrollTop=list.scrollHeight;
   commLastFingerprint=`${m.id}|${m.created_at}`;
-  if(!mine){ensureCommState();state.commUnread[String(c.id)]=0;void sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:c.id,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'})}
+  if(!mine){ensureCommState();state.commUnread[String(c.id)]=0;updateCommunicationBadge();void markCommRead(String(c.id))}
 }
 function startCommRealtime(){
   stopCommRealtime();if(DEMO_MODE||!state.session?.user)return;
   commRealtimeChannel=sb.channel(`bha-communication-${state.session.user.id}-${Date.now()}`)
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'communication_messages'},payload=>{
       const m=payload.new||{};const allowed=commClients().some(c=>String(c.id)===String(m.client_id));if(!allowed)return;
-      if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id)===String(m.client_id))appendIncomingMessage(m);
-      else{ensureCommState();state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;updateCommunicationBadge()}
+      if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id)===String(m.client_id)){appendIncomingMessage(m);ensureCommState();state.commUnread[String(m.client_id)]=0;updateCommunicationBadge();void markCommRead(String(m.client_id));} else{ensureCommState();state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;updateCommunicationBadge()}
    }).subscribe();
 }
 function updateCommunicationBadge(){
@@ -1262,13 +1276,14 @@ function bindSection(){
     if(value!=='__ALL__'&&!nextClient){toast('Selected client was not found.');return;}
     const previousClient=state.client;
     state.client=nextClient;
+    state.commClient=nextClient?String(nextClient.id):'';commLastFingerprint='';
     state.records={};state.filters={};state.quickAge='';state.tablePage=1;SEARCH_TEXT_CACHE=new WeakMap();
     clientSelect.disabled=true;
     toast('Loading selected client…');
     try{
       state.dashboard=null;state.dashboardKey=null;
       if(['ar','denials','verification','auth','charges','payments'].includes(state.section))await loadData();
-      renderSection();
+      await commRefreshUnread();renderSection();updateCommunicationBadge();
       toast(state.client?`Showing ${state.client.name}`:'Showing All Clients');
     }catch(err){
       state.client=previousClient;
@@ -2230,7 +2245,8 @@ async function enterApp(){
     renderSection();
     const selector=document.getElementById('globalClientSelect');
     if(selector) selector.value=state.client?.id||'__ALL__';
-    updateCommunicationBadge();startProductionSync();startCommRealtime();
+    state.commClient=state.client?.id?String(state.client.id):'';
+    await commRefreshUnread();updateCommunicationBadge();startProductionSync();startCommRealtime();
   }catch(e){
     document.getElementById('app').innerHTML=loginView();
     const x=document.getElementById('loginError');
