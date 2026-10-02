@@ -494,7 +494,7 @@ const modules={
 };
 const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Multi-specialty'}];
 const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
-function freshState(){return {session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false,dashboard:null,dashboardKey:null,tableSort:{key:'',dir:'asc'},tablePage:1,tablePageSize:50,quickAge:''}}
+function freshState(){return {session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false,dashboard:null,dashboardKey:null,tableSort:{key:'',dir:'asc'},tablePage:1,tablePageSize:50,quickAge:'',commTab:'messages',commClient:'',commUnread:{}}}
 let state=freshState();
 // Short-lived in-memory cache: improves repeat client switching without persisting PHI.
 const recordsCache=new Map();
@@ -671,8 +671,8 @@ const schemas={
    payment_date:['payment date','payment_date','paymentdate','deposit date','date','transaction date','payment received date','received date'],
    check_no:['check no','check no.','check number','check_number','checkno','check #','check','reference','reference no','reference number'],
    posted_date:['posted date','posted_date','posteddate','post date','date posted'],
-   total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit','payment amount','amount','total payment','total amount'],
-   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount'],
+   total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit','payment amount','amount','total payment','total amount','payment total','payments','total payments','payment','paid amount','receipts','receipt amount','deposit','total receipts'],
+   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount','posted','applied','applied payment','payment applied','total posted'],
    status:['status','payment status']
   },
   map:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status']
@@ -1065,7 +1065,8 @@ function commCurrentWorkspace(){
 function commStatusClass(v){v=String(v||'Open').toLowerCase();return v.includes('resolved')?'comm-resolved':v.includes('progress')?'comm-progress':'comm-open'}
 state.commUnread=state.commUnread||{};
 
-function commUnreadFor(w){return Number(state.commUnread?.[String(w)]||0)}
+function ensureCommState(){if(!state.commUnread||typeof state.commUnread!=='object')state.commUnread={};if(!['messages','requests'].includes(state.commTab))state.commTab='messages'}
+function commUnreadFor(w){ensureCommState();return Number(state.commUnread?.[String(w)]||0)}
 async function commRefreshUnread(){
   if(DEMO_MODE||!state.session?.user)return;
   const clients=commClients(); if(!clients.length)return;
@@ -1085,6 +1086,7 @@ function communicationHtml(){
 }
 async function renderCommunication(){
   const body=document.getElementById('commBody');if(!body)return;
+  ensureCommState();
   state.commTab=['messages','requests'].includes(state.commTab)?state.commTab:'messages';
   document.querySelectorAll('[data-comm-tab]').forEach(x=>x.classList.toggle('active',x.dataset.commTab===state.commTab));
   const client=commCurrentWorkspace();
@@ -1331,7 +1333,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V26 Core Stability';
+const V6_BUILD='V27 Comm + Import Repair';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -1735,7 +1737,10 @@ function validateImportStructure(module,rawRows,fileName){
     throw new Error(`The header row appears malformed or concatenated. Example detected in ${fileName||'the file'}. Please export the sheet again with separate columns.`);
   }
   if(info.recognized.length===0){
-    throw new Error(`No supported column headers were recognized for ${modules[module].label}. Use the Download Template button or rename the headers before importing.`);
+    // Source-exact fallback: operational exports often use practice-specific headers.
+    // Preserve every source column instead of blocking the upload. Analytics fields
+    // populate whenever aliases are recognized; otherwise Detailed Records still remain usable.
+    console.warn(`No standard analytics headers recognized for ${modules[module].label}; importing source-exact columns.`);
   }
   // One recognized operational field is enough to safely scope the dataset.
   // All additional source columns are retained even when they are not analytics fields.
