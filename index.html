@@ -494,7 +494,7 @@ const modules={
 };
 const demoClients=[{id:'demo-client-1',name:'Demo Medical Group',specialty:'Multi-specialty'}];
 const demoUsers=[{id:'demo-admin',name:'BHA Administrator',email:'admin@demo.local',role:'admin',client_id:null,access_all:true,active:true},{id:'demo-user',name:'RCM Operations User',email:'user@demo.local',role:'user',client_id:'demo-client-1',access_all:false,active:true},{id:'demo-client-user',name:'Client Viewer',email:'client@demo.local',role:'client',client_id:'demo-client-1',access_all:false,active:true}];
-function freshState(){return {session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false,dashboard:null,dashboardKey:null,tableSort:{key:'',dir:'asc'},tablePage:1,tablePageSize:50,quickAge:'',commTab:'messages',commClient:'',commUnread:{}}}
+function freshState(){return {session:null,profile:null,client:null,clients:[],section:'overview',records:{},charts:{},filters:{},demo:DEMO_MODE,dataCapped:false,dashboard:null,dashboardKey:null,tableSort:{key:'',dir:'asc'},tablePage:1,tablePageSize:50,quickAge:'',commTab:'messages',commClient:'',commUnread:{},users:[],importHistory:[],goalCache:{},premiumPeriod:'all',premiumFrom:'',premiumTo:''}}
 let state=freshState();
 // Short-lived in-memory cache: improves repeat client switching without persisting PHI.
 const recordsCache=new Map();
@@ -621,7 +621,7 @@ const schemas={
    patient:['patient','patient name','member name'],
    provider:['provider','provider name','rendering provider'],
    date:['date','verification date','verified date','check date'],
-   payer:['payer','insurance','insurance payer','carrier','payment source','payor','insurance name'],
+   payer:['payer','insurance','insurance payer','carrier','payment source','payor','insurance name','payment from payer name','payment from name'],
    plan:['plan','plan name','insurance plan'],
    eligibility:['eligibility','eligibility status'],
    participation_status:['participation status','participation_status','participation','network status'],
@@ -672,7 +672,7 @@ const schemas={
    check_no:['check no','check no.','check number','check_number','checkno','check #','check','reference','reference no','reference number'],
    posted_date:['posted date','posted_date','posteddate','post date','date posted'],
    total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit','payment amount','amount','total payment','total amount','payment total','payments','total payments','payment','paid amount','receipts','receipt amount','deposit','total receipts'],
-   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount','posted','applied','applied payment','payment applied','total posted'],
+   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount','posted','applied','applied payment','payment applied','total posted','payment'],
    status:['status','payment status']
   },
   map:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status']
@@ -771,7 +771,7 @@ function normalizeModuleRows(module,rows){
   const cleanMoney=canonicalizeImportedMoney(module,d);
   cleanMoney.__source_columns=sourceColumns;
   cleanMoney.__source_headers=sourceHeaders;
-  cleanMoney.__source_row_index=Number.isFinite(Number(row?.__raw_source_row_index))?Number(row.__raw_source_row_index):rowIndex;
+  cleanMoney.__source_row_index=Number.isFinite(Number(source?.__raw_source_row_index))?Number(source.__raw_source_row_index):rowIndex;
   return cleanMoney;
  });
 }
@@ -1003,7 +1003,7 @@ function v9ImportOverview(){
   <div><b>4 · Audit</b><span>Retain batch history for review and controlled rollback.</span></div>
  </div>`;
 }
-function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('Data Operations','Import, validate, publish and govern client operational datasets.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+v9ImportOverview()+`<div class="upload-panel"><div class="card"><h3>Import Dataset</h3><p class="cap">Upload CSV or Excel data with header-based mapping, validation and client scoping. Source headers and row order are preserved for traceability.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Data Contract</h3><p class="cap">Known headers map automatically; all source columns are preserved in original order.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: files with suspicious/malformed headers or rows that cannot be mapped safely are rejected instead of being imported with shifted columns.</div></div></div><div class="card" style="margin-top:15px"><h3>Import History</h3><p class="cap">Review published batches, source files and controlled deletion history.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="batchClient">${state.clients.map(c=>`<option value="${esc(c.id)}" ${String(state.client?.id||state.profile?.client_id||'')===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="batchModule">${choices}</select></div></div><button class="btn btn-light btn-small" id="refreshBatches">Refresh Batch History</button><div id="batchHistory" style="margin-top:12px"></div>`:`<div class="notice">Admin access required to view import batches.</div>`}</div><details class="v12-danger-zone" style="margin-top:15px"><summary>Danger Zone · Advanced Data Removal</summary><div class="v12-danger-body"><p>Remove every imported record for one client and one dataset. For routine corrections, delete a specific import batch from Import History instead.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Dataset</label><select id="deleteDataModule">${choices}</select></div></div><div class="field"><label>Confirmation</label><input id="deleteDataConfirm" autocomplete="off" placeholder="Type DELETE to enable permanent removal"></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn" disabled>Delete Entire Dataset</button>`:`<div class="notice">Admin access required.</div>`}</div></details></div>`}
+function importsHtml(){const choices=Object.entries(schemas).map(([k,v])=>`<option value="${k}">${modules[k].label}</option>`).join('');return pageHead('Data Operations','Import, validate, publish and govern client operational datasets.',`<button class="btn btn-light btn-small" id="downloadTemplate">Download Template</button>`)+v9ImportOverview()+`<div class="upload-panel"><div class="card"><h3>Import Dataset</h3><p class="cap">Upload CSV or Excel data with header-based mapping, validation and client scoping. Source headers and row order are preserved for traceability.</p><div class="field"><label>Module</label><select id="importModule">${choices}</select></div>${hasAllClients()?'<div class="field"><label>Client</label><select id="importClient">'+state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')+'</select></div>':''}<div class="field"><label>Import Mode</label><select id="importMode"><option value="replace">Replace this module for the client</option><option value="append">Append to existing data</option></select></div><div class="dropzone"><h4>Select CSV or Excel file</h4><p>Supported: CSV (.csv), Excel (.xlsx) and Excel 97-2003 (.xls). The first row must contain column names. Only the first non-empty worksheet is imported from an Excel workbook.</p><div class="file-row"><input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"><button class="btn btn-primary btn-small" id="startImport">Import File</button></div><div id="selectedFileInfo" class="muted" style="margin-top:8px"></div></div><div id="importResult" style="margin-top:12px"></div></div><div class="card"><h3>Data Contract</h3><p class="cap">Known headers map automatically; all source columns are preserved in original order.</p><div id="schemaHelp"></div><div class="notice" style="margin-top:15px">Safety check: malformed worksheet structures are rejected. Valid source columns are preserved in their original order; recognized fields also power dashboard analytics.</div></div></div><div class="card" style="margin-top:15px"><h3>Import History</h3><p class="cap">Review published batches, source files and controlled deletion history.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="batchClient">${state.clients.map(c=>`<option value="${esc(c.id)}" ${String(state.client?.id||state.profile?.client_id||'')===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Module</label><select id="batchModule">${choices}</select></div></div><button class="btn btn-light btn-small" id="refreshBatches">Refresh Batch History</button><div id="batchHistory" style="margin-top:12px"></div>`:`<div class="notice">Admin access required to view import batches.</div>`}</div><details class="v12-danger-zone" style="margin-top:15px"><summary>Danger Zone · Advanced Data Removal</summary><div class="v12-danger-body"><p>Remove every imported record for one client and one dataset. For routine corrections, delete a specific import batch from Import History instead.</p>${canAdmin()?`<div class="modal-grid"><div class="field"><label>Client</label><select id="deleteDataClient">${state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Dataset</label><select id="deleteDataModule">${choices}</select></div></div><div class="field"><label>Confirmation</label><input id="deleteDataConfirm" autocomplete="off" placeholder="Type DELETE to enable permanent removal"></div><div id="deleteDataResult"></div><button class="btn btn-danger btn-small" id="deleteDataBtn" disabled>Delete Entire Dataset</button>`:`<div class="notice">Admin access required.</div>`}</div></details></div>`}
 
 function v9AdminAccessMetrics(){
  const users=Array.isArray(state.users)?state.users:[];
@@ -1078,7 +1078,7 @@ async function commRefreshUnread(){
       const {data:read,error:readError}=await sb.from('communication_reads').select('last_read_at').eq('client_id',w).eq('user_id',state.session.user.id).maybeSingle();
       if(readError)continue;
       const {count,error}=await sb.from('communication_messages').select('id',{count:'exact',head:true}).eq('client_id',w).neq('sender_id',state.session.user.id).gt('created_at',read?.last_read_at||'1970-01-01T00:00:00Z');
-      if(!error)state.commUnread[w]=count||0;
+      if(!error){ensureCommState();state.commUnread[w]=count||0;}
     }
   }catch(e){console.warn('Unread refresh failed',e)}
 }
@@ -1101,7 +1101,7 @@ async function renderCommunication(){
       if(error)throw error;
       commLastFingerprint=msgs?.length?`${msgs[msgs.length-1].id}|${msgs[msgs.length-1].created_at}`:'empty';
       await sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:w,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'});
-      state.commUnread[w]=0;
+      ensureCommState();state.commUnread[w]=0;
       body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel comm-chat"><header><div><strong>${esc(name)}</strong><span>BHA ↔ Client conversation</span></div><span class="comm-secure">Production workspace</span></header><div class="comm-message-list" id="commMessages">${msgs?.length?msgs.map(m=>`<div class="comm-message ${String(m.sender_id)===String(state.session.user.id)?'mine':''}" data-message-id="${esc(m.id)}"><div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small></div>`).join(''):'<div class="comm-empty">No messages yet. Start a conversation below.</div>'}</div><footer><textarea id="commText" maxlength="2000" placeholder="Write a message…"></textarea><button class="btn btn-primary btn-small" id="commSend">Send</button></footer></section></div>`;
       const list=document.getElementById('commMessages');if(list)list.scrollTop=list.scrollHeight;
     }else if(state.commTab==='requests'){
@@ -1109,7 +1109,8 @@ async function renderCommunication(){
       if(error)throw error;
       body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Requests</h3><p>Structured work items with clear ownership and status.</p></div><button class="btn btn-primary btn-small" id="commNewRequest">+ New Request</button></div><div id="commRequestArea">${commRequestTable(reqs||[],w)}</div></section></div>`;
     }else{
-      body.innerHTML=`<div class="comm-layout ${['admin','user'].includes(commRole())?'with-rail':''}">${clientRail}<section class="comm-panel"><div class="comm-panel-head"><div><h3>${esc(name)} Documents</h3><p>Document exchange will be enabled after production storage policies and retention controls are configured.</p></div></div><div class="comm-doc-grid">${['Monthly Reports','Payer Correspondence','ERA / EOB','Authorization Documents','Provider Documents','Client Reports'].map(x=>`<div class="comm-doc comm-doc-disabled"><strong>${esc(x)}</strong><span>Coming after secure storage activation</span></div>`).join('')}</div><div class="comm-security"><b>Secure Documents:</b> This area is intentionally read-only until client-isolated storage, audit logging and retention controls are activated.</div></section></div>`;
+      state.commTab='messages';
+      return void renderCommunication();
     }
     bindCommunication();
   }catch(e){console.error(e);body.innerHTML=`<div class="notice danger-note">Unable to load Communication Center: ${esc(e.message||e)}</div>`}
@@ -1172,7 +1173,7 @@ function appendIncomingMessage(m){
   div.innerHTML=`<div>${esc(m.message)}</div><small>${esc(m.sender_name||String(m.sender_role||'User').toUpperCase())} · ${new Date(m.created_at).toLocaleString()}</small>`;
   list.appendChild(div);list.scrollTop=list.scrollHeight;
   commLastFingerprint=`${m.id}|${m.created_at}`;
-  if(!mine){state.commUnread[String(c.id)]=0;void sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:c.id,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'})}
+  if(!mine){ensureCommState();state.commUnread[String(c.id)]=0;void sb.from('communication_reads').upsert({user_id:state.session.user.id,client_id:c.id,last_read_at:new Date().toISOString()},{onConflict:'user_id,client_id'})}
 }
 function startCommRealtime(){
   stopCommRealtime();if(DEMO_MODE||!state.session?.user)return;
@@ -1180,7 +1181,7 @@ function startCommRealtime(){
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'communication_messages'},payload=>{
       const m=payload.new||{};const allowed=commClients().some(c=>String(c.id)===String(m.client_id));if(!allowed)return;
       if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id)===String(m.client_id))appendIncomingMessage(m);
-      else{state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;updateCommunicationBadge()}
+      else{ensureCommState();state.commUnread[String(m.client_id)]=(state.commUnread[String(m.client_id)]||0)+1;updateCommunicationBadge()}
    }).subscribe();
 }
 function updateCommunicationBadge(){
@@ -1857,12 +1858,14 @@ async function importCsv(){
       const demoRows=rows.map((r,index)=>({...r,client_id:clientId,__source_row_index:Number.isFinite(Number(r?.__source_row_index))?Number(r.__source_row_index):index,__imported_at:importedAt}));
       if(mode==='replace')state.records[module]=demoRows;
       else state.records[module]=[...getRecords(module),...demoRows];
-      result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} in demo mode.</div>`;
+      if(result)result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} in demo mode.</div>`;
       toast('File imported successfully');
       return;
     }
     const response=await insertRecords(module,rows,clientId,mode);
-    result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} successfully.</div>`;
+    const inserted=Number(response?.inserted??rows.length);
+    if(inserted!==rows.length)throw new Error(`Import incomplete: server accepted ${inserted.toLocaleString()} of ${rows.length.toLocaleString()} rows.`);
+    result.innerHTML=`<div class="notice">Validated and imported ${inserted.toLocaleString()} records from ${esc(parsed.sourceName)} successfully.</div>`;
     if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
     await loadData();
     const picker=document.getElementById('csvFile');if(picker)picker.value='';
@@ -1895,7 +1898,7 @@ async function insertRecords(module,rows,clientId,mode){
   clearRecordsCache();
   return data||{import_batch_id:batchId,inserted:rows.length};
 }
-function downloadTemplate(){const m=document.getElementById('importModule').value,s=schemas[m],headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
+function downloadTemplate(){const m=document.getElementById('importModule')?.value,s=schemas[m];if(!s)return toast('Select a module first.');const headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
 let v14LoadSeq=0;
 const v14LoadingModules=new Map();
 function v14HydrateRows(source){
