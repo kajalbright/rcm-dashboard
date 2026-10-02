@@ -479,7 +479,7 @@ body{background:var(--v8-bg)}
 
 </style>
 </head>
-<body data-bha-build="2026-10-02-v25-client-nav-repair">
+<body data-bha-build="2026-10-02-v26-core-stability">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -621,7 +621,7 @@ const schemas={
    patient:['patient','patient name','member name'],
    provider:['provider','provider name','rendering provider'],
    date:['date','verification date','verified date','check date'],
-   payer:['payer','insurance','insurance payer','carrier'],
+   payer:['payer','insurance','insurance payer','carrier','payment source','payor','insurance name'],
    plan:['plan','plan name','insurance plan'],
    eligibility:['eligibility','eligibility status'],
    participation_status:['participation status','participation_status','participation','network status'],
@@ -638,7 +638,7 @@ const schemas={
    patient:['patient','patient name','member name'],
    provider:['provider','provider name','rendering provider'],
    procedure:['procedure','procedure name','cpt','service'],
-   payer:['payer','insurance','insurance payer','carrier'],
+   payer:['payer','insurance','insurance payer','carrier','payment source','payor','insurance name'],
    requested:['requested','requested date','request date','auth requested'],
    authnum:['authnum','auth number','authorization #','authorization number','authorization id','auth id'],
    valid:['valid','valid through','expiration date','expiry date','auth expiration'],
@@ -653,7 +653,7 @@ const schemas={
    claim_id:['claim_id','claim id','claimid','claim number','claim_number','claim no','claim #'],
    patient:['patient','patient name','member name'],
    provider:['provider','provider name','rendering provider'],
-   payer:['payer','insurance','insurance payer','carrier'],
+   payer:['payer','insurance','insurance payer','carrier','payment source','payor','insurance name'],
    dos:['dos','date of service','date_of_service','service date'],
    cpt:['cpt','cpt code','procedure code'],
    charge:['charge','charge amount','billed amount','billed'],
@@ -666,13 +666,13 @@ const schemas={
   headers:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status'],
   csvHeaders:['Payment ID','Payer','Payment Date','Check No.','Posted Date','Total Deposit Amount','Posted Amount','Status'],
   aliases:{
-   payment_id:['payment_id','payment id','paymentid','payment number','payment no'],
-   payer:['payer','insurance','insurance payer','carrier'],
-   payment_date:['payment date','payment_date','paymentdate','deposit date'],
-   check_no:['check no','check no.','check number','check_number','checkno','check #'],
-   posted_date:['posted date','posted_date','posteddate'],
-   total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit'],
-   posted_amount:['posted amount','posted_amount','payment posted','amount posted'],
+   payment_id:['payment_id','payment id','paymentid','payment number','payment no','payment type','payment type id','transaction id','reference id','reference number'],
+   payer:['payer','insurance','insurance payer','carrier','payment source','payor','insurance name'],
+   payment_date:['payment date','payment_date','paymentdate','deposit date','date','transaction date','payment received date','received date'],
+   check_no:['check no','check no.','check number','check_number','checkno','check #','check','reference','reference no','reference number'],
+   posted_date:['posted date','posted_date','posteddate','post date','date posted'],
+   total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit','payment amount','amount','total payment','total amount'],
+   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount'],
    status:['status','payment status']
   },
   map:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status']
@@ -743,7 +743,7 @@ function normalizeModuleRows(module,rows){
   const usedKeys=new Set();
   // Walk source headers left-to-right so dashboard order exactly matches file order.
   Object.entries(src).forEach(([rawKey,value],i)=>{
-   const rawHeaderList=Array.isArray(row?.__raw_source_headers)?row.__raw_source_headers:null;
+   const rawHeaderList=Array.isArray(src?.__raw_source_headers)?src.__raw_source_headers:null;
    const originalHeader=String(rawHeaderList?.[i]??rawKey??'').replace(/^﻿/,'').trim();
    if(!originalHeader)return;
    const canonical=aliasIndex[normalizeHeader(originalHeader)];
@@ -1081,11 +1081,11 @@ async function commRefreshUnread(){
 }
 function communicationHtml(){
   const role=commRole(),subtitle=role==='client'?'Connect with your Bright Health Alliance team.':'Manage client conversations and requests.';
-  return pageHead('Communication Center',subtitle)+`<div class="comm-shell"><div class="comm-tabs"><button data-comm-tab="messages">Messages</button><button data-comm-tab="requests">Requests</button><button data-comm-tab="documents">Documents</button></div><div id="commBody"><div class="comm-empty">Loading workspace…</div></div></div>`;
+  return pageHead('Communication Center',subtitle)+`<div class="comm-shell"><div class="comm-tabs"><button data-comm-tab="messages">Messages</button><button data-comm-tab="requests">Requests</button></div><div id="commBody"><div class="comm-empty">Loading workspace…</div></div></div>`;
 }
 async function renderCommunication(){
   const body=document.getElementById('commBody');if(!body)return;
-  state.commTab=state.commTab||'messages';
+  state.commTab=['messages','requests'].includes(state.commTab)?state.commTab:'messages';
   document.querySelectorAll('[data-comm-tab]').forEach(x=>x.classList.toggle('active',x.dataset.commTab===state.commTab));
   const client=commCurrentWorkspace();
   if(!client){body.innerHTML='<div class="comm-empty">No client workspace is assigned to this account.</div>';return}
@@ -1331,7 +1331,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V25 Client Nav Repair';
+const V6_BUILD='V26 Core Stability';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -2180,7 +2180,7 @@ window.addEventListener('error',e=>console.error('Portal runtime error',e.error|
 
 async function boot(){
   window.addEventListener('pagehide',()=>{Object.values(state.charts||{}).forEach(c=>{try{c?.destroy?.()}catch(_){}})});
-  document.getElementById('app').innerHTML=loginView();bindLogin();
+  document.getElementById('app').innerHTML='<div class="v25-auth-restore" style="min-height:100vh;display:grid;place-items:center;background:#f5f8fc;color:#60758a;font:600 13px Inter,Arial,sans-serif"><div>Opening secure workspace…</div></div>';
   window.addEventListener('online',syncNetworkState);window.addEventListener('offline',syncNetworkState);
   // Sidebar buttons call navigateToSection() directly; handlers survive all live updates.
 
@@ -2200,7 +2200,7 @@ async function boot(){
   if(DEMO_MODE)return;
   try{
     const {data,error}=await sb.auth.getSession();if(error)throw error;
-    if(data.session){state.session=data.session;await loadProfile();await enterApp()}
+    if(data.session){state.session=data.session;await loadProfile();await enterApp()}else{document.getElementById('app').innerHTML=loginView();bindLogin();}
   }catch(e){
     console.warn('Session restore failed:',e);
     try{await sb.auth.signOut()}catch(_){}
