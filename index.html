@@ -469,9 +469,16 @@ body{background:var(--v8-bg)}
 .v17-logo-fallback{display:none;width:100%;height:100%;place-items:center;color:#315f7c!important;font-size:7px!important;font-weight:900!important}
 .v17-access-note{background:#f9fbfc!important}
 
+
+/* ===== V18 SOURCE-EXACT DETAILED RECORDS ===== */
+.v8-data-card .table-wrap{overflow-x:auto!important;overflow-y:auto;max-width:100%;scrollbar-gutter:stable}
+.v8-data-card #dataTable{width:max-content;min-width:100%;table-layout:auto}
+.v8-data-card #dataTable th,.v8-data-card #dataTable td{white-space:nowrap;max-width:none}
+.v8-data-card #dataTable th{position:sticky;top:0;z-index:2}
+
 </style>
 </head>
-<body data-bha-build="2026-10-02-v17-automation-network-professional">
+<body data-bha-build="2026-10-02-v20-production-hardened">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -735,11 +742,11 @@ function normalizeModuleRows(module,rows){
   const usedKeys=new Set();
   // Walk source headers left-to-right so dashboard order exactly matches file order.
   Object.entries(src).forEach(([rawKey,value],i)=>{
-   const originalHeader=String(rawKey??'').replace(/^﻿/,'').trim();
+   const rawHeaderList=Array.isArray(row?.__raw_source_headers)?row.__raw_source_headers:null;
+   const originalHeader=String(rawHeaderList?.[i]??rawKey??'').replace(/^﻿/,'').trim();
    if(!originalHeader)return;
    const canonical=aliasIndex[normalizeHeader(originalHeader)];
-   if(canonical){
-     if(usedCanonical.has(canonical))throw new Error(`Duplicate column mapping in row ${rowIndex+2}: "${originalHeader}" maps to ${canonical}.`);
+   if(canonical&&!usedCanonical.has(canonical)){
      d[canonical]=value??'';
      sourceColumns.push(canonical);
      sourceHeaders[canonical]=originalHeader;
@@ -747,6 +754,8 @@ function normalizeModuleRows(module,rows){
      usedKeys.add(canonical);
      return;
    }
+   // If another source header maps to the same analytics field, retain it as
+   // a separate source column instead of rejecting or dropping it.
    let key=cleanExtraKey(originalHeader,i);
    while(usedKeys.has(key)||key.startsWith('__'))key=`${key}_${i+1}`;
    usedKeys.add(key);
@@ -759,7 +768,7 @@ function normalizeModuleRows(module,rows){
   const cleanMoney=canonicalizeImportedMoney(module,d);
   cleanMoney.__source_columns=sourceColumns;
   cleanMoney.__source_headers=sourceHeaders;
-  cleanMoney.__source_row_index=rowIndex;
+  cleanMoney.__source_row_index=Number.isFinite(Number(row?.__raw_source_row_index))?Number(row.__raw_source_row_index):rowIndex;
   return cleanMoney;
  });
 }
@@ -920,7 +929,7 @@ function automationHtml(){
  </button>`).join('')}</div>
  <div class="v16-scope"><div><span>RCM WORKFLOW COVERAGE</span><h3>Portal workflows supporting day-to-day revenue cycle operations.</h3><p>Eligibility & Benefits · Claim Status · Prior Authorization · Remittance · Payment Status · Denial Follow-up</p></div><div class="v16-note v17-access-note"><b>External portal access</b><p>Portal authentication remains with the payer or platform. Login credentials are not stored in the BHA dashboard.</p></div></div>`;
 }
-function v16OpenPortal(x){if(getRole()!=='admin')return;let u='';try{u=decodeURIComponent(x)}catch(_){return}if(!/^https:\/\//i.test(u))return;window.open(u,'_blank','noopener,noreferrer')}
+function v16OpenPortal(x){if(getRole()!=='admin')return;let u='';try{u=decodeURIComponent(x)}catch(_){return}try{const h=new URL(u).hostname.toLowerCase();const allowed=new Set(BHA_AUTOMATION_PORTALS.map(p=>String(p.host||'').toLowerCase()));if(!allowed.has(h))return toast('Portal destination blocked.')}catch(_){return}window.open(u,'_blank','noopener,noreferrer')}
 
 function pageHead(title,sub,actions=''){return `<div class="page-head"><div><h2>${title}</h2><p>${sub}</p></div><div class="page-actions">${actions}</div></div>`}
 function uniqueValues(module,key){
@@ -1163,7 +1172,7 @@ function bindSection(){
   ['payerFilter','providerFilter','statusFilter','dateFrom','dateTo'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{state.tablePage=1;state.section==='overview'?renderOverview():renderModule(state.section)}));
   let searchTimer=null;document.getElementById('tableSearch')?.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.tablePage=1;state.section==='overview'?renderOverview():renderModule(state.section)},260)});
   document.getElementById('startImport')?.addEventListener('click',importCsv);
-  document.getElementById('csvFile')?.addEventListener('change',e=>{const f=e.target.files?.[0],out=document.getElementById('selectedFileInfo');if(out)out.textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`:''});
+  document.getElementById('csvFile')?.addEventListener('change',e=>{const f=e.target.files?.[0],out=document.getElementById('selectedFileInfo');if(out)out.textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(2)} MB · ready to validate`:''});
   document.getElementById('exportCurrent')?.addEventListener('click',()=>exportCurrentModule(state.section));
   document.getElementById('exportXlsx')?.addEventListener('click',()=>exportCurrentModuleXlsx(state.section));
   document.getElementById('refreshModule')?.addEventListener('click',refreshCurrentModule);
@@ -1240,7 +1249,7 @@ function topGroups(rows,keyFn,valueFn,limit=5){const m=new Map();rows.forEach(r=
 function rankHtml(title,items,formatter=v=>String(v)){if(!items.length)return `<div class="insight-card"><h4>${title}</h4><div class="module-empty"><b>No grouped data</b>Import data to populate this insight.</div></div>`;const max=Math.max(...items.map(x=>x[1]),1);return `<div class="insight-card"><h4>${title}</h4><div class="rank-list">${items.map(([name,val])=>`<div class="rank-row"><span class="rank-name" title="${esc(name)}">${esc(name)}</span><div class="rank-track"><div class="rank-fill" style="width:${Math.max(3,val/max*100)}%"></div></div><span class="rank-value">${formatter(val)}</span></div>`).join('')}</div></div>`}
 
 
-const V6_BUILD='V17 Automation Network Professional Local';
+const V6_BUILD='V20 Production Hardened Local';
 function v6AgeHours(rows){
  const ts=rows.map(r=>Date.parse(r.__imported_at||r.uploaded_at||'')).filter(Number.isFinite);
  return ts.length?(Date.now()-Math.max(...ts))/36e5:null;
@@ -1428,23 +1437,19 @@ function renderModule(m){
   document.getElementById('v3Ops')?.remove();
   const summaryHost=document.getElementById('moduleSummary');
   if(summaryHost){const holder=document.createElement('div');holder.id='v3Ops';holder.innerHTML=(m==='ar'?arOpsHtml(rows):'')+moduleInsightsHtml(m,rows);summaryHost.insertAdjacentElement('afterend',holder);if(m==='ar')bindQuickFocus()}
-  const colsMap={
-    ar:['payer_name','patient','patient_acct_no','patient_dob','group_no','subscriber_no','claim_date','dos','days','latest_transfer_date','last_submission_date','claim_first_submitted_date','charges','balance','status','action'],
-    denials:['patient','patient_id','claim_id','dos','payer','provider','cpt','charge','balance','denial','status','action','work_date'],
-    verification:['patient','patinet_name','member_id','member_id_policy_number','insurance_name','insurance_company_name','coverage_status_active_inactive','auth_required','auth_status','iv_status','effective_date','comments','notes_red_flags'],
-    auth:['patient','patient_id','payer','provider','status','auth_status','authorization_no','start_date','end_date','units','action'],
-    charges:['patient','patient_id','claim_id','dos','payer','provider','cpt','charge','charges','status','claim_date'],
-    payments:['payment_id','payer','payment_date','posted_date','check_no','posted_amount','total_deposit_amount','status']
-  };
-  const allCols=colsMap[m]||Object.keys(rows[0]||{}).filter(k=>!k.startsWith('__'));
-  const cols=allCols.filter(c=>rows.some(r=>r[c]!==undefined&&r[c]!==null&&String(r[c]).trim()!==''));
-  rows=sortRows(rows);
+  // Source-faithful table contract:
+  // Detailed Records mirrors the imported spreadsheet structure instead of a hard-coded module layout.
+  // Keep every imported column (including fully blank columns) and preserve original source order/header text.
+  const sourceRow=rows.find(r=>Array.isArray(r?.__source_columns)&&r.__source_columns.length)||rows[0]||{};
+  const cols=sourceColumnKeys(m,sourceRow);
+  // Preserve upload/source row order by default. Sorting is only applied after the user explicitly clicks a column.
+  if(state.tableSort?.key)rows=sortRows(rows);
   const pageSize=state.tablePageSize||50,totalPages=Math.max(1,Math.ceil(rows.length/pageSize));
   state.tablePage=Math.min(Math.max(1,state.tablePage||1),totalPages);
   const from=(state.tablePage-1)*pageSize,shown=rows.slice(from,from+pageSize);
-  const label=k=>k.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()).replace('Dos','Service Date');
+  const label=k=>sourceHeaderLabel(sourceRow,k);
   const mark=c=>state.tableSort?.key===c?`<span class="sort-mark">${state.tableSort.dir==='asc'?'▲':'▼'}</span>`:'';
-  table.innerHTML=`<thead><tr>${cols.map(c=>`<th class="sortable" data-sort="${esc(c)}">${esc(label(c))}${mark(c)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>{const raw=r[c],val=moneyFields.has(c)?money(raw):String(raw??'');let cls='';if(m==='ar'&&c==='days'){const d=Number(raw||0);cls=d>120?'row-risk':d>90?'row-warn':''}return `<td class="${cls}" title="${esc(String(raw??''))}">${c==='status'?statusPill(raw):esc(val)}</td>`}).join('')}</tr>`).join('')}</tbody>`;
+  table.innerHTML=`<thead><tr>${cols.map(c=>`<th class="sortable" data-sort="${esc(c)}">${esc(label(c))}${mark(c)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>{const raw=r[c],val=moneyFields.has(c)?money(raw):String(raw??'');let cls='';if(m==='ar'&&c==='days'){const d=Number(raw||0);cls=d>120?'row-risk':d>90?'row-warn':''}return `<td class="${cls}" title="${esc(String(raw??''))}">${esc(val)}</td>`}).join('')}</tr>`).join('')}</tbody>`;
   if(!rows.length)table.innerHTML=`<tbody><tr><td><div class="module-empty"><strong>No records match this view</strong>Adjust the filters or select another client workspace.</div></td></tr></tbody>`;
   const meta=document.getElementById('tableMeta');if(meta){const selectedClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null),scope=selectedClientId?`client:${selectedClientId}`:'all:authorized',loading=v14LoadingModules.get(`${scope}|${m}`);meta.innerHTML=`<b>${rows.length.toLocaleString()}</b> ${loading?'loaded so far':'filtered records'} · rows <b>${rows.length?(from+1).toLocaleString():0}–${Math.min(from+shown.length,rows.length).toLocaleString()}</b>${loading?' <span class="v14-loading-dot">• loading remaining records</span>':''}`;}
   let pager=document.getElementById('tablePager');const wrap=table.closest('.table-wrap');if(!pager&&wrap){pager=document.createElement('div');pager.id='tablePager';pager.className='pagination';wrap.insertAdjacentElement('afterend',pager)}
@@ -1619,7 +1624,8 @@ function validateImportStructure(module,rawRows,fileName){
   const info=getSchemaHeaderInfo(module,rawRows);
   if(!info.keys.length)throw new Error('No column headers were detected. The first row must contain column names.');
   if(info.duplicates.length)throw new Error(`Duplicate column header detected: ${info.duplicates[0]}. Rename duplicate columns and try again.`);
-  if(info.aliasCollisions.length)throw new Error(`Multiple headers map to the same field (${info.aliasCollisions[0].canonical}). Keep only one matching column and try again.`);
+  // Multiple differently-named source columns may map to one analytics field.
+  // The first powers analytics; subsequent columns are preserved exactly in Detailed Records.
   const nonEmptyHeaders=info.keys.filter(k=>String(k??'').trim()!=='');
   if(nonEmptyHeaders.length<2)throw new Error('The file contains too few columns. Please check that the header row is correct.');
   // A common failure mode is a header accidentally concatenated into one field, e.g. payerDate of Servicebalance...
@@ -1629,10 +1635,34 @@ function validateImportStructure(module,rawRows,fileName){
   if(info.recognized.length===0){
     throw new Error(`No supported column headers were recognized for ${modules[module].label}. Use the Download Template button or rename the headers before importing.`);
   }
-  if(info.recognized.length<Math.min(2,s.headers.length)){
-    throw new Error(`Only ${info.recognized.length} supported column(s) were recognized for ${modules[module].label}. Import stopped to prevent column misalignment.`);
-  }
+  // One recognized operational field is enough to safely scope the dataset.
+  // All additional source columns are retained even when they are not analytics fields.
 }
+
+function sourceMatrixToRows(matrix){
+  if(!Array.isArray(matrix)||!matrix.length)throw new Error('No rows were found in the file.');
+  const width=Math.max(...matrix.map(r=>Array.isArray(r)?r.length:0),0);
+  if(width<2)throw new Error('Only one column was detected. Check the file delimiter or worksheet structure.');
+  const rawHeaders=Array.from({length:width},(_,i)=>{
+    const v=String(matrix[0]?.[i]??'').replace(/^\uFEFF/,'').trim();
+    return v||`Column ${i+1}`;
+  });
+  const seen=new Map();
+  const headers=rawHeaders.map((h,i)=>{
+    const n=normalizeHeader(h)||`column${i+1}`;
+    const count=(seen.get(n)||0)+1;seen.set(n,count);
+    return count===1?h:`${h} (${count})`;
+  });
+  const rows=matrix.slice(1).map((row,rowIndex)=>{
+    const obj={};
+    headers.forEach((h,i)=>{obj[h]=row?.[i]??''});
+    Object.defineProperty(obj,'__raw_source_headers',{value:rawHeaders,enumerable:false,configurable:true});
+    Object.defineProperty(obj,'__raw_source_row_index',{value:rowIndex,enumerable:false,configurable:true});
+    return obj;
+  });
+  return {rows,rawHeaders,width};
+}
+
 async function parseImportFile(file,module){
   const ext=getFileExtension(file);
   if(!['csv','xlsx','xls'].includes(ext))throw new Error('Unsupported file. Please upload CSV, XLSX, or XLS.');
@@ -1654,25 +1684,31 @@ async function parseImportFile(file,module){
     }
     if(!sheetName)throw new Error('All worksheets in the Excel file are empty.');
     sourceName=`${file.name} — sheet: ${sheetName}`;
-    rawRows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{defval:'',blankrows:false,raw:false});
+    const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,defval:'',blankrows:false,raw:false});
+    rawRows=sourceMatrixToRows(matrix).rows;
   }else{
-    rawRows=await new Promise((resolve,reject)=>{
-      Papa.parse(file,{
-        header:true,
-        skipEmptyLines:'greedy',
-        transformHeader:h=>String(h??'').replace(/^\uFEFF/,'').trim(),
-        delimitersToGuess:[',','\t',';','|'],
-        complete:r=>{
-          if(r.errors?.length){
-            const first=r.errors[0];
-            reject(new Error(first.message||'CSV parsing failed. Please check the delimiter and column structure.'));
-            return;
-          }
-          resolve(r.data||[]);
-        },
-        error:e=>reject(new Error(e.message||'CSV parsing failed.'))
-      });
+    if(typeof Papa==='undefined')throw new Error('CSV reader is unavailable. Please refresh the page and try again.');
+    const buffer=await file.arrayBuffer();
+    const bytes=new Uint8Array(buffer);
+    let encoding='utf-8';
+    if(bytes.length>=2&&bytes[0]===0xFF&&bytes[1]===0xFE)encoding='utf-16le';
+    else if(bytes.length>=2&&bytes[0]===0xFE&&bytes[1]===0xFF)encoding='utf-16be';
+    let text;
+    try{text=new TextDecoder(encoding).decode(buffer)}catch(_){text=new TextDecoder('utf-8').decode(buffer)}
+    text=String(text||'').replace(/^\uFEFF/,'');
+    if(!text.trim())throw new Error('The selected CSV file is empty.');
+    const parsed=Papa.parse(text,{
+      header:false,
+      skipEmptyLines:'greedy',
+      delimitersToGuess:[',','\t',';','|'],
+      quoteChar:'"',
+      escapeChar:'"'
     });
+    const fatal=(parsed.errors||[]).find(e=>String(e.code||'')==='Quotes');
+    if(fatal)throw new Error(fatal.message||'CSV parsing failed. Please check the delimiter and quoted values.');
+    const matrix=parsed.data||[];
+    if(!matrix.length)throw new Error('No rows were found in the CSV file.');
+    rawRows=sourceMatrixToRows(matrix).rows;
   }
   rawRows=rawRows.filter(row=>Object.values(row||{}).some(v=>String(v??'').trim()!==''));
   if(!rawRows.length)throw new Error('No usable data rows were found.');
@@ -1689,7 +1725,8 @@ async function importCsv(){
   if(!module)return toast('Please select a module.');
   if(result)result.innerHTML='<div class="notice">Reading and validating file…</div>';
   const button=document.getElementById('startImport');
-  if(button){button.disabled=true;button.textContent='Processing…';}
+  if(button?.dataset.busy==='1')return;
+  if(button){button.dataset.busy='1';button.disabled=true;button.textContent='Processing…';}
   try{
     const parsed=await parseImportFile(file,module);
     const rows=parsed.rows;
@@ -1714,11 +1751,13 @@ async function importCsv(){
     result.innerHTML=`<div class="notice">Validated and imported ${rows.length.toLocaleString()} records from ${esc(parsed.sourceName)} successfully.</div>`;
     if(response?.import_batch_id)result.innerHTML+=`<div class="muted" style="margin-top:6px">Import batch: ${esc(response.import_batch_id)}</div>`;
     await loadData();
+    const picker=document.getElementById('csvFile');if(picker)picker.value='';
+    const selected=document.getElementById('selectedFileInfo');if(selected)selected.textContent='';
     toast('File imported successfully');
   }catch(e){
     if(result)result.innerHTML=`<div class="notice danger-note">${esc(e.message||e)}</div>`;
   }finally{
-    if(button){button.disabled=false;button.textContent='Import File';}
+    if(button){delete button.dataset.busy;button.disabled=false;button.textContent='Import File';}
   }
 }
 async function insertRecords(module,rows,clientId,mode){
@@ -1785,6 +1824,7 @@ async function loadData(){
  const first=await q.order('uploaded_at',{ascending:false}).range(0,firstSize-1);
  if(first.error)throw first.error;
  const firstRecords=v14HydrateRows(first.data||[]);
+ Object.keys(firstRecords).forEach(m=>{firstRecords[m]=firstRecords[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
  state.records={...(state.records||{}),...firstRecords};state.dataCapped=false;
  if((first.data||[]).length<firstSize){recordsCache.set(cacheKey,{records:firstRecords,dataCapped:false,savedAt:Date.now()});return}
  v14LoadingModules.set(cacheKey,true);
@@ -1803,8 +1843,10 @@ async function loadData(){
     const records=v14HydrateRows(source.slice(0,maxRows));
     Object.keys(records).forEach(m=>{records[m]=records[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
     recordsCache.set(cacheKey,{records,dataCapped:source.length>=maxRows,savedAt:Date.now()});
-    if(seq<=v14LoadSeq){state.records={...(state.records||{}),...records};state.dataCapped=source.length>=maxRows}
-    if(state.section===target)renderModule(target);
+    const currentClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
+    const sameScope=String(currentClientId||'')===String(selectedClientId||'');
+    if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),...records};state.dataCapped=source.length>=maxRows}
+    if(seq===v14LoadSeq&&sameScope&&state.section===target)renderModule(target);
    }catch(e){console.error('Background module load failed',e)}
    finally{v14LoadingModules.delete(cacheKey)}
  })();
@@ -1960,7 +2002,7 @@ async function loadActivity(){
  const paint=()=>{const q=(document.getElementById('auditSearch')?.value||'').trim().toLowerCase(),type=document.getElementById('auditTypeFilter')?.value||'';const enriched=logs.map(x=>{const d=v11AuditDetail(x.details),kind=v11AuditKind(x.action),actor=x.actor?.name||x.actor||'System';return{...x,d,kind,actor,label:v11AuditLabel(x.action)}}).filter(x=>(!type||x.kind===type)&&(!q||`${x.label} ${x.actor} ${x.d.workspace} ${x.d.description}`.toLowerCase().includes(q)));const now=Date.now();document.getElementById('auditMetrics').innerHTML=v11Metrics([{label:'Events · 30 Days',value:logs.filter(x=>now-new Date(x.created_at).getTime()<=2592000000).length,note:'Recorded events'},{label:'Data Events',value:logs.filter(x=>v11AuditKind(x.action)==='data').length,note:'Imports and data changes'},{label:'User / Access',value:logs.filter(x=>v11AuditKind(x.action)==='user').length,note:'Identity changes'},{label:'Destructive',value:logs.filter(x=>v11AuditKind(x.action)==='destructive').length,note:'Deletion events'}]);document.getElementById('auditCountMeta').textContent=`${enriched.length} events`;body.innerHTML=enriched.map(x=>`<tr><td><div class="v11-primary">${new Date(x.created_at).toLocaleDateString()}</div><div class="v11-secondary">${new Date(x.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></td><td><span class="pill ${x.kind==='destructive'?'red':x.kind==='data'?'blue':''}">${esc(x.label)}</span></td><td>${esc(x.actor)}</td><td>${esc(x.d.workspace)}</td><td>${esc(x.d.description)}</td><td><button class="btn btn-light btn-small" onclick="v11OpenDetails('${encodeURIComponent(JSON.stringify(x.d.raw||{}))}')">Details</button></td></tr>`).join('')||'<tr><td colspan="6"><div class="empty">No matching events.</div></td></tr>'};
  ['auditSearch','auditTypeFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.oninput=paint});paint()
 }
-async function audit(action,details){if(DEMO_MODE)return;if(state.session?.user)await sb.from('audit_logs').insert({actor_id:state.session.user.id,action,details})}
+async function audit(action,details){if(DEMO_MODE||!state.session?.user)return;try{const {error}=await sb.from('audit_logs').insert({actor_id:state.session.user.id,action,details});if(error)console.warn('Audit write failed:',error.message)}catch(e){console.warn('Audit write failed:',e)}}
 function openUserModal(){
   const opts=state.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   document.body.insertAdjacentHTML('beforeend',`<div class="modal-backdrop" id="userModal"><div class="modal"><div class="modal-head"><h3>Create User Account</h3><button class="btn btn-light btn-small" onclick="closeModal()">Close</button></div><div class="modal-grid"><div class="field"><label>Full name</label><input id="uName"></div><div class="field"><label>Login email</label><input id="uEmail" type="email"></div><div class="field"><label>Temporary password</label><input id="uPass" type="password"></div><div class="field"><label>Role</label><select id="uRole"><option value="client">Client — View Only</option><option value="provider">Provider — Own Records Only</option><option value="user">User — RCM Operations</option><option value="admin">Admin — Full Access</option></select></div><div class="field" id="providerNameField" style="display:none"><label>Provider name (must match CSV)</label><input id="uProviderName" placeholder="Exact name in Provider column"></div><div class="field" style="grid-column:1/-1"><label>Client / Practice Access</label><select id="uClient"><option value="__ALL__">All Clients</option>${opts}</select><div class="muted" style="margin-top:6px">All Clients is available for Admin and RCM Operations User accounts. Client Viewer accounts must be assigned to one client.</div></div></div><div class="notice">Admin should give the new login credentials to the user securely. For production, enable email/password reset policies in Supabase.</div><div id="uError"></div><div class="modal-actions"><button class="btn btn-light" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="createUser()">Create Account</button></div></div></div>`);
