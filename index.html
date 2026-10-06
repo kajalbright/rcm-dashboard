@@ -2878,7 +2878,7 @@ function riDateDiff(a,b){if(!a||!b)return 999;return Math.abs(Math.round((a.getT
 function riContractRate(r){return Math.max(0,num(riPick(r,['Contracted Allowed Amount','Contract Rate','Allowed Amount','Fee Schedule Amount','Rate']))) }
 function riEffective(r,date){const f=riDate(riPick(r,['Effective From','Effective Date','Start Date'])),t=riDate(riPick(r,['Effective To','End Date','Termination Date']));return (!f||date>=f)&&(!t||date<=t)}
 
-async function riFetchV46Module(module,clientId,maxRows=10000){
+async function riFetchV46Module(module,clientId){
  const rows=[];
  for(let from=0;;from+=1000){
   let q=sb.from('rcm_records').select('client_id,module,data,uploaded_at').eq('module',module);
