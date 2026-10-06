@@ -1592,7 +1592,21 @@ function renderModuleSummary(m,rows){
     host.innerHTML=`<div class="module-summary">${card('Filtered Records',rows.length.toLocaleString(),'current filter result')}${card('Statuses',new Set(rows.map(r=>r.status).filter(Boolean)).size.toLocaleString(),'unique statuses')}${card('Payers',new Set(rows.map(r=>r.payer_name||r.payer).filter(Boolean)).size.toLocaleString(),'unique payers')}${card('Workspace',state.client?'Client':'Portfolio','current scope')}</div>`;
   }
 }
+function syncModuleFilterOptions(m){
+  const rows=getRecords(m);
+  const sync=(id,placeholder,values)=>{
+    const el=document.getElementById(id);if(!el)return;
+    const current=el.value;
+    const vals=[...new Set(values.map(v=>String(v??'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    el.innerHTML=`<option value="">${placeholder}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if(current&&vals.includes(current))el.value=current;
+  };
+  sync('payerFilter','All Payers',rows.map(r=>r.payer_name||r.payer));
+  sync('providerFilter','All Providers',rows.map(r=>r.provider));
+  sync('statusFilter','All Statuses',rows.map(r=>r.status||r.auth_status||r.iv_status||r.coverage_status_active_inactive));
+}
 function renderModule(m){
+  syncModuleFilterOptions(m);
   let rows=filteredRows(m),table=document.getElementById('dataTable');if(!table)return;
   renderModuleSummary(m,rows);
   paintFilterStatus();
