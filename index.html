@@ -1874,7 +1874,7 @@ async function parseImportFile(file,module){
   const ext=getFileExtension(file);
   if(!['csv','xlsx','xls'].includes(ext))throw new Error('Unsupported file. Please upload CSV, XLSX, or XLS.');
   if(file.size===0)throw new Error('The selected file is empty.');
-  if(file.size>25*1024*1024)throw new Error('Maximum file size is 25 MB. Split the file into smaller uploads.');
+  
 
   let rawRows=[];
   let sourceName=file.name||'file';
@@ -1919,7 +1919,6 @@ async function parseImportFile(file,module){
   }
   rawRows=rawRows.filter(row=>Object.values(row||{}).some(v=>String(v??'').trim()!==''));
   if(!rawRows.length)throw new Error('No usable data rows were found.');
-  if(rawRows.length>50000)throw new Error('Maximum 50,000 rows per import. Split the file into smaller imports.');
   validateImportStructure(module,rawRows,sourceName);
   return {rows:normalizeModuleRows(module,rawRows),sourceName,ext};
 }
@@ -1976,7 +1975,6 @@ async function insertRecords(module,rows,clientId,mode){
   if(!schemas[module])throw new Error('Invalid RCM module.');
   if(!['replace','append'].includes(mode))throw new Error('Invalid import mode.');
   if(!Array.isArray(rows)||!rows.length)throw new Error('No records to import.');
-  if(rows.length>50000)throw new Error('Maximum 50,000 rows per import.');
   const batchId=crypto.randomUUID?.()||`batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const importedAt=new Date().toISOString();
   const payload=rows.map((r,index)=>{
@@ -1984,11 +1982,21 @@ async function insertRecords(module,rows,clientId,mode){
     const data={...r,__source_row_index:sourceIndex,__imported_at:importedAt,__source_batch_id:batchId};
     return {external_id:`${batchId}:${String(sourceIndex+1).padStart(8,'0')}`,data};
   });
-  const {data,error}=await sb.functions.invoke('rcm-import',{body:{client_id:clientId,module,mode,rows:payload,import_batch_id:batchId}});
-  if(error)throw new Error(error.message||'Import failed.');
-  if(data?.error)throw new Error(data.error);
+  const requestSize=1000;
+  let inserted=0;
+  const result=document.getElementById('importResult');
+  for(let from=0;from<payload.length;from+=requestSize){
+    const chunk=payload.slice(from,from+requestSize);
+    const finalize=from+chunk.length>=payload.length;
+    if(result)result.innerHTML=`<div class="notice">Uploading ${Math.min(from+chunk.length,payload.length).toLocaleString()} of ${payload.length.toLocaleString()} records…</div>`;
+    const {data,error}=await sb.functions.invoke('rcm-import',{body:{client_id:clientId,module,mode,rows:chunk,import_batch_id:batchId,finalize}});
+    if(error)throw new Error(error.message||`Import failed after ${inserted.toLocaleString()} rows.`);
+    if(data?.error)throw new Error(data.error);
+    inserted+=Number(data?.inserted??chunk.length);
+  }
+  if(inserted!==rows.length)throw new Error(`Import incomplete: server accepted ${inserted.toLocaleString()} of ${rows.length.toLocaleString()} rows.`);
   clearRecordsCache();
-  return data||{import_batch_id:batchId,inserted:rows.length};
+  return {import_batch_id:batchId,inserted};
 }
 function downloadTemplate(){const m=document.getElementById('importModule')?.value,s=schemas[m];if(!s)return toast('Select a module first.');const headers=s.csvHeaders||s.headers;let sample=[];if(m==='ar')sample=['2026-09-25','CLM-1001','John Doe','PAT-1001','Dr. Sharma','Medicare','2026-09-20','4200','25','0-30','Pending'];else if(m==='denials')sample=['2026-09-25','CLM-2001','John Doe','PAT-2001','Dr. Sharma','Medicare','2026-09-20','99214','1200','1200','CO-16','Open','Review documentation'];else sample=headers.map((_,i)=>i===0?'DEMO-001':'');const escCsv=v=>{const x=String(v??'');return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};const csv=headers.join(',')+'\n'+sample.map(escCsv).join(',')+'\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`${m}_template.csv`;a.click();URL.revokeObjectURL(a.href)}
 let v14LoadSeq=0;
@@ -2013,7 +2021,7 @@ async function loadData(){
  const scope=selectedClientId?`client:${selectedClientId}`:'all:authorized',cacheKey=`${scope}|${target}`;
  const cached=recordsCache.get(cacheKey);
  if(cached&&Date.now()-cached.savedAt<RECORD_CACHE_TTL_MS){state.records={...(state.records||{}),[target]:(cached.records?.[target]||[])};state.dataCapped=cached.dataCapped;return}
- const seq=++v14LoadSeq,firstSize=500,maxRows=10000;
+ const seq=++v14LoadSeq,firstSize=500,maxRows=Number.MAX_SAFE_INTEGER;
  let q=sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id');
  if(selectedClientId)q=q.eq('client_id',selectedClientId);q=q.eq('module',target);
  const first=await q.order('uploaded_at',{ascending:false}).range(0,firstSize-1);
