@@ -706,10 +706,18 @@ const schemas={
    check_no:['check no','check no.','check number','check_number','checkno','check #','check','reference','reference no','reference number'],
    posted_date:['posted date','posted_date','posteddate','post date','date posted'],
    total_deposit_amount:['total deposit amount','total_deposit_amount','deposit amount','deposit_amount','total deposit','payment amount','amount','total payment','total amount','payment total','payments','total payments','payment','paid amount','receipts','receipt amount','deposit','total receipts'],
-   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount','posted','applied','applied payment','payment applied','total posted','payment'],
-   status:['status','payment status']
+   posted_amount:['posted amount','posted_amount','payment posted','amount posted','applied amount','allocated amount','posted','applied','applied payment','payment applied','total posted','payer payment'],
+   status:['status','payment status'],
+   facility:['facility','practice','location'],
+   month:['month','payment month'],
+   provider:['provider','provider name','rendering provider','rendering_provider'],
+   patient:['patient','patient name','patient_name'],
+   patient_id:['patient id','patient_id','patient acct no','patient account no','patient account number','account no'],
+   service_date:['service date','date of service','dos'],
+   claim_date:['claim date','claim_date'],
+   claim_no:['claim no','claim number','claim #','claim_no']
   },
-  map:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status']
+  map:['payment_id','payer','payment_date','check_no','posted_date','total_deposit_amount','posted_amount','status','facility','month','provider','patient','patient_id','service_date','claim_date','claim_no']
  }
 };
 
@@ -723,7 +731,7 @@ const displayLabels={
 };
 
 const moneyFields=new Set(['balance','amount','charge','billed','paid','adjustment','ptResp','copay','totalDepositAmount','postedAmount','total_deposit_amount','posted_amount','payment_amount','deposit_amount','charge_amount','billed_amount','allowed_amount','paid_amount','patient_responsibility']);
-const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['payment_date','posted_date']};
+const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['payment_date','posted_date','service_date','claim_date']};
 
 function normalizeHeader(v){
  return String(v??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[\u2013\u2014]/g,'-').replace(/[^a-z0-9]+/g,'');
@@ -1526,7 +1534,7 @@ function bindV6Queues(){document.querySelectorAll('[data-v6q]').forEach(b=>b.onc
 function moduleInsightsHtml(m,rows){if(!rows.length)return '';
  if(m==='ar'){const top=topGroups(rows,r=>r.payer_name||r.payer,r=>moneyNum(r.balance));const old=rows.filter(r=>rowAge(r)>90),oldBal=old.reduce((a,r)=>a+moneyNum(r.balance),0),high=rows.filter(r=>moneyNum(r.balance)>=1000);return `<div class="module-insights">${rankHtml('Top Payers by AR Balance',top,compactMoney)}<div class="insight-card"><h4>Collection Risk Signals</h4><div class="signal-grid"><div class="signal"><div class="signal-label">91+ Claims</div><div class="signal-value">${old.length.toLocaleString()}</div><div class="signal-sub">${compactMoney(oldBal)} outstanding</div></div><div class="signal"><div class="signal-label">$1K+ Claims</div><div class="signal-value">${high.length.toLocaleString()}</div><div class="signal-sub">high-balance inventory</div></div></div></div></div>`}
  if(m==='denials'){const reasons=topGroups(rows,r=>r.denial||r.denial_description||'Unspecified',()=>1);const exposure=topGroups(rows,r=>r.payer_name||r.payer,r=>moneyNum(r.balance));return `<div class="module-insights">${rankHtml('Top Denial Reasons',reasons,v=>Number(v).toLocaleString())}${rankHtml('Denial Exposure by Payer',exposure,compactMoney)}</div>`}
- if(m==='payments'){const payers=topGroups(rows,r=>r.payer,r=>moneyNum(r.posted_amount));const pending=rows.filter(r=>/pending|partial|unposted/i.test(String(r.status||''))).length;return `<div class="module-insights">${rankHtml('Top Payers by Posted Amount',payers,compactMoney)}<div class="insight-card"><h4>Posting Signals</h4><div class="signal-grid"><div class="signal"><div class="signal-label">Pending / Partial</div><div class="signal-value">${pending.toLocaleString()}</div><div class="signal-sub">filtered records</div></div><div class="signal"><div class="signal-label">Avg Posted</div><div class="signal-value">${compactMoney(rows.reduce((a,r)=>a+moneyNum(r.posted_amount),0)/Math.max(rows.length,1))}</div><div class="signal-sub">per payment record</div></div></div></div></div>`}
+ if(m==='payments'){const hasPayer=rows.some(r=>String(r.payer||'').trim()),hasStatus=rows.some(r=>String(r.status||'').trim());const groups=topGroups(rows,r=>hasPayer?r.payer:(r.provider||'Unspecified Provider'),r=>moneyNum(r.posted_amount));const signal=hasStatus?rows.filter(r=>/pending|partial|unposted/i.test(String(r.status||''))).length:rows.filter(r=>moneyNum(r.posted_amount)===0).length;return `<div class="module-insights">${rankHtml(hasPayer?'Top Payers by Payment':'Payments by Rendering Provider',groups,compactMoney)}<div class="insight-card"><h4>Payment Signals</h4><div class="signal-grid"><div class="signal"><div class="signal-label">${hasStatus?'Pending / Partial':'Zero Payment Rows'}</div><div class="signal-value">${signal.toLocaleString()}</div><div class="signal-sub">filtered records</div></div><div class="signal"><div class="signal-label">Avg Payment</div><div class="signal-value">${compactMoney(rows.reduce((a,r)=>a+moneyNum(r.posted_amount),0)/Math.max(rows.length,1))}</div><div class="signal-sub">per payment record</div></div></div></div></div>`}
  if(m==='verification'){const statuses=topGroups(rows,r=>r.iv_status||r.coverage_status_active_inactive||r.status||'Unspecified',()=>1);const insurers=topGroups(rows,r=>r.insurance_name||r.insurance_company_name||r.payer,()=>1);return `<div class="module-insights">${rankHtml('Verification Status Mix',statuses,v=>Number(v).toLocaleString())}${rankHtml('Top Insurance Plans',insurers,v=>Number(v).toLocaleString())}</div>`}
  if(m==='auth'){const statuses=topGroups(rows,r=>r.auth_status||r.status||'Unspecified',()=>1);const payers=topGroups(rows,r=>r.payer,()=>1);return `<div class="module-insights">${rankHtml('Authorization Status Mix',statuses,v=>Number(v).toLocaleString())}${rankHtml('Authorization Volume by Payer',payers,v=>Number(v).toLocaleString())}</div>`}
  if(m==='charges'){const payers=topGroups(rows,r=>r.payer,r=>moneyNum(r.charge||r.charges));const providers=topGroups(rows,r=>r.provider,r=>moneyNum(r.charge||r.charges));return `<div class="module-insights">${rankHtml('Charge Value by Payer',payers,compactMoney)}${rankHtml('Charge Value by Provider',providers,compactMoney)}</div>`}
@@ -1577,7 +1585,9 @@ function renderModuleSummary(m,rows){
     host.innerHTML=`<div class="module-summary">${card('Filtered Denials',rows.length.toLocaleString(),'records')}${card('Denial Balance',compactMoney(sum('balance')),'filtered exposure')}${card('Open / Appealed',rows.filter(r=>/open|appeal/i.test(String(r.status||''))).length.toLocaleString(),'records requiring follow-up')}${card('Payers',new Set(rows.map(r=>r.payer_name||r.payer).filter(Boolean)).size.toLocaleString(),'unique payers')}</div>`;
   }else if(m==='payments'){
     const posted=sum('posted_amount'),dep=sum('total_deposit_amount');
-    host.innerHTML=`<div class="module-summary">${card('Payment Records',rows.length.toLocaleString(),'filtered records')}${card('Posted Amount',compactMoney(posted),'posted')}${card('Deposits',compactMoney(dep),'total deposits')}${card('Posting Rate',dep?pct(posted/dep*100):'—','posted ÷ deposits')}</div>`;
+    const hasDeposit=rows.some(r=>parseNumericValue(r.total_deposit_amount)!==null);
+    const providers=new Set(rows.map(r=>r.provider).filter(Boolean)).size;
+    host.innerHTML=`<div class="module-summary">${card('Payment Records',rows.length.toLocaleString(),'filtered records')}${card('Payer Payment',compactMoney(posted),'claim-level payment total')}${hasDeposit?card('Deposits',compactMoney(dep),'total deposits'):card('Providers',providers.toLocaleString(),'rendering providers')}${hasDeposit?card('Posting Rate',dep?pct(posted/dep*100):'—','posted ÷ deposits'):card('Avg Payment',compactMoney(posted/Math.max(rows.length,1)),'per record')}</div>`;
   }else{
     host.innerHTML=`<div class="module-summary">${card('Filtered Records',rows.length.toLocaleString(),'current filter result')}${card('Statuses',new Set(rows.map(r=>r.status).filter(Boolean)).size.toLocaleString(),'unique statuses')}${card('Payers',new Set(rows.map(r=>r.payer_name||r.payer).filter(Boolean)).size.toLocaleString(),'unique payers')}${card('Workspace',state.client?'Client':'Portfolio','current scope')}</div>`;
   }
@@ -2041,19 +2051,18 @@ async function loadData(){
       const page=await qq.order('uploaded_at',{ascending:false}).range(offset,Math.min(offset+999,maxRows-1));
       if(page.error)throw page.error;return page.data||[];
     };
-    const offsets=[];for(let offset=firstSize;offset<maxRows;offset+=1000)offsets.push(offset);
-    for(let i=0;i<offsets.length;i+=4){
-      const batch=await Promise.all(offsets.slice(i,i+4).map(fetchPage));
-      batch.forEach(rows=>source.push(...rows));
-      if(batch.some(rows=>rows.length<1000))break;
+    for(let offset=firstSize;;offset+=1000){
+      const rows=await fetchPage(offset);
+      source.push(...rows);
+      if(rows.length<1000)break;
       await new Promise(r=>setTimeout(r,0));
     }
-    const records=v14HydrateRows(source.slice(0,maxRows));
+    const records=v14HydrateRows(source);
     Object.keys(records).forEach(m=>{records[m]=records[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
-    recordsCache.set(cacheKey,{records,dataCapped:source.length>=maxRows,savedAt:Date.now()});
+    recordsCache.set(cacheKey,{records,dataCapped:false,savedAt:Date.now()});
     const currentClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
     const sameScope=String(currentClientId||'')===String(selectedClientId||'');
-    if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),[target]:(records[target]||[])};state.dataCapped=source.length>=maxRows}
+    if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),[target]:(records[target]||[])};state.dataCapped=false}
     if(seq===v14LoadSeq&&sameScope&&state.section===target)renderModule(target);
    }catch(e){console.error('Background module load failed',e)}
    finally{v14LoadingModules.delete(cacheKey)}
@@ -2670,7 +2679,7 @@ function riPick(row,names){
 function riDate(v){if(!v)return null;const d=new Date(v);return Number.isNaN(d.getTime())?null:d}
 function riPayer(r){return String(riPick(r,['Payer','Insurance','Insurance Name','Primary Insurance','Carrier'])||'Unspecified').trim()||'Unspecified'}
 function riBalance(r){return Math.max(0,num(riPick(r,['Balance','AR Balance','Outstanding Balance','Amount Due','Insurance Balance'])))}
-function riPayment(r){return Math.max(0,num(riPick(r,['Posted Amount','Payment Amount','Paid Amount','Insurance Payment','Total Deposit Amount','Amount'])))}
+function riPayment(r){return Math.max(0,num(riPick(r,['Posted Amount','Payer Payment','Payment Amount','Paid Amount','Insurance Payment','Total Deposit Amount','Amount'])))}
 function riAge(r){const direct=parseNumericValue(riPick(r,['Age','Days','Days in AR','AR Days']));if(direct!=null)return Math.max(0,direct);const d=riDate(riPick(r,['Claim Date','Submitted Date','Claim First Submitted Date','DOS','Date of Service']));return d?Math.max(0,Math.floor((Date.now()-d.getTime())/86400000)):null}
 function riWeight(age){if(age==null)return .48;if(age<=30)return .82;if(age<=60)return .70;if(age<=90)return .58;if(age<=120)return .46;if(age<=180)return .33;if(age<=240)return .24;if(age<=365)return .16;return .08}
 function riConfidence(arCount,payCount){const score=Math.min(100,Math.round(Math.min(arCount/10,55)+Math.min(payCount/4,35)+(arCount>=100&&payCount>=30?10:0)));return {score,label:score>=80?'High':score>=55?'Medium':'Limited'} }
@@ -2683,12 +2692,12 @@ async function riFetch(){
  const clientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
  // Fetch each dataset independently. Rebuilding the Supabase query on every page avoids
  // range/filter accumulation and keeps the All Clients admin view responsive.
- async function fetchModule(module,maxRows=10000){
+ async function fetchModule(module){
    const rows=[];
-   for(let from=0;from<maxRows;from+=1000){
+   for(let from=0;;from+=1000){
      let q=sb.from('rcm_records').select('client_id,module,data,uploaded_at').eq('module',module);
      if(clientId)q=q.eq('client_id',clientId);
-     const {data,error}=await q.order('uploaded_at',{ascending:false}).range(from,Math.min(from+999,maxRows-1));
+     const {data,error}=await q.order('uploaded_at',{ascending:false}).range(from,from+999);
      if(error)throw error;
      rows.push(...(data||[]));
      if((data||[]).length<1000)break;
@@ -2701,11 +2710,11 @@ async function riFetch(){
  // from hanging while preserving strict client scoping.
  if(!clientId && hasAllClients() && Array.isArray(state.clients) && state.clients.length){
    const ids=[...new Set(state.clients.map(c=>c?.id).filter(Boolean))];
-   const fetchForClient=async (module,id,maxRows=10000)=>{
+   const fetchForClient=async (module,id)=>{
      const rows=[];
-     for(let from=0;from<maxRows;from+=1000){
+     for(let from=0;;from+=1000){
        let q=sb.from('rcm_records').select('client_id,module,data,uploaded_at').eq('module',module).eq('client_id',id);
-       const {data,error}=await q.order('uploaded_at',{ascending:false}).range(from,Math.min(from+999,maxRows-1));
+       const {data,error}=await q.order('uploaded_at',{ascending:false}).range(from,from+999);
        if(error)throw error;
        rows.push(...(data||[]));
        if((data||[]).length<1000)break;
@@ -2869,12 +2878,12 @@ function riDateDiff(a,b){if(!a||!b)return 999;return Math.abs(Math.round((a.getT
 function riContractRate(r){return Math.max(0,num(riPick(r,['Contracted Allowed Amount','Contract Rate','Allowed Amount','Fee Schedule Amount','Rate']))) }
 function riEffective(r,date){const f=riDate(riPick(r,['Effective From','Effective Date','Start Date'])),t=riDate(riPick(r,['Effective To','End Date','Termination Date']));return (!f||date>=f)&&(!t||date<=t)}
 
-async function riFetchV46Module(module,clientId,maxRows=10000){
+async function riFetchV46Module(module,clientId){
  const rows=[];
- for(let from=0;from<maxRows;from+=1000){
+ for(let from=0;;from+=1000){
   let q=sb.from('rcm_records').select('client_id,module,data,uploaded_at').eq('module',module);
   if(clientId)q=q.eq('client_id',clientId);
-  const {data,error}=await q.order('uploaded_at',{ascending:false}).range(from,Math.min(from+999,maxRows-1));
+  const {data,error}=await q.order('uploaded_at',{ascending:false}).range(from,from+999);
   if(error)throw error; rows.push(...(data||[])); if((data||[]).length<1000)break;
  }
  return rows.map(x=>({...sanitizeStoredRecord(module,x.data),client_id:x.client_id}));
