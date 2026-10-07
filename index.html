@@ -731,7 +731,7 @@ const displayLabels={
 };
 
 const moneyFields=new Set(['balance','amount','charge','billed','paid','adjustment','ptResp','copay','totalDepositAmount','postedAmount','total_deposit_amount','posted_amount','payment_amount','deposit_amount','charge_amount','billed_amount','allowed_amount','paid_amount','patient_responsibility']);
-const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['payment_date','posted_date','service_date','claim_date']};
+const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['service_date','claim_date','payment_date','posted_date']};
 
 function normalizeHeader(v){
  return String(v??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[\u2013\u2014]/g,'-').replace(/[^a-z0-9]+/g,'');
@@ -2056,42 +2056,43 @@ async function loadData(){
  const scope=selectedClientId?`client:${selectedClientId}`:'all:authorized',cacheKey=`${scope}|${target}`;
  const cached=recordsCache.get(cacheKey);
  if(cached&&Date.now()-cached.savedAt<RECORD_CACHE_TTL_MS){state.records={...(state.records||{}),[target]:(cached.records?.[target]||[])};state.dataCapped=cached.dataCapped;return}
- const seq=++v14LoadSeq,firstSize=500,maxRows=Number.MAX_SAFE_INTEGER;
- let q=sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id');
- if(selectedClientId)q=q.eq('client_id',selectedClientId);q=q.eq('module',target);
- const first=await q.order('uploaded_at',{ascending:false}).range(0,firstSize-1);
- if(first.error)throw first.error;
- const firstRecords=v14HydrateRows(first.data||[]);
- Object.keys(firstRecords).forEach(m=>{firstRecords[m]=firstRecords[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
- state.records={...(state.records||{}),[target]:(firstRecords[target]||[])};state.dataCapped=false;
- if((first.data||[]).length<firstSize){recordsCache.set(cacheKey,{records:firstRecords,dataCapped:false,savedAt:Date.now()});return}
+ const seq=++v14LoadSeq,pageSize=1000;
  v14LoadingModules.set(cacheKey,true);
- // Remaining pages load without blocking the screen.
- void (async()=>{
-   try{
-    const source=[...(first.data||[])];
-    const fetchPage=async(offset)=>{
-      let qq=sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id');
-      if(selectedClientId)qq=qq.eq('client_id',selectedClientId);qq=qq.eq('module',target);
-      const page=await qq.order('uploaded_at',{ascending:false}).range(offset,Math.min(offset+999,maxRows-1));
-      if(page.error)throw page.error;return page.data||[];
-    };
-    for(let offset=firstSize;;offset+=1000){
-      const rows=await fetchPage(offset);
-      source.push(...rows);
-      if(rows.length<1000)break;
-      await new Promise(r=>setTimeout(r,0));
-    }
-    const records=v14HydrateRows(source);
-    Object.keys(records).forEach(m=>{records[m]=records[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
-    recordsCache.set(cacheKey,{records,dataCapped:false,savedAt:Date.now()});
-    const currentClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
-    const sameScope=String(currentClientId||'')===String(selectedClientId||'');
-    if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),[target]:(records[target]||[])};state.dataCapped=false}
-    if(seq===v14LoadSeq&&sameScope&&state.section===target)renderModule(target);
-   }catch(e){console.error('Background module load failed',e)}
-   finally{v14LoadingModules.delete(cacheKey)}
- })();
+ try{
+   const makeQuery=()=>{
+     let q=sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id',{count:'exact'});
+     if(selectedClientId)q=q.eq('client_id',selectedClientId);
+     return q.eq('module',target).order('uploaded_at',{ascending:false});
+   };
+   const first=await makeQuery().range(0,pageSize-1);
+   if(first.error)throw first.error;
+   const total=Number(first.count??(first.data||[]).length);
+   const source=[...(first.data||[])];
+   if(total>pageSize){
+     const ranges=[];
+     for(let offset=pageSize;offset<total;offset+=pageSize)ranges.push([offset,Math.min(offset+pageSize-1,total-1)]);
+     // Fetch remaining pages in small parallel waves: substantially faster than serial
+     // pagination while avoiding an unbounded burst against Supabase on very large imports.
+     const concurrency=6;
+     for(let i=0;i<ranges.length;i+=concurrency){
+       const wave=ranges.slice(i,i+concurrency);
+       const pages=await Promise.all(wave.map(async([from,to])=>{
+         const page=await makeQuery().range(from,to);
+         if(page.error)throw page.error;
+         return page.data||[];
+       }));
+       pages.forEach(rows=>source.push(...rows));
+     }
+   }
+   const records=v14HydrateRows(source);
+   Object.keys(records).forEach(m=>{records[m]=records[m].map((r,index)=>({r,index})).sort((x,y)=>compareSourceOrder(x.r,y.r)||x.index-y.index).map(x=>x.r)});
+   recordsCache.set(cacheKey,{records,dataCapped:false,savedAt:Date.now()});
+   const currentClientId=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);
+   const sameScope=String(currentClientId||'')===String(selectedClientId||'');
+   if(seq===v14LoadSeq&&sameScope){state.records={...(state.records||{}),[target]:(records[target]||[])};state.dataCapped=false}
+ }finally{
+   v14LoadingModules.delete(cacheKey);
+ }
 }
 async function loadClients(){
  if(DEMO_MODE){
