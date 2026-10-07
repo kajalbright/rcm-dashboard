@@ -743,10 +743,21 @@ function cleanExtraKey(v,index){
 function prettyLabel(k,m){
  return displayLabels[k]||String(k).replace(/_/g,' ').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase());
 }
+function normalizeFilterDate(value){
+ const raw=String(value??'').trim();
+ if(!raw)return '';
+ let m=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+ if(m){const y=+m[1],mo=+m[2],d=+m[3];if(mo>=1&&mo<=12&&d>=1&&d<=31)return `${String(y).padStart(4,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+ m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+ if(m){const mo=+m[1],d=+m[2],y=+m[3];if(mo>=1&&mo<=12&&d>=1&&d<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+ const parsed=Date.parse(raw);
+ if(Number.isFinite(parsed)){const dt=new Date(parsed);return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;}
+ return '';
+}
 function recordDate(module,r){
  for(const k of (dateFieldsByModule[module]||[])){
-  const v=String(r?.[k]??'').trim();
-  if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+  const normalized=normalizeFilterDate(r?.[k]);
+  if(normalized)return normalized;
  }
  return '';
 }
