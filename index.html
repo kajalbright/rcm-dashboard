@@ -3590,6 +3590,81 @@ window.BHA_RELEASE_DATE='2026-10-03';
 })();
 </script>
 
+
+<style id="a2z-v2-premium-css">
+/* Client-feedback V2: one executive surface, tighter density, stronger hierarchy */
+#overviewRoot .a2z-shell{gap:14px}
+#overviewRoot .a2z-hero{padding:22px 24px;border-radius:18px;background:linear-gradient(118deg,#06243a 0%,#0a4861 62%,#087a70 100%)}
+#overviewRoot .a2z-hero h3{font-size:23px}
+#overviewRoot .a2z-filter{position:sticky;top:78px;z-index:6}
+#overviewRoot .a2z-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+#overviewRoot .a2z-kpi{min-height:92px}
+.a2z-section-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin:3px 2px -3px}.a2z-section-title h4{margin:0;font-size:12px;color:#153850}.a2z-section-title p{margin:3px 0 0;font-size:8px;color:#8395a6}.a2z-coverage{display:flex;gap:6px;flex-wrap:wrap}.a2z-coverage span{padding:6px 8px;border-radius:99px;background:#edf5fa;color:#49667d;font-size:8px;font-weight:800}.a2z-coverage span.on{background:#e5f7f2;color:#087b6e}.a2z-load{display:grid;place-items:center;min-height:280px;text-align:center}.a2z-load b{display:block;color:#163b56;font-size:13px;margin-top:10px}.a2z-load small{color:#8395a6;font-size:9px}
+@media(max-width:900px){#overviewRoot .a2z-filter{position:static}#overviewRoot .a2z-kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+<script id="a2z-v2-premium-js">
+(function(){
+ const moduleList=['ar','denials','verification','auth','charges','payments'];
+ async function loadOverviewModules(force){
+   if(force&&typeof clearRecordsCache==='function')clearRecordsCache();
+   const original=state.section;
+   const failures=[];
+   for(const m of moduleList){
+     try{state.section=m;await loadData()}catch(e){failures.push({module:m,error:String(e?.message||e)})}
+   }
+   state.section=original;
+   if(failures.length)console.warn('Overview module load warnings',failures);
+   return failures;
+ }
+ // Remove the legacy second hero/tool strip. The app header already identifies the page/client.
+ overviewHtml=function(){
+   return '<div id="overviewRoot"><div class="a2z-load"><div><span class="v14-spinner"></span><b>Building your practice dashboard</b><small>Loading published revenue-cycle data…</small></div></div></div>';
+ };
+ const priorOverviewRender=overviewRender;
+ overviewRender=function(){
+   const root=document.getElementById('overviewRoot');if(!root)return;
+   priorOverviewRender();
+   const hero=root.querySelector('.a2z-hero');
+   if(hero){
+     const title=hero.querySelector('h3');if(title)title.textContent=getRole()==='provider'?'My Revenue Performance':'Executive Revenue Overview';
+     const p=hero.querySelector('p');if(p)p.textContent='Live performance from the datasets published for this practice. Filter by period, provider, payer or CPT whenever those fields are available.';
+   }
+   const shell=root.querySelector('.a2z-shell');
+   if(shell){
+     const raw=allRows();
+     const coverage=document.createElement('div');coverage.className='a2z-coverage';
+     coverage.innerHTML=moduleList.map(m=>'<span class="'+((raw[m]||[]).length?'on':'')+'">'+({ar:'A/R',denials:'Denials',verification:'Eligibility',auth:'Prior Auth',charges:'Charges',payments:'Payments'})[m]+' '+Number((raw[m]||[]).length).toLocaleString()+'</span>').join('');
+     const heroEl=shell.querySelector('.a2z-hero');if(heroEl)heroEl.insertAdjacentElement('afterend',coverage);
+   }
+ };
+ renderOverview=async function(force=false){
+   const root=document.getElementById('overviewRoot');if(!root)return;
+   root.innerHTML='<div class="a2z-load"><div><span class="v14-spinner"></span><b>Building your practice dashboard</b><small>Loading A/R, denials, eligibility, authorizations, charges and payments…</small></div></div>';
+   try{
+     const failures=await loadOverviewModules(force);
+     if(!document.getElementById('overviewRoot'))return;
+     overviewRender();
+     if(failures.length===moduleList.length){
+       root.insertAdjacentHTML('afterbegin','<div class="exec-error">Published RCM data could not be loaded. Use Refresh or contact your administrator.</div>');
+     }
+   }catch(e){
+     console.error('Executive overview failed',e);
+     root.innerHTML='<div class="exec-error">Unable to load the practice dashboard: '+esc(e.message||e)+'</div>';
+   }
+ };
+ // Refresh now refreshes the unified data model, not the retired RPC-only dashboard.
+ const priorBind=bindSection;
+ bindSection=function(){
+   priorBind();
+   if(state.section==='overview'){
+     const refresh=document.getElementById('refreshExecutive');
+     if(refresh)refresh.onclick=()=>renderOverview(true);
+   }
+ };
+ window.BHA_A2Z_CLIENT_FEEDBACK_TEST='2026-10-08-v2';
+})();
+</script>
+
 </body></html>
 
 <style id="v34-logo-final-fix">
