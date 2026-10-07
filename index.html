@@ -3475,6 +3475,125 @@ window.BHA_RELEASE_DATE='2026-10-03';
 })();
 </script>
 
+
+<style id="v60-clean-data-ui">
+:root{--v60-navy:#071f34;--v60-blue:#2768f0;--v60-teal:#079b92;--v60-pink:#d63384;--v60-purple:#7257d9;--v60-green:#25a46f;--v60-amber:#d9901a;--v60-red:#d64b5f}
+.v60-hub{margin-bottom:16px;padding:18px 20px;border-radius:18px;background:linear-gradient(120deg,#071f34,#0a4660);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:18px;box-shadow:0 16px 36px rgba(7,31,52,.13)}.v60-hub h3{margin:0;font-size:16px}.v60-hub p{margin:5px 0 0;font-size:9px;color:#b9cfdb;max-width:780px;line-height:1.5}.v60-hub-badge{font-size:8px;font-weight:850;letter-spacing:.08em;padding:8px 10px;border:1px solid rgba(255,255,255,.16);border-radius:99px;background:rgba(255,255,255,.08);white-space:nowrap}
+.v60-dataset{margin-top:12px}.v60-dataset select{height:45px;width:100%;border:1px solid #d8e2ed;border-radius:11px;background:#fff;padding:0 12px}.v60-dataset .hint{font-size:8px;color:#8495a6;margin-top:5px}
+.v60-hero{position:relative;overflow:hidden;padding:18px 20px;border-radius:18px;background:linear-gradient(118deg,#071f34,#0b405c 62%,#08736e);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:18px;box-shadow:0 16px 38px rgba(7,31,52,.12)}.v60-hero:after{content:"";position:absolute;width:250px;height:250px;border-radius:50%;right:-95px;top:-155px;background:radial-gradient(circle,rgba(214,51,132,.34),transparent 69%)}.v60-hero>div{position:relative;z-index:1}.v60-eyebrow{font-size:8px;font-weight:850;letter-spacing:.15em;color:#83e4dc;text-transform:uppercase}.v60-hero h3{font-size:18px;margin:5px 0 4px}.v60-hero p{font-size:9px;color:#bdd0dc;margin:0;max-width:760px;line-height:1.55}.v60-scope{text-align:right}.v60-scope span{font-size:8px;color:#94b1c2;text-transform:uppercase;letter-spacing:.08em}.v60-scope b{display:block;font-size:11px;margin-top:4px}
+.v60-tabs{display:flex;gap:8px;margin:12px 0}.v60-tab{border:1px solid #d9e3ee;background:#fff;color:#35536d;border-radius:11px;padding:10px 14px;font-size:9px;font-weight:850;cursor:pointer}.v60-tab.active{background:#073f5e;color:#fff;border-color:#073f5e;box-shadow:0 8px 20px rgba(7,63,94,.15)}
+.v60-note{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:12px 0;border:1px solid #dfe7ef;border-radius:12px;background:#fff;padding:10px 12px;color:#73889b;font-size:8px}.v60-note b{color:#173b57}
+.v60-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:12px 0}.v60-kpi{--a:var(--v60-blue);position:relative;overflow:hidden;border:1px solid #e0e8f0;background:#fff;border-radius:15px;padding:15px 16px;box-shadow:0 8px 24px rgba(15,38,60,.045)}.v60-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--a)}.v60-kpi.blue{--a:var(--v60-blue)}.v60-kpi.teal{--a:var(--v60-teal)}.v60-kpi.pink{--a:var(--v60-pink)}.v60-kpi.purple{--a:var(--v60-purple)}.v60-kpi.green{--a:var(--v60-green)}.v60-kpi.amber{--a:var(--v60-amber)}.v60-kpi.red{--a:var(--v60-red)}.v60-kpi label{display:block;font-size:8px;font-weight:850;letter-spacing:.07em;text-transform:uppercase;color:#7d8ea0}.v60-kpi strong{display:block;font-size:19px;color:#12334d;margin:6px 0 2px;letter-spacing:-.02em}.v60-kpi small{font-size:8px;color:#95a3b1}.v60-na{font-size:12px!important;color:#98a6b4!important}
+.v60-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:11px;margin-bottom:12px}.v60-card{border:1px solid #e0e8f0;background:#fff;border-radius:15px;padding:15px 16px;box-shadow:0 8px 24px rgba(15,38,60,.04)}.v60-card h4{margin:0;font-size:11px}.v60-card p{font-size:8px;color:#8a9aaa;margin:3px 0 12px}.v60-bars{display:grid;gap:7px}.v60-bar{display:grid;grid-template-columns:125px 1fr 78px;gap:8px;align-items:center;font-size:8px}.v60-track{height:7px;background:#edf2f7;border-radius:99px;overflow:hidden}.v60-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--v60-blue),var(--v60-teal))}.v60-statuses{display:grid;grid-template-columns:1fr 1fr;gap:8px}.v60-status{border:1px solid #e8edf3;background:#fafcff;border-radius:11px;padding:11px}.v60-status b{display:block;font-size:15px;color:#163a55}.v60-status span{font-size:8px;color:#8495a6}
+.v60-empty{padding:38px 20px;text-align:center;border:1px dashed #cbd8e5;border-radius:14px;background:#fbfdff;color:#7890a5}.v60-empty strong{display:block;color:#173b57;font-size:12px;margin-bottom:5px}
+@media(max-width:1000px){.v60-kpis{grid-template-columns:repeat(2,1fr)}.v60-grid{grid-template-columns:1fr}}@media(max-width:700px){.v60-hub,.v60-hero{flex-direction:column;align-items:flex-start}.v60-scope{text-align:left}.v60-kpis{grid-template-columns:1fr 1fr}}
+</style>
+<script id="v60-clean-data-ui-script">
+(function(){
+ let paymentView='financial_summary';
+ const paymentTypes={financial_summary:'Financial Summary',claim_detail:'Claim Financial Detail'};
+ const getv=(r,names)=>{for(const k of names){if(Object.prototype.hasOwnProperty.call(r||{},k)&&r[k]!==''&&r[k]!=null)return r[k]}return null};
+ const n=v=>parseNumericValue(v);
+ const sum=(rows,names)=>{let ok=false,total=0;for(const r of rows){const x=n(getv(r,names));if(x!==null){ok=true;total+=x}}return ok?total:null};
+ const distinct=(rows,names)=>{const s=new Set(rows.map(r=>String(getv(r,names)||'').trim()).filter(Boolean));return s.size?s.size:null};
+ const scopeName=()=>getRole()==='provider'?(state.profile?.provider_name||state.profile?.name||'Provider'):(state.client?.name||(hasAllClients()?'All Authorized Clients':clientName()));
+ const roleLabel=()=>({admin:'Portfolio Intelligence',user:'Operations Intelligence',client:'Practice Performance',provider:'Provider Performance'})[getRole()]||'RCM Intelligence';
+ const moneyOrNA=v=>v===null?null:compactMoney(v);
+ function kpi(label,value,note,cls='blue',money=false){const shown=value===null?'Data unavailable':money?compactMoney(value):String(value);return '<div class="v60-kpi '+cls+'"><label>'+esc(label)+'</label><strong class="'+(value===null?'v60-na':'')+'">'+esc(shown)+'</strong><small>'+esc(note)+'</small></div>'}
+ function group(rows,names,valueNames){
+   const map=new Map();for(const r of rows){const key=String(getv(r,names)||'Unclassified').trim()||'Unclassified';let x=valueNames? n(getv(r,valueNames)):1;if(x===null)x=1;map.set(key,(map.get(key)||0)+Math.abs(x))}
+   return [...map].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+ }
+ function bars(items,isMoney=true){const top=items.slice(0,6),mx=Math.max(1,...top.map(x=>x.value));if(!top.length)return '<div class="v60-empty"><strong>No breakdown available</strong>The uploaded source does not contain the fields needed for this view.</div>';return '<div class="v60-bars">'+top.map(x=>'<div class="v60-bar"><span title="'+esc(x.name)+'">'+esc(x.name.length>23?x.name.slice(0,21)+'…':x.name)+'</span><div class="v60-track"><div class="v60-fill" style="width:'+Math.max(2,x.value/mx*100)+'%"></div></div><b>'+esc(isMoney?compactMoney(x.value):Math.round(x.value).toLocaleString())+'</b></div>').join('')+'</div>'}
+ function statusCards(rows){const g=group(rows,['status','denial_status','auth_status','iv_status','coverage_status_active_inactive'],null).slice(0,4);return g.length?'<div class="v60-statuses">'+g.map(x=>'<div class="v60-status"><b>'+x.value.toLocaleString()+'</b><span>'+esc(x.name)+'</span></div>').join('')+'</div>':'<div class="v60-empty"><strong>Status unavailable</strong>No status field was provided in this dataset.</div>'}
+ function operationalIntel(m,rows){
+   let cards=[],g=[],title='',gmoney=true;
+   if(m==='ar'){const bal=sum(rows,['balance','Balance','ar_balance']),aged=rows.filter(r=>{const x=n(getv(r,['age','days','Age','Days']));return x!==null&&x>90});cards=[kpi('Outstanding A/R',bal,'Uploaded balance','blue',true),kpi('A/R Records',rows.length.toLocaleString(),'Filtered records','teal'),kpi('A/R > 90 Days',sum(aged,['balance','Balance']),'When age is available','amber',true),kpi('Payers',distinct(rows,['payer','payer_name','Payer']),'Unique payers','purple')];g=group(rows,['payer','payer_name','Payer'],['balance','Balance']);title='A/R Exposure by Payer'}
+   else if(m==='denials'){cards=[kpi('Denial Exposure',sum(rows,['balance','denial_amount','charge','Balance']),'Available financial exposure','red',true),kpi('Denial Records',rows.length.toLocaleString(),'Filtered records','pink'),kpi('Payers',distinct(rows,['payer','payer_name','Payer']),'Unique payers','purple'),kpi('Providers',distinct(rows,['provider','provider_name','Provider']),'Unique providers','teal')];g=group(rows,['payer','payer_name','Payer'],['balance','denial_amount','charge']);title='Denial Exposure by Payer'}
+   else if(m==='verification'){cards=[kpi('Verification Records',rows.length.toLocaleString(),'Filtered records','blue'),kpi('Payers',distinct(rows,['payer','payer_name','Payer']),'Unique payers','purple'),kpi('Providers',distinct(rows,['provider','provider_name','Provider']),'Unique providers','teal'),kpi('Statuses',distinct(rows,['status','eligibility','Status']),'Source-defined states','green')];g=group(rows,['payer','payer_name','Payer'],null);title='Verification Volume by Payer';gmoney=false}
+   else if(m==='auth'){cards=[kpi('Authorization Records',rows.length.toLocaleString(),'Filtered records','blue'),kpi('Payers',distinct(rows,['payer','payer_name','Payer']),'Unique payers','purple'),kpi('Providers',distinct(rows,['provider','provider_name','Provider']),'Unique providers','teal'),kpi('Statuses',distinct(rows,['status','auth_status','Status']),'Source-defined states','amber')];g=group(rows,['payer','payer_name','Payer'],null);title='Authorization Volume by Payer';gmoney=false}
+   else if(m==='charges'){cards=[kpi('Total Charges',sum(rows,['charge','charges','Billed Charge','Charges']),'Uploaded charge value','blue',true),kpi('Charge Records',rows.length.toLocaleString(),'Filtered records','teal'),kpi('Providers',distinct(rows,['provider','provider_name','Rendering Provider']),'Unique providers','pink'),kpi('Payers',distinct(rows,['payer','payer_name','Payer']),'Unique payers','purple')];g=group(rows,['provider','provider_name','Rendering Provider'],['charge','charges','Billed Charge']);title='Charges by Provider'}
+   return '<div class="v60-hero"><div><div class="v60-eyebrow">'+esc(roleLabel())+'</div><h3>'+esc(modules[m]?.label||m)+' · Dynamic View</h3><p>Metrics are calculated from the current published dataset and active workspace. Missing source fields are not converted into artificial values.</p></div><div class="v60-scope"><span>Current scope</span><b>'+esc(scopeName())+'</b></div></div><div class="v60-kpis">'+cards.join('')+'</div><div class="v60-grid"><div class="v60-card"><h4>'+esc(title)+'</h4><p>Automatically derived from the uploaded source.</p>'+bars(g,gmoney)+'</div><div class="v60-card"><h4>Status Distribution</h4><p>Workflow states exactly as available in source data.</p>'+statusCards(rows)+'</div></div>';
+ }
+ function paymentType(r){
+   if(r?.__payment_dataset_type)return r.__payment_dataset_type;
+   const hs=(r?.__source_columns||Object.keys(r||{})).map(k=>String(r?.__source_headers?.[k]||k).toLowerCase()).join('|');
+   if(/patient acct|claim no|claim date|billed charge|service date/.test(hs))return 'claim_detail';
+   if(/resource provider|claim count|patient count|payer charges|self charges/.test(hs))return 'financial_summary';
+   return 'legacy';
+ }
+ function paymentIntel(rows,type){
+   if(type==='financial_summary')return [
+    kpi('Total Charges',sum(rows,['charges','Charges']),'Financial Summary','blue',true),
+    kpi('Total Payments',sum(rows,['payments','Payments','total_deposit_amount']),'Financial Summary','green',true),
+    kpi('Payer Payments',sum(rows,['payer_payments','Payer Payments','payer_payment','posted_amount']),'Financial Summary','teal',true),
+    kpi('Patient Payments',sum(rows,['patient_payments','Patient Payments','patient_payment']),'Financial Summary','pink',true),
+    kpi('Contractual Adjustments',sum(rows,['contractual_adjustment','Contractual Adjustment']),'Financial Summary','purple',true),
+    kpi('Claim Count',(()=>{const x=sum(rows,['claim_count','Claim Count']);return x===null?null:Math.round(x).toLocaleString()})(),'Financial Summary','blue'),
+    kpi('Change in A/R',sum(rows,['change_in_ar','Change in A/R']),'Financial Summary','amber',true),
+    kpi('Source Records',rows.length.toLocaleString(),'Published rows','teal')
+   ].join('');
+   return [
+    kpi('Billed Charges',sum(rows,['billed_charge','Billed Charge','charges']),'Claim Detail','blue',true),
+    kpi('Total Payments',sum(rows,['payments','Payments','total_deposit_amount']),'Claim Detail','green',true),
+    kpi('Payer Payments',sum(rows,['payer_payment','Payer Payment','posted_amount']),'Claim Detail','teal',true),
+    kpi('Patient Payments',sum(rows,['patient_payment','Patient Payment']),'Claim Detail','pink',true),
+    kpi('Contractual Adjustments',sum(rows,['contractual_adjustment','Contractual Adjustment']),'Claim Detail','purple',true),
+    kpi('Change in A/R',sum(rows,['change_in_ar','Change in A/R']),'Claim Detail','amber',true),
+    kpi('Claims',rows.length.toLocaleString(),'Published claim rows','blue'),
+    kpi('Providers',distinct(rows,['provider','Rendering Provider']),'Unique providers','teal')
+   ].join('');
+ }
+ function paymentTable(rows){
+   if(!rows.length)return '<div class="v60-empty"><strong>No published '+esc(paymentTypes[paymentView])+' data</strong>Upload this dataset from Data Operations for the selected practice.</div>';
+   const cols=[];const seen=new Set();rows.slice(0,100).forEach(r=>sourceColumnKeys('payments',r).forEach(k=>{if(!seen.has(k)){seen.add(k);cols.push(k)}}));const first=rows[0],shown=rows.slice(0,50);
+   return '<div class="card table-card v8-data-card"><div class="table-headbar"><div><h3>'+esc(paymentTypes[paymentView])+' Records</h3><p class="cap">Published source columns are preserved in their original order.</p></div><span class="table-meta"><b>'+rows.length.toLocaleString()+'</b> records · showing first 50</span></div><div class="table-wrap"><table class="table"><thead><tr>'+cols.map(k=>'<th>'+esc(sourceHeaderLabel(first,k))+'</th>').join('')+'</tr></thead><tbody>'+shown.map(r=>'<tr>'+cols.map(k=>'<td title="'+esc(String(r[k]??''))+'">'+esc(String(r[k]??''))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div></div>';
+ }
+ function paymentPageHtml(){
+   const actions='<button class="btn btn-light btn-small" id="refreshModule">↻ Refresh</button>'+(getRole()!=='provider'?'<button class="btn btn-light btn-small" id="exportXlsx">Export Excel</button>':'')+(canUpload()?'<button class="btn btn-primary btn-small" data-section="imports">Data Operations</button>':'');
+   return pageHead(v52RoleLabel?.('payments')||'Payment Posting','Financial summary and claim-level payment intelligence from published datasets.',actions)+'<div id="v60PaymentRoot"></div>';
+ }
+ function renderPayments(){
+   const root=document.getElementById('v60PaymentRoot');if(!root)return;
+   const all=filteredRows('payments'),summary=all.filter(r=>paymentType(r)==='financial_summary'),claims=all.filter(r=>paymentType(r)==='claim_detail'),legacy=all.filter(r=>paymentType(r)==='legacy'),rows=paymentView==='financial_summary'?summary:claims;
+   root.innerHTML='<div class="v60-hero"><div><div class="v60-eyebrow">'+esc(roleLabel())+'</div><h3>Payment Posting · Published Data</h3><p>Financial Summary and Claim Financial Detail remain separate, while both are managed centrally through Data Operations.</p></div><div class="v60-scope"><span>Current scope</span><b>'+esc(scopeName())+'</b></div></div><div class="v60-note"><span><b>Data source:</b> Data Operations</span><span>'+summary.length.toLocaleString()+' summary · '+claims.length.toLocaleString()+' claim detail'+(legacy.length?' · '+legacy.length.toLocaleString()+' legacy':'')+'</span></div><div class="v60-tabs"><button class="v60-tab '+(paymentView==='financial_summary'?'active':'')+'" data-v60-pay="financial_summary">Financial Summary</button><button class="v60-tab '+(paymentView==='claim_detail'?'active':'')+'" data-v60-pay="claim_detail">Claim Financial Detail</button></div><div class="v60-kpis">'+paymentIntel(rows,paymentView)+'</div>'+paymentTable(rows);
+   root.querySelectorAll('[data-v60-pay]').forEach(b=>b.onclick=()=>{paymentView=b.dataset.v60Pay;renderPayments()});
+ }
+ // Final module renderer: Payment Posting never enters legacy module rendering.
+ const previousModuleHtml=moduleHtml;
+ moduleHtml=function(m){return m==='payments'?paymentPageHtml():previousModuleHtml(m)};
+ const previousRenderModule=renderModule;
+ renderModule=function(m){
+   if(m==='payments'){renderPayments();return}
+   previousRenderModule(m);
+   if(['ar','denials','verification','auth','charges'].includes(m)){
+     const host=document.getElementById('moduleSummary');if(host)host.innerHTML=operationalIntel(m,filteredRows(m));
+   }
+ };
+ // Tag payment imports before normalization/storage.
+ const previousNormalize=normalizeModuleRows;
+ normalizeModuleRows=function(module,inputRows){
+   const out=previousNormalize(module,inputRows);
+   if(module==='payments'){
+     const type=document.getElementById('paymentDatasetType')?.value||'';
+     if(type)out.forEach(r=>r.__payment_dataset_type=type);
+   }
+   return out;
+ };
+ function syncPaymentDatasetPicker(){
+   const mod=document.getElementById('importModule');if(!mod)return;
+   let wrap=document.getElementById('paymentDatasetTypeWrap');
+   if(!wrap){wrap=document.createElement('div');wrap.id='paymentDatasetTypeWrap';wrap.className='field v60-dataset';wrap.innerHTML='<label>Payment Dataset</label><select id="paymentDatasetType"><option value="financial_summary">Financial Summary</option><option value="claim_detail">Claim Financial Detail</option></select><div class="hint">This keeps the two client workbooks separate inside Payment Posting.</div>';mod.closest('.field')?.insertAdjacentElement('afterend',wrap)}
+   const show=()=>{wrap.style.display=mod.value==='payments'?'block':'none'};mod.addEventListener('change',show);show();
+ }
+ const previousImportsHtml=importsHtml;
+ importsHtml=function(){return '<div class="v60-hub"><div><h3>RCM Data Publishing Center</h3><p>Validate and publish client datasets here. AR, Denials, Eligibility, Prior Authorization, Charges and Payments automatically consume the published data.</p></div><span class="v60-hub-badge">SINGLE UPLOAD CENTER</span></div>'+previousImportsHtml()};
+ const previousBindSection=bindSection;
+ bindSection=function(){previousBindSection();if(state.section==='imports')syncPaymentDatasetPicker();if(state.section==='payments'){document.getElementById('refreshModule')?.addEventListener('click',async()=>{clearRecordsCache();await loadData();renderPayments()});document.querySelectorAll('[data-section="imports"]').forEach(b=>b.onclick=()=>navigateToSection('imports'))}};
+ window.BHA_CLEAN_LOCAL_REBUILD='V60';
+})();
+</script>
+
 </body></html>
 
 <style id="v34-logo-final-fix">
