@@ -731,7 +731,7 @@ const displayLabels={
 };
 
 const moneyFields=new Set(['balance','amount','charge','billed','paid','adjustment','ptResp','copay','totalDepositAmount','postedAmount','total_deposit_amount','posted_amount','payment_amount','deposit_amount','charge_amount','billed_amount','allowed_amount','paid_amount','patient_responsibility']);
-const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['service_date','claim_date','payment_date','posted_date']};
+const dateFieldsByModule={ar:['work_date','dos'],denials:['work_date','dos'],verification:['date'],auth:['requested','valid'],charges:['dos','submitted'],payments:['payment_date','posted_date','month','service_date','claim_date']};
 
 function normalizeHeader(v){
  return String(v??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[\u2013\u2014]/g,'-').replace(/[^a-z0-9]+/g,'');
@@ -746,6 +746,8 @@ function prettyLabel(k,m){
 function normalizeFilterDate(value){
  const raw=String(value??'').trim();
  if(!raw)return '';
+ const monthMatch=raw.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)[_\s-]+(\d{4})$/i);
+ if(monthMatch){const months={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12},mo=months[monthMatch[1].toLowerCase()];return `${monthMatch[2]}-${String(mo).padStart(2,'0')}-01`;}
  let m=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
  if(m){const y=+m[1],mo=+m[2],d=+m[3];if(mo>=1&&mo<=12&&d>=1&&d<=31)return `${String(y).padStart(4,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
  m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
@@ -2073,7 +2075,7 @@ async function loadData(){
      for(let offset=pageSize;offset<total;offset+=pageSize)ranges.push([offset,Math.min(offset+pageSize-1,total-1)]);
      // Fetch remaining pages in small parallel waves: substantially faster than serial
      // pagination while avoiding an unbounded burst against Supabase on very large imports.
-     const concurrency=6;
+     const concurrency=16;
      for(let i=0;i<ranges.length;i+=concurrency){
        const wave=ranges.slice(i,i+concurrency);
        const pages=await Promise.all(wave.map(async([from,to])=>{
