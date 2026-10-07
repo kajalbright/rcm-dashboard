@@ -3475,6 +3475,125 @@ window.BHA_RELEASE_DATE='2026-10-03';
 })();
 </script>
 
+
+<style id="pp-local-test-v2">
+.pp-test-note{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 13px;margin-bottom:14px;border:1px solid #d7e5f7;background:#f7faff;border-radius:12px;color:#526b83;font-size:10px}
+.pp-tabs{display:flex;gap:8px;margin:14px 0}.pp-tab{border:1px solid #dce5ef;background:#fff;color:#60758a;border-radius:11px;padding:10px 14px;font-size:10px;font-weight:800}.pp-tab.active{background:linear-gradient(135deg,#0a2d49,#0b4860);color:#fff;border-color:#0a3652;box-shadow:0 8px 18px rgba(10,45,73,.12)}
+.pp-upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}.pp-upload{display:block;background:#fff;border:1px solid #e2e9f1;border-radius:14px;padding:14px;box-shadow:0 8px 24px rgba(16,35,58,.04)}.pp-upload strong{display:block;font-size:11px}.pp-upload small{display:block;color:#7b8c9e;font-size:9px;margin:4px 0 10px}.pp-upload input{font-size:10px;max-width:100%}
+.pp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.pp-kpi{background:#fff;border:1px solid #e3eaf2;border-radius:15px;padding:16px;box-shadow:0 8px 24px rgba(16,35,58,.045)}.pp-kpi span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:#7c8c9e;font-weight:800}.pp-kpi b{display:block;font-size:20px;margin-top:7px;color:#14324d}.pp-kpi small{display:block;font-size:8px;color:#91a0ae;margin-top:3px}
+.pp-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-bottom:14px}.pp-card{background:#fff;border:1px solid #e3eaf2;border-radius:15px;padding:16px;box-shadow:0 8px 24px rgba(16,35,58,.045)}.pp-card h3{font-size:12px;margin:0}.pp-card p{font-size:9px;color:#8493a4;margin:4px 0 13px}.pp-bars{display:grid;gap:8px}.pp-bar-row{display:grid;grid-template-columns:minmax(110px,160px) 1fr 92px;gap:8px;align-items:center;font-size:9px}.pp-bar-track{height:8px;border-radius:99px;background:#edf2f7;overflow:hidden}.pp-bar-fill{height:100%;background:linear-gradient(90deg,#2463eb,#087f75);border-radius:99px}.pp-mix{display:grid;grid-template-columns:1fr 1fr;gap:9px}.pp-mix div{border:1px solid #e8edf3;border-radius:12px;padding:13px;background:#fbfcfe}.pp-mix b{display:block;font-size:17px}.pp-mix span{font-size:8px;color:#8191a2}
+.pp-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.pp-tools input{border:1px solid #dbe3ec;border-radius:9px;padding:8px 10px;font-size:10px;background:#fff;min-width:230px}.pp-meta{font-size:9px;color:#8191a2;margin-left:auto}.pp-table-wrap{overflow:auto;max-height:55vh;border:1px solid #e9eef4;border-radius:11px}.pp-table{border-collapse:collapse;width:100%;min-width:1100px}.pp-table th{position:sticky;top:0;z-index:2;background:#f7f9fc;color:#65768a;font-size:8px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:9px;border-bottom:1px solid #e3e9f0;white-space:nowrap}.pp-table td{font-size:9px;padding:9px;border-bottom:1px solid #f0f3f7;white-space:nowrap}.pp-table tr:hover td{background:#f9fbff}.pp-empty{padding:35px;text-align:center;color:#8493a4;font-size:10px}
+@media(max-width:1050px){.pp-kpis{grid-template-columns:repeat(2,1fr)}.pp-grid,.pp-upload-grid{grid-template-columns:1fr}}@media(max-width:700px){.pp-kpis{grid-template-columns:1fr 1fr}.pp-mix{grid-template-columns:1fr}}
+</style>
+<script id="pp-local-test-v2-script">
+(function(){
+  const ppOriginalModuleHtml=moduleHtml;
+  const ppOriginalRenderModule=renderModule;
+  const ppOriginalBindSection=bindSection;
+  let ppSummaryRows=[],ppClaimRows=[],ppActive='summary',ppSearchText='';
+  const ppNum=v=>{if(v===null||v===undefined||v==='')return null;let s=String(v).trim().replace(/[$,%]/g,'').replace(/,/g,'');if(/^\(.*\)$/.test(s))s='-'+s.slice(1,-1);const x=Number(s);return Number.isFinite(x)?x:null};
+  const ppEsc=v=>esc(String(v??''));
+  const ppMoney=v=>v===null||v===undefined?'Data unavailable':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
+  const ppInt=v=>v===null||v===undefined?'Data unavailable':Math.round(v).toLocaleString();
+  const ppGet=(r,names)=>{for(const k of names){if(Object.prototype.hasOwnProperty.call(r,k)&&r[k]!==''&&r[k]!==null&&r[k]!==undefined)return r[k]}return null};
+  const ppSum=(rows,names)=>{let found=false,total=0;for(const r of rows){const v=ppNum(ppGet(r,names));if(v!==null){found=true;total+=v}}return found?total:null};
+  const ppMetricNames={
+    charges:['Charges','Total Charges','Billed Charge','Payer Charges','Payer Charge','charge','total_charge'],
+    payments:['Payments','Total Payments','Payer Payments','Payer Payment','posted_amount','Posted Amount','payment'],
+    payer:['Payer Payments','Payer Payment','payer_payment'],
+    patient:['Patient Payments','Patient Payment','patient_payment'],
+    contractual:['Contractual Adjustment','Contractual Adjustments','contractual_adjustment'],
+    ar:['Change in A/R','Change in AR','change_in_ar'],
+    claims:['Claim Count','Claims','claim_count']
+  };
+  function ppMetrics(rows){return Object.fromEntries(Object.entries(ppMetricNames).map(([k,v])=>[k,ppSum(rows,v)]))}
+  function ppPage(){
+    const actions='<button class="btn btn-light btn-small" id="ppClearLocal">Clear Local Test Data</button><button class="btn btn-light btn-small" id="refreshModule">↻ Refresh</button>';
+    return pageHead('Payment Posting','Review financial summary performance and claim-level payment detail without mixing the two source datasets.',actions)+
+    '<div class="pp-test-note"><span><b>LOCAL TEST MODE</b> · Workbook selections stay in browser memory only.</span><span>No Payment Posting upload is written by this test screen.</span></div>'+
+    '<div class="pp-upload-grid">'+
+      '<label class="pp-upload"><strong>Financial Summary Dataset</strong><small>Use the provider/payment summary workbook.</small><input id="ppSummaryFile" type="file" accept=".xlsx,.xls,.csv"></label>'+
+      '<label class="pp-upload"><strong>Claim Financial Detail Dataset</strong><small>Use the claim-level financial workbook.</small><input id="ppClaimFile" type="file" accept=".xlsx,.xls,.csv"></label>'+
+    '</div>'+
+    '<div class="pp-tabs"><button class="pp-tab active" data-pp-tab="summary">Financial Summary</button><button class="pp-tab" data-pp-tab="claims">Claim Financial Detail</button></div>'+
+    '<div id="ppDashboard"></div><div id="ppRecords"></div>';
+  }
+  moduleHtml=function(m){return m==='payments'?ppPage():ppOriginalModuleHtml(m)};
+  renderModule=function(m){if(m==='payments'){ppRender();return}return ppOriginalRenderModule(m)};
+  bindSection=function(){ppOriginalBindSection();if(state.section==='payments')ppBind()};
+  function ppCard(label,value,note){return '<article class="pp-kpi"><span>'+ppEsc(label)+'</span><b>'+ppEsc(value)+'</b><small>'+ppEsc(note||'From active uploaded dataset')+'</small></article>'}
+  function ppDashboard(rows){
+    if(!rows.length)return '<div class="pp-card"><div class="pp-empty">Select the '+(ppActive==='summary'?'Financial Summary':'Claim Financial Detail')+' workbook above. Dashboard metrics will be calculated only from that dataset.</div></div>';
+    const m=ppMetrics(rows);
+    const count=m.claims!==null?m.claims:(ppActive==='claims'?rows.length:null);
+    const cards=[
+      ppCard('Total Charges',ppMoney(m.charges)),
+      ppCard('Total Payments',ppMoney(m.payments)),
+      ppCard('Payer Payments',ppMoney(m.payer)),
+      ppCard('Patient Payments',ppMoney(m.patient)),
+      ppCard('Contractual Adjustments',ppMoney(m.contractual)),
+      ppCard('Claim Count',ppInt(count)),
+      ppCard('Change in A/R',ppMoney(m.ar)),
+      ppCard('Source Records',rows.length.toLocaleString(),'Rows in active workbook')
+    ].join('');
+    let insight='';
+    if(ppActive==='summary'){
+      const providerNames=['Resource Provider','Rendering Provider','Provider','provider'];
+      const payNames=['Payments','Total Payments','Payer Payments','Payer Payment','posted_amount','Posted Amount'];
+      const grouped=new Map();
+      rows.forEach(r=>{const name=String(ppGet(r,providerNames)||'Unassigned'),v=ppNum(ppGet(r,payNames));if(v!==null)grouped.set(name,(grouped.get(name)||0)+v)});
+      const ranked=[...grouped].map(([name,v])=>({name,v})).sort((a,b)=>b.v-a.v).slice(0,8),max=Math.max(1,...ranked.map(x=>x.v));
+      insight='<div class="pp-grid"><section class="pp-card"><h3>Payment Performance by Provider</h3><p>Top providers based only on payment values present in the uploaded summary workbook.</p><div class="pp-bars">'+
+        (ranked.length?ranked.map(x=>'<div class="pp-bar-row"><span>'+ppEsc(x.name)+'</span><div class="pp-bar-track"><div class="pp-bar-fill" style="width:'+Math.max(2,x.v/max*100)+'%"></div></div><b>'+ppMoney(x.v)+'</b></div>').join(''):'<div class="pp-empty">Provider/payment fields are not available in this workbook.</div>')+
+        '</div></section><section class="pp-card"><h3>Payment Mix</h3><p>No values are inferred when a source field is missing.</p><div class="pp-mix"><div><b>'+ppMoney(m.payer)+'</b><span>Payer Payments</span></div><div><b>'+ppMoney(m.patient)+'</b><span>Patient Payments</span></div></div></section></div>';
+    }
+    return '<div class="pp-kpis">'+cards+'</div>'+insight;
+  }
+  function ppColumns(rows){
+    if(!rows.length)return [];
+    const keys=[];const seen=new Set();
+    rows.slice(0,100).forEach(r=>Object.keys(r).forEach(k=>{if(!seen.has(k)){seen.add(k);keys.push(k)}}));
+    return keys;
+  }
+  function ppTable(rows){
+    if(!rows.length)return '<div class="pp-card"><div class="pp-empty">No local workbook is loaded for this view.</div></div>';
+    const cols=ppColumns(rows),q=ppSearchText.trim().toLowerCase();
+    const filtered=q?rows.filter(r=>cols.some(k=>String(r[k]??'').toLowerCase().includes(q))):rows;
+    const shown=filtered.slice(0,500);
+    const isMoney=k=>/charge|payment|adjust|withheld|writeoff|refund|amount|a\/r|balance/i.test(k);
+    return '<div class="pp-card"><div class="pp-tools"><input id="ppSearch" placeholder="Search active dataset…" value="'+ppEsc(ppSearchText)+'"><span class="pp-meta">'+filtered.length.toLocaleString()+' records · showing '+Math.min(filtered.length,500).toLocaleString()+'</span></div><div class="pp-table-wrap"><table class="pp-table"><thead><tr>'+
+      cols.map(k=>'<th>'+ppEsc(k)+'</th>').join('')+'</tr></thead><tbody>'+
+      shown.map(r=>'<tr>'+cols.map(k=>{const raw=r[k],x=ppNum(raw),v=isMoney(k)&&x!==null?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(x):String(raw??'');return '<td title="'+ppEsc(raw)+'">'+ppEsc(v)+'</td>'}).join('')+'</tr>').join('')+
+      '</tbody></table></div></div>';
+  }
+  function ppRender(){
+    if(state.section!=='payments')return;
+    const rows=ppActive==='summary'?ppSummaryRows:ppClaimRows;
+    const d=document.getElementById('ppDashboard'),t=document.getElementById('ppRecords');
+    if(d)d.innerHTML=ppDashboard(rows);if(t)t.innerHTML=ppTable(rows);
+    document.querySelectorAll('[data-pp-tab]').forEach(b=>b.classList.toggle('active',b.dataset.ppTab===ppActive));
+    const search=document.getElementById('ppSearch');if(search)search.oninput=e=>{ppSearchText=e.target.value;ppRender()};
+  }
+  async function ppReadWorkbook(file){
+    const buffer=await file.arrayBuffer();
+    const wb=XLSX.read(buffer,{type:'array',cellDates:true});
+    for(const name of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:'',raw:false});
+      if(rows.length)return rows;
+    }
+    return [];
+  }
+  function ppBind(){
+    document.querySelectorAll('[data-pp-tab]').forEach(b=>b.onclick=()=>{ppActive=b.dataset.ppTab;ppSearchText='';ppRender()});
+    document.getElementById('ppSummaryFile')?.addEventListener('change',async e=>{try{const f=e.target.files?.[0];if(!f)return;ppSummaryRows=await ppReadWorkbook(f);ppActive='summary';ppSearchText='';ppRender();toast('Financial Summary loaded: '+ppSummaryRows.length.toLocaleString()+' rows')}catch(err){toast('Unable to read Financial Summary: '+(err.message||err))}});
+    document.getElementById('ppClaimFile')?.addEventListener('change',async e=>{try{const f=e.target.files?.[0];if(!f)return;ppClaimRows=await ppReadWorkbook(f);ppActive='claims';ppSearchText='';ppRender();toast('Claim Financial Detail loaded: '+ppClaimRows.length.toLocaleString()+' rows')}catch(err){toast('Unable to read Claim Financial Detail: '+(err.message||err))}});
+    document.getElementById('ppClearLocal')?.addEventListener('click',()=>{ppSummaryRows=[];ppClaimRows=[];ppActive='summary';ppSearchText='';ppRender();toast('Local Payment Posting test data cleared')});
+    ppRender();
+  }
+  window.BHA_PAYMENT_POSTING_LOCAL_TEST='V2';
+})();
+</script>
+
 </body></html>
 
 <style id="v34-logo-final-fix">
