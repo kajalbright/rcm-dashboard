@@ -2473,8 +2473,6 @@ async function login(){
     if(error)throw error;
     // A successful login must never inherit a preceding account's cached PHI.
     clearRecordsCache();
-    resetLockedClientState();
-    lockedClientId=null;
     state.records={};
     state.session=data.session;
     await loadProfile();
@@ -2523,10 +2521,6 @@ async function logout(){
   const btn=document.getElementById('logoutBtn');if(btn){btn.disabled=true;btn.classList.add('busy')}
   try{if(!DEMO_MODE)await sb.auth.signOut()}catch(e){console.warn('Sign out request failed:',e)}
   clearRecordsCache();
-  resetLockedClientState();
-  lockedClientId=null;
-  lockedLoadPromise=null;
-  S.profile=null;S.session=null;S.client=null;
   state=freshState();
   document.getElementById('app').innerHTML=loginView();
   bindLogin();
