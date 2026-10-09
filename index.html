@@ -612,7 +612,7 @@ body{background:var(--v8-bg)}
 @media(max-width:1200px){.bha-ar-grid{min-width:1480px!important}}
 </style>
 </head>
-<body data-bha-build="2026-10-03-v48-high-speed-optimization">
+<body data-bha-build="2026-10-10-provider-auth-cache-hotfix">
 <div id="app"></div>
 <div id="toast" class="toast hidden"></div>
 <script>
@@ -1433,7 +1433,8 @@ document.addEventListener('change',function bhaClientSwitch(e){
  SEARCH_TEXT_CACHE=new WeakMap();commLastFingerprint='';
  select.value=value;
  // Invalidates in-flight locked render tokens and clears client-specific locked data.
- try{lockedRenderToken++;lockedClientId='';lockedLoadPromise=null;resetLockedClientState()}catch(_){}
+ // Legacy locked loader is scoped separately; never invoke it from global handlers.
+ try{if(typeof lockedRenderToken!=='undefined')lockedRenderToken++;}catch(_){}
  try{renderSection()}catch(err){console.error('Client switch failed',err);toast('Could not display selected practice')}
  void commRefreshUnread().then(updateCommunicationBadge).catch(()=>{});
 },true);
