@@ -4367,7 +4367,21 @@ function paymentClaimTable(rows){
  return `<div class="card tablecard pay2-table"><div class="card-head"><div><h3>Claim Financial Detail</h3><p>Claim-level financial activity remains separate from the provider summary dataset.</p></div><span class="badge">${count(view.length)} claims</span></div>${S.paymentProvider?`<div class="ar4-client-note"><div><b>Provider drill-down:</b> ${esc(S.paymentProvider)} <button class="pay2-drill" id="clearPayProvider">Clear provider ×</button></div></div>`:''}<div class="tabletools"><input id="search" placeholder="Search patient, claim, provider, facility…" value="${esc(S.search)}"><span class="meta">Showing ${count(view.length?from+1:0)}–${count(Math.min(from+size,view.length))} of ${count(view.length)}</span></div><div class="tablewrap"><table class="table"><thead><tr>${defs.map(x=>`<th>${esc(x[0])}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${defs.map(([l,k])=>`<td class="${parseNum(get(r,k))<0?'pay2-neg':''}">${fmt(r,k,l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="pay2-page"><span>Page ${S.paymentPage} of ${pages}</span><button id="payPrev" ${S.paymentPage<=1?'disabled':''}>Previous</button><button id="payNext" ${S.paymentPage>=pages?'disabled':''}>Next</button></div></div>`
 }
 function bindPaymentTable(){
- document.getElementById('search')?.addEventListener('input',e=>{S.search=e.target.value;S.paymentPage=1;renderPayments()});
+ document.getElementById('search')?.addEventListener('input',e=>{
+  const input=e.currentTarget;
+  const start=input.selectionStart, end=input.selectionEnd;
+  const windowX=window.scrollX, windowY=window.scrollY;
+  const scrollContainers=[...document.querySelectorAll('#content .tablewrap, #content .table-wrap')].map(el=>({className:el.className,top:el.scrollTop,left:el.scrollLeft}));
+  S.search=input.value; S.paymentPage=1;
+  renderPayments();
+  const replacement=document.getElementById('search');
+  if(replacement){
+    try{replacement.focus({preventScroll:true});replacement.setSelectionRange(start,end)}catch(err){replacement.focus()}
+  }
+  const containers=[...document.querySelectorAll('#content .tablewrap, #content .table-wrap')];
+  scrollContainers.forEach((pos,i)=>{if(containers[i]){containers[i].scrollTop=pos.top;containers[i].scrollLeft=pos.left}});
+  window.scrollTo(windowX,windowY);
+});
  document.getElementById('payPrev')?.addEventListener('click',()=>{S.paymentPage=Math.max(1,S.paymentPage-1);renderPayments()});
  document.getElementById('payNext')?.addEventListener('click',()=>{S.paymentPage++;renderPayments()});
  document.getElementById('clearPayProvider')?.addEventListener('click',()=>{S.paymentProvider='';S.paymentPage=1;renderPayments()});
