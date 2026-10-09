@@ -4177,7 +4177,11 @@ function bindARTable(){
 function v31RenderRedwoodAR(){
  const rows=S.records.ar||[];
  if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the validated 8,318-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
- const n=(r,k)=>Number(r[k])||0;
+ const n=(r,k)=>{
+  const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120'],balance:['balance','Balance'],charges:['charges','Charges']};
+  for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const parsed=Number(String(value).replace(/[$,]/g,''));if(Number.isFinite(parsed))return parsed;}}
+  return 0;
+ };
  const buckets=[['current','Current (0–30)','#2563eb'],['aging_31_60','31–60 Days','#0d9488'],['aging_61_90','61–90 Days','#7c3aed'],['aging_91_120','91–120 Days','#d97706'],['aging_120_plus','Over 120 Days','#e11d48']];
  const total=rows.reduce((a,r)=>a+n(r,'balance'),0);
  const over90=rows.reduce((a,r)=>a+n(r,'aging_91_120')+n(r,'aging_120_plus'),0);
@@ -4186,19 +4190,22 @@ function v31RenderRedwoodAR(){
  const countRows=rows.length;
  const kpis=[kpi('Outstanding A/R',total,'Updated provider-mapped AR report'),kpi('Claims / Records',countRows,'Source claim records','purple','count'),kpi('A/R Over 90 Days',over90,'91–120 and over 120 day balances','amber'),kpi('A/R Over 120 Days',over120,'Exact source 120+ bucket','red'),kpi('Avg Balance / Claim',countRows?total/countRows:0,'Average source balance'),kpi('High Balance A/R',high.balance||0,count(highRows.length)+' high-balance records','teal')];
  const aging=buckets.map(([key,label,color])=>{const amount=rows.reduce((a,r)=>a+n(r,key),0),qty=rows.filter(r=>n(r,key)!==0).length;return `<div class="ar3-aging-item" style="border-top:4px solid ${color};padding:18px;border-radius:12px;border:1px solid #dae6f0;border-top:4px solid ${color};background:#f8fbfe"><b style="font-size:11px;color:#63809b">${label}</b><h3 style="margin:8px 0">${money(amount)}</h3><small>${count(qty)} claims · ${total?(100*amount/total).toFixed(1):'0.0'}% of A/R</small></div>`}).join('');
+ const arText=(r,keys)=>{for(const key of keys){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim())return String(value).trim();}return '';};
+ const arPatient=r=>arText(r,['patient_name','patient','Patient Name','Patient','patientName']);
+ const arAccount=r=>arText(r,['account_no','patient_id','Patient Acct No','Patient Account No','account_number','account']);
  const rawQuery=S.search||'',bucket=S.v31Bucket||'all';
  const arProviders=[...new Set(rows.map(r=>String(get(r,F.provider)||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
  if(S.v31Provider&&!arProviders.includes(S.v31Provider))S.v31Provider='';
  let filtered=rows.filter(r=>(bucket==='all'||n(r,bucket)!==0)&&(!S.v31Provider||String(get(r,F.provider)||'').trim()===S.v31Provider));
- if(rawQuery){const q=rawQuery.toLowerCase();filtered=filtered.filter(r=>[r.patient_name,r.claim_id,r.account_no,r.dos,...(r.cpt_details||[]).flat()].some(v=>String(v??'').toLowerCase().includes(q)))}
+ if(rawQuery){const q=rawQuery.toLowerCase();filtered=filtered.filter(r=>[arPatient(r),r.claim_id,arAccount(r),r.dos,...(r.cpt_details||[]).flat()].some(v=>String(v??'').toLowerCase().includes(q)))}
  const per=50,pages=Math.max(1,Math.ceil(filtered.length/per));S.arPage=Math.min(Math.max(1,S.arPage||1),pages);const from=(S.arPage-1)*per;
  const cols=[['Provider','provider'],['Patient','patient_name'],['Claim #','claim_id'],['Claim Date','claim_date'],['Service Date','dos'],['Account #','account_no'],['Charges','charges'],['Current','current'],['31–60','aging_31_60'],['61–90','aging_61_90'],['91–120','aging_91_120'],['Over 120','aging_120_plus'],['Balance','balance']];
  const moneyKeys=new Set(['charges','current','aging_31_60','aging_61_90','aging_91_120','aging_120_plus','balance']);
  const trs=filtered.slice(from,from+per).map((r,i)=>{
    const idx=from+i,expanded=S.v32Expanded===idx;
-   const cells=cols.map(([label,key])=>{const raw=r[key];const value=moneyKeys.has(key)?money(n(r,key)):String(raw??'');return `<td class="${moneyKeys.has(key)?'bha-ar-num':'bha-ar-text'}" title="${esc(value)}">${esc(value)}</td>`}).join('');
+   const cells=cols.map(([label,key])=>{const raw=key==='patient_name'?arPatient(r):key==='account_no'?arAccount(r):r[key];const value=moneyKeys.has(key)?money(n(r,key)):String(raw??'');return `<td class="${moneyKeys.has(key)?'bha-ar-num':'bha-ar-text'}" title="${esc(value)}">${esc(value)}</td>`}).join('');
    const cpts=(r.cpt_details||[]).map(x=>Array.isArray(x)?`<div style="padding:5px 0"><b>${esc(x[0]||'')}</b> — ${esc(x[1]||'')}</div>`:`<div>${esc(x)}</div>`).join('')||'<span class="meta">No CPT detail supplied in the source.</span>';
-   const detail=expanded?`<tr class="v32-expanded"><td colspan="${cols.length+1}" style="background:#f0f8fc;padding:17px 22px;white-space:normal"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px"><div><b>Claim Number</b><p>${esc(r.claim_id||'—')}</p><b>Patient Account</b><p>${esc(r.account_no||'—')}</p></div><div><b>Patient</b><p>${esc(r.patient_name||'—')}</p><b>Date of Service</b><p>${esc(r.dos||'—')}</p></div><div style="grid-column:span 2"><b>CPT / Procedure Details</b><div style="margin-top:8px">${cpts}</div></div></div></td></tr>`:'';
+   const detail=expanded?`<tr class="v32-expanded"><td colspan="${cols.length+1}" style="background:#f0f8fc;padding:17px 22px;white-space:normal"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px"><div><b>Claim Number</b><p>${esc(r.claim_id||'—')}</p><b>Patient Account</b><p>${esc(arAccount(r)||'Not supplied in source')}</p></div><div><b>Patient</b><p>${esc(arPatient(r)||'—')}</p><b>Date of Service</b><p>${esc(r.dos||'—')}</p></div><div style="grid-column:span 2"><b>CPT / Procedure Details</b><div style="margin-top:8px">${cpts}</div></div></div></td></tr>`:'';
    return `<tr>${cells}<td style="white-space:nowrap"><button type="button" class="v32-view" data-v32-view="${idx}" aria-expanded="${expanded?'true':'false'}">${expanded?'Hide Details':'View Details'} →</button></td></tr>${detail}`;
  }).join('');
  document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';
