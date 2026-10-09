@@ -688,7 +688,7 @@ function allowedSections(){
  if(r==='admin')return ['overview','intelligence','ar','denials','verification','auth','charges','payments','communication','automation','imports','users','activity','clients'];
  if(r==='user')return ['overview','intelligence','ar','denials','verification','auth','charges','payments','communication','imports'];
  if(r==='client')return ['overview','intelligence','ar','denials','verification','auth','charges','payments','communication'];
- if(r==='provider')return ['overview','denials','auth','charges','communication'];
+ if(r==='provider')return ['overview','ar','denials','payments','verification','auth','charges'];
  return ['overview','communication'];
 }
 function sectionAllowed(k){return allowedSections().includes(k)}
@@ -1043,8 +1043,9 @@ function navIcon(key){
   return `<svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[key]||paths.overview}</svg>`;
 }
 function communicationUnreadCount(){
+  if(['client','provider'].includes(commRole()))return 0;
   ensureCommState();
-  if(['client','provider'].includes(commRole())){
+  if(commRole()==='client'){
     const id=state.client?.id?String(state.client.id):'';
     if(!id)return 0;
     if(state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id||'')===id){
@@ -1066,7 +1067,7 @@ async function navigateToSection(nextSection){
     renderSection();
     const title=document.querySelector('.topbar-page-copy strong');
     const icon=document.querySelector('.topbar-page-icon');
-    if(title)title.textContent=(S.profile?.role==='admin' && typeof state!=='undefined' && !state.client && nextSection==='overview')?'Admin Command Center':(modules[nextSection]?.label||(nextSection==='communication'?'Communication Center':nextSection==='imports'?'Data Operations':nextSection));
+    if(title)title.textContent=(getRole()==='admin' && !state.client && nextSection==='overview')?'Admin Command Center':(typeof v52RoleLabel==='function'?v52RoleLabel(nextSection):(modules[nextSection]?.label||nextSection));
     if(icon)icon.innerHTML=navIcon(nextSection);
     if(['ar','denials','verification','auth','charges','payments'].includes(nextSection)){
       await loadData();
@@ -1247,6 +1248,7 @@ state.commUnread=state.commUnread||{};
 function ensureCommState(){if(!state.commUnread||typeof state.commUnread!=='object')state.commUnread={};if(!['messages','requests'].includes(state.commTab))state.commTab='messages'}
 function commUnreadFor(w){ensureCommState();return Number(state.commUnread?.[String(w)]||0)}
 async function commRefreshUnread(){
+  if(['client','provider'].includes(commRole()))return; // v15: no practice-wide reads
   if(DEMO_MODE||!state.session?.user)return;
   const clients=commClients(); if(!clients.length)return;
   try{
@@ -1267,6 +1269,14 @@ function communicationHtml(){
   return pageHead('Communication',subtitle)+`<div class="comm-shell"><div class="comm-tabs"><button data-comm-tab="messages">Messages</button><button data-comm-tab="requests">Requests</button></div><div id="commBody"><div class="comm-empty">Loading workspace…</div></div></div>`;
 }
 async function renderCommunication(){
+  // v15 privacy lock: the legacy communication tables are keyed only by practice.
+  // Until user-addressed threads + RLS are deployed, NEVER query shared messages or requests.
+  if(['client','provider'].includes(commRole())){
+    const body=document.getElementById('commBody');
+    if(body)body.innerHTML='<div class="comm-request-empty" style="min-height:240px;padding:40px 24px"><strong>Private BHA messaging is being configured</strong><p>Your individual conversation with the BHA Admin team will appear here once secure user-specific messaging is enabled. Practice-wide messages and requests are hidden to protect client and provider privacy.</p></div>';
+    document.querySelectorAll('[data-comm-tab]').forEach(x=>{x.disabled=true;x.setAttribute('aria-disabled','true');x.title='Private messaging setup pending';});
+    return;
+  }
   if(['client','provider'].includes(commRole())&&state.client?.id){
     state.commClient=String(state.client.id);
     ensureCommState();
@@ -1364,6 +1374,7 @@ function appendIncomingMessage(m){
   if(!mine){ensureCommState();state.commUnread[String(c.id)]=((state.section==='communication'&&state.commTab==='messages'&&String(commCurrentWorkspace()?.id||'')===String(c.id))?0:0);updateCommunicationBadge();void markCommRead(String(c.id))}
 }
 function startCommRealtime(){
+  if(['client','provider'].includes(commRole())){stopCommRealtime();return;}
   stopCommRealtime();if(DEMO_MODE||!state.session?.user)return;
   commRealtimeChannel=sb.channel(`bha-communication-${state.session.user.id}-${Date.now()}`)
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'communication_messages'},payload=>{
@@ -1382,6 +1393,7 @@ function updateCommunicationBadge(){
   }else badge?.remove();
 }
 async function productionAutoSync(){
+  if(['client','provider'].includes(commRole()))return;
   if(DEMO_MODE||!state.session?.user)return;
   try{
     await commRefreshUnread();
@@ -1476,7 +1488,7 @@ function filteredRows(m){
   const filtered=getRecords(m).filter(r=>{
     // Always scope locally as a second guard; missing client_id must never pass a client-scoped view.
     if(selected && String(r.client_id||'')!==String(selected)) return false;
-    if(getRole()==='provider' && String(r.provider||'').trim().toLowerCase()!==String(state.profile?.provider_name||'').trim().toLowerCase()) return false;
+    if(getRole()==='provider' && (!bhaProviderKey(state.profile?.provider_name) || bhaProviderKey(r.provider||r.provider_name)!==bhaProviderKey(state.profile.provider_name))) return false;
     if(payer && String(r.payer_name||r.payer||'').toLowerCase()!==payer.toLowerCase()) return false;
     if(provider && String(r.provider||'').toLowerCase()!==provider.toLowerCase()) return false;
     if(status && String(r.status||'').toLowerCase()!==status.toLowerCase()) return false;
@@ -3109,7 +3121,16 @@ function riPrintPayerReport(x,payerName,client){
 @media(max-width:1100px){.ri2-loading{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.ri2-loading{grid-template-columns:1fr}}
 </style>
 
-<style id="bha-qa-banner-style">#bha-qa-banner{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:999999;background:#153b51;color:#fff;padding:8px 15px;border-radius:999px;box-shadow:0 5px 22px #0003;font:600 12px system-ui;pointer-events:none}body{padding-bottom:30px}</style><div id="bha-qa-banner">LOCAL QA BUILD · Not approved for production · Redwood import blocked pending server fix</div></body></html>`);w.document.close();setTimeout(()=>w.print(),250);
+<style id="bha-qa-banner-style">#bha-qa-banner{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:999999;background:#153b51;color:#fff;padding:8px 15px;border-radius:999px;box-shadow:0 5px 22px #0003;font:600 12px system-ui;pointer-events:none}body{padding-bottom:30px}</style><div id="bha-qa-banner">LOCAL QA BUILD · Not approved for production · Redwood import blocked pending server fix</div>
+<style id="bha-provider-overview-balanced-v8">
+@media (min-width:1100px){
+  body:has(.v19-role-hero.v19-provider) .v19-role-strip + .kpis{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:12px!important}
+  body:has(.v19-role-hero.v19-provider) .v19-role-strip + .kpis > .kpi{grid-column:span 2!important;min-width:0}
+  body:has(.v19-role-hero.v19-provider) .v19-role-strip + .kpis > .kpi:nth-child(4),
+  body:has(.v19-role-hero.v19-provider) .v19-role-strip + .kpis > .kpi:nth-child(5){grid-column:span 3!important}
+}
+</style>
+</body></html>`);w.document.close();setTimeout(()=>w.print(),250);
 }
 function riForecastBaselineKey(){return `bha-ri-forecast:${state.client?.id||state.profile?.client_id||'unknown'}`}
 function riForecastBaseline(x){try{return JSON.parse(localStorage.getItem(riForecastBaselineKey())||'null')}catch(_){return null}}
@@ -3442,7 +3463,7 @@ function v52RoleLabel(k){
   admin:{overview:'Executive Overview',intelligence:'Revenue Intelligence',ar:'AR Management',denials:'Denial Management',verification:'Insurance Verification',auth:'Prior Authorization',charges:'Charge Submission',payments:'Payment Posting',communication:'Communication Center',automation:'Automation Network',imports:'Data Operations',users:'Users & Access',clients:'Clients & Practices',activity:'Audit & Activity'},
   user:{overview:'My Work',intelligence:'Revenue Insights',ar:'Accounts Receivable',denials:'Denials',verification:'Eligibility',auth:'Prior Authorization',charges:'Charges',payments:'Payment Posting',communication:'Communication',imports:'Data Operations'},
   client:{overview:'Practice Overview',intelligence:'Revenue Insights',ar:'Accounts Receivable',denials:'Denials',payments:'Payments',verification:'Eligibility',auth:'Authorizations',charges:'Charges',communication:'Messages'},
-  provider:{overview:'My Overview',denials:'Denials',auth:'Authorizations',charges:'My Charges',communication:'Messages'}
+  provider:{overview:'My Overview',ar:'My Accounts Receivable',denials:'My Denials',payments:'My Payments',verification:'My Eligibility',auth:'My Authorizations',charges:'My Charges',communication:'Messages'}
  };
  return labels[r]?.[k]||modules[k]?.label||k;
 }
@@ -3453,7 +3474,7 @@ navHtml=function(){
  const groups=r==='admin'?[['Overview',['overview','intelligence']],['Revenue Operations',['ar','denials','verification','auth','charges','payments']],['Collaboration',['communication']],['Operations',['automation','imports']],['Administration',['users','clients','activity']]]:
  r==='user'?[['My Workspace',['overview']],['Revenue Operations',['ar','denials','verification','auth','charges','payments']],['Insights',['intelligence']],['Collaboration',['communication']],['Data',['imports']]]:
  r==='client'?[['My Practice',['overview','intelligence']],['Revenue Performance',['ar','denials','payments']],['Patient Access',['verification','auth']],['Billing Activity',['charges']],['Support',['communication']]]:
- [['My Workspace',['overview']],['Claims & Follow-up',['charges','denials','auth']],['Support',['communication']]];
+ [['My Workspace',['overview']],['Revenue',['ar','charges','denials','payments']],['Patient Access',['verification','auth']],['Support',['communication']]];
  return groups.map(g=>{const buttons=g[1].filter(k=>allowed.has(k)).map(k=>`<button type="button" data-section="${k}" onclick="navigateToSection(&quot;${k}&quot;)" class="${state.section===k?'active':''}"><span class="nav-icon">${modules[k]?.icon||'•'}</span><span>${esc(v52RoleLabel(k))}</span>${k==='communication'?'<i id="commNavBadge" class="comm-nav-badge hidden">0</i>':''}</button>`).join('');return buttons?`<div class="nav-label">${g[0]}</div>${buttons}`:''}).join('');
 };
 
@@ -3944,6 +3965,15 @@ function trustworthyDateSet(rows,module){
  return plausible.length/Math.max(1,ds.length)>=.8
 }
 function age(r){const n=parseNum(get(r,F.days));if(n!==null)return n;const b=String(get(r,F.bucket)||'').trim();return {'0-30':15,'31-60':45,'61-90':75,'91-120':105,'121-180':150,'181-240':210,'241-365':300,'365+':366,'120+':150}[b]??null}
+function bhaProviderKey(value){
+  return String(value??'').replace(/[\s,]+/g,'').toLowerCase();
+}
+function bhaOwnProviderRecord(row){
+  if(role()!=='provider')return true;
+  const own=bhaProviderKey(S.profile?.provider_name);
+  const raw=row?.__payment_dataset_type==='summary'||row?.resource_provider!=null ? row?.resource_provider : get(row,F.provider);
+  return !!own && !!bhaProviderKey(raw) && bhaProviderKey(raw)===own
+}
 function role(){return S.profile?.role||'client'}
 function canSwitch(){return role()==='admin'||S.profile?.access_all===true||S.clients.length>1}
 function scope(){return S.client?.name||'Authorized Practices'}
@@ -3969,7 +3999,7 @@ async function fetchModule(m){
    const q=await sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id',{count:'exact'}).eq('client_id',id).eq('module',m).order('uploaded_at',{ascending:false}).range(from,from+size-1);
    if(q.error)throw q.error;total=Number(q.count??0);for(const x of q.data||[]){const d={...(x.data||{}),client_id:x.client_id,__external_id:x.external_id,__db_uploaded_at:x.uploaded_at,__source_batch_id:x.import_batch_id};rows.push(d)}if(!(q.data||[]).length)break;from+=size;
  }
- if(role()==='provider'&&S.profile?.provider_name){const pn=String(S.profile.provider_name).trim().toLowerCase();rows=rows.filter(r=>String(get(r,F.provider)||'').trim().toLowerCase()===pn)}
+ if(role()==='provider')rows=rows.filter(bhaOwnProviderRecord)
  return rows;
 }
 async function loadAll(){
@@ -3994,7 +4024,7 @@ function filtered(rows){
 function filtersHtml(){
  const flat=(document.getElementById('content')?.dataset.module==='ar'?(S.records.ar||[]):allRows()),providers=uniq(flat,F.provider),payers=uniq(flat,F.payer),cpts=uniq(flat,F.cpt);
  const opts=(a,s,l)=>'<option value="">'+l+'</option>'+a.map(v=>`<option value="${esc(v)}" ${v===s?'selected':''}>${esc(v)}</option>`).join('');
- return `<div class="filters"><span class="flabel">Reporting Period</span>${[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom']].map(([v,l])=>`<button class="period ${S.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}${S.period==='custom'?`<input id="from" type="date" value="${esc(S.from)}"><input id="to" type="date" value="${esc(S.to)}">`:''}${providers.length?`<select id="provider">${opts(providers,S.provider,'All Providers')}</select>`:''}${payers.length?`<select id="payer">${opts(payers,S.payer,'All Payers')}</select>`:''}${cpts.length?`<select id="cpt">${opts(cpts,S.cpt,'All CPT / Procedures')}</select>`:''}<button class="period" id="reset">Reset</button><span class="filter-note">Filters appear only when the corresponding data is available.</span></div>`
+ return `<div class="filters"><span class="flabel">Reporting Period</span>${[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom']].map(([v,l])=>`<button class="period ${S.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}${S.period==='custom'?`<input id="from" type="date" value="${esc(S.from)}"><input id="to" type="date" value="${esc(S.to)}">`:''}${role()!=='provider'&&providers.length?`<select id="provider">${opts(providers,S.provider,'All Providers')}</select>`:''}${payers.length?`<select id="payer">${opts(payers,S.payer,'All Payers')}</select>`:''}${cpts.length?`<select id="cpt">${opts(cpts,S.cpt,'All CPT / Procedures')}</select>`:''}<button class="period" id="reset">Reset</button><span class="filter-note">Filters appear only when the corresponding data is available.</span></div>`
 }
 function coverageHtml(){return MODS.filter(m=>(S.records[m]||[]).length).map(m=>`<span class="on">${esc(MOD_LABEL[m])} · ${count(S.records[m].length)}</span>`).join('')}
 function hero(title,desc){return `<section class="hero"><div class="hero-row"><div><div class="eyebrow">${role()==='provider'?'Provider intelligence':'Practice intelligence'}</div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="live"><span class="dot"></span> Published data</div></div><div class="coverage">${coverageHtml()}</div></section>`}
@@ -4194,6 +4224,7 @@ function v31RenderRedwoodAR(){
  const arPatient=r=>arText(r,['patient_name','patient','Patient Name','Patient','patientName']);
  const arAccount=r=>arText(r,['account_no','patient_id','Patient Acct No','Patient Account No','account_number','account']);
  const rawQuery=S.search||'',bucket=S.v31Bucket||'all';
+ if(role()==='provider')S.v31Provider='';
  const arProviders=[...new Set(rows.map(r=>String(get(r,F.provider)||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
  if(S.v31Provider&&!arProviders.includes(S.v31Provider))S.v31Provider='';
  let filtered=rows.filter(r=>(bucket==='all'||n(r,bucket)!==0)&&(!S.v31Provider||String(get(r,F.provider)||'').trim()===S.v31Provider));
@@ -4208,8 +4239,8 @@ function v31RenderRedwoodAR(){
    const detail=expanded?`<tr class="v32-expanded"><td colspan="${cols.length+1}" style="background:#f0f8fc;padding:17px 22px;white-space:normal"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px"><div><b>Claim Number</b><p>${esc(r.claim_id||'—')}</p></div><div><b>Patient</b><p>${esc(arPatient(r)||'—')}</p><b>Date of Service</b><p>${esc(r.dos||'—')}</p></div><div style="grid-column:span 2"><b>CPT / Procedure Details</b><div style="margin-top:8px">${cpts}</div></div></div></td></tr>`:'';
    return `<tr>${cells}<td style="white-space:nowrap"><button type="button" class="v32-view" data-v32-view="${idx}" aria-expanded="${expanded?'true':'false'}">${expanded?'Hide Details':'View Details'} →</button></td></tr>${detail}`;
  }).join('');
- document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';
- document.getElementById('content').innerHTML=hero('Accounts Receivable','Monitor outstanding balances and source-supported claim aging for Redwood Medical Aurora.')+`<div class="ar2-kpis">${kpis.join('')}</div><div class="card" style="margin-bottom:14px"><div class="card-head"><div><h3>A/R Aging</h3><p>Exact five aging buckets from the source Excel report. The over-120-day bucket is not split into unsupported older bands.</p></div><span class="badge">${money(total)} total A/R</span></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">${aging}</div></div><div class="card ar2-table"><div class="card-head"><div><h3>Claim-Level A/R Detail</h3><p>Updated AR dataset · ${count(countRows)} claims. Search, aging filters and pagination.</p></div><span class="badge">${count(filtered.length)} matching</span></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 0"><input id="v31Search" placeholder="Search patient, claim or CPT" value="${esc(rawQuery)}" style="min-width:280px;flex:1">${arProviders.length?`<select id="v31Provider" style="min-width:190px"><option value="">All Providers</option>${arProviders.map(v=>`<option value="${esc(v)}" ${S.v31Provider===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`:`<span class="meta">Provider field not available in this A/R source</span>`}<select id="v31Bucket" style="min-width:185px"><option value="all">All aging buckets</option>${buckets.map(([key,label])=>`<option value="${key}" ${bucket===key?'selected':''}>${label}</option>`).join('')}</select></div><div class="tablewrap bha-ar-wide" style="overflow-x:auto;overflow-y:visible;max-height:none"><table class="table bha-ar-grid"><colgroup><col style="width:10%"><col style="width:13%"><col style="width:7%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:6%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:6%"><col style="width:6%"><col style="width:5%"><col style="width:5%"></colgroup><thead><tr>${cols.map(([label,key])=>`<th class="${moneyKeys.has(key)?'bha-ar-num':'bha-ar-text'}">${label}</th>`).join('')}<th class="bha-ar-text">Details</th></tr></thead><tbody>${trs}</tbody></table></div><div class="ar3-page"><span>Showing ${filtered.length?from+1:0}–${Math.min(from+per,filtered.length)} of ${count(filtered.length)} · Page ${S.arPage} of ${pages}</span><button id="arPrev" ${S.arPage<=1?'disabled':''}>Previous</button><button id="arNext" ${S.arPage>=pages?'disabled':''}>Next</button></div></div>`;
+ document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent=role()==='provider'?'My Accounts Receivable':'Accounts Receivable';
+ document.getElementById('content').innerHTML=hero(role()==='provider'?'My Accounts Receivable':'Accounts Receivable',role()==='provider'?'Review only your published claim balances and source-supported aging.':'Monitor outstanding balances and source-supported claim aging for Redwood Medical Aurora.')+`<div class="ar2-kpis" ${role()==='provider'?'style="grid-template-columns:repeat(3,minmax(0,1fr))"':''}>${kpis.join('')}</div><div class="card" style="margin-bottom:14px"><div class="card-head"><div><h3>A/R Aging</h3><p>Exact five aging buckets from the source Excel report. The over-120-day bucket is not split into unsupported older bands.</p></div><span class="badge">${money(total)} total A/R</span></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">${aging}</div></div><div class="card ar2-table"><div class="card-head"><div><h3>Claim-Level A/R Detail</h3><p>Updated AR dataset · ${count(countRows)} claims. Search, aging filters and pagination.</p></div><span class="badge">${count(filtered.length)} matching</span></div><div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 0"><input id="v31Search" placeholder="Search patient, claim or CPT" value="${esc(rawQuery)}" style="min-width:280px;flex:1">${role()!=='provider'&&arProviders.length?`<select id="v31Provider" style="min-width:190px"><option value="">All Providers</option>${arProviders.map(v=>`<option value="${esc(v)}" ${S.v31Provider===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`:role()==='provider'?'':`<span class="meta">Provider filter unavailable for this source</span>`}<select id="v31Bucket" style="min-width:185px"><option value="all">All aging buckets</option>${buckets.map(([key,label])=>`<option value="${key}" ${bucket===key?'selected':''}>${label}</option>`).join('')}</select></div><div class="tablewrap bha-ar-wide" style="overflow-x:auto;overflow-y:visible;max-height:none"><table class="table bha-ar-grid"><colgroup><col style="width:10%"><col style="width:13%"><col style="width:7%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:6%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:6%"><col style="width:6%"><col style="width:5%"><col style="width:5%"></colgroup><thead><tr>${cols.map(([label,key])=>`<th class="${moneyKeys.has(key)?'bha-ar-num':'bha-ar-text'}">${label}</th>`).join('')}<th class="bha-ar-text">Details</th></tr></thead><tbody>${trs}</tbody></table></div><div class="ar3-page"><span>Showing ${filtered.length?from+1:0}–${Math.min(from+per,filtered.length)} of ${count(filtered.length)} · Page ${S.arPage} of ${pages}</span><button id="arPrev" ${S.arPage<=1?'disabled':''}>Previous</button><button id="arNext" ${S.arPage>=pages?'disabled':''}>Next</button></div></div>`;
  document.querySelectorAll('[data-v32-view]').forEach(button=>button.addEventListener('click',()=>{
    const idx=Number(button.dataset.v32View);S.v32Expanded=S.v32Expanded===idx?-1:idx;
    const wrap=document.querySelector('.ar2-table .tablewrap');const scroll=wrap?.scrollTop||0;
@@ -4257,7 +4288,7 @@ function moduleDashboard(m,rows){
  if(m==='denials'){cards=[kpi('Denial Exposure',sum(rows,F.balance)||sum(rows,F.charges),'Current filtered denials','red'),kpi('Denial Records',rows.length,'Visible inventory','pink','count')];if(has(rows,F.cpt))cards.push(kpi('CPT / Procedures',uniq(rows,F.cpt).length,'Unique source values','purple','count'));primary=has(rows,F.cpt)?group(rows,F.cpt,F.balance):group(rows,F.payer,F.balance);title=has(rows,F.cpt)?'Denial Exposure by CPT':'Denial Exposure by Payer'}
  if(m==='verification'){cards=[kpi('Eligibility Records',rows.length,'Current filtered records','blue','count'),kpi('Payers',uniq(rows,F.payer).length,'Unique payer values','purple','count'),kpi('Statuses',uniq(rows,F.status).length,'Source-defined states','green','count')];primary=group(rows,F.payer,null);title='Eligibility Volume by Payer';moneyBars=false}
  if(m==='auth'){cards=[kpi('Authorization Records',rows.length,'Current filtered records','blue','count'),kpi('Providers',uniq(rows,F.provider).length,'Unique providers','teal','count'),kpi('Procedures',uniq(rows,F.cpt).length,'CPT / procedure values','pink','count')];primary=has(rows,F.cpt)?group(rows,F.cpt,null):group(rows,F.payer,null);title=has(rows,F.cpt)?'Authorization Volume by Procedure':'Authorization Volume by Payer';moneyBars=false}
- if(m==='charges'){cards=[kpi('Total Charges',sum(rows,F.charges),'Current filtered charges','teal'),kpi('Charge Records',rows.length,'Current filtered records','blue','count'),kpi('Providers',uniq(rows,F.provider).length,'Unique providers','purple','count')];if(has(rows,F.cpt))cards.push(kpi('CPT / Procedures',uniq(rows,F.cpt).length,'Unique source values','pink','count'));primary=has(rows,F.cpt)?group(rows,F.cpt,F.charges):group(rows,F.provider,F.charges);title=has(rows,F.cpt)?'Charges by CPT / Procedure':'Charges by Provider'}
+ if(m==='charges'){const own=role()==='provider';cards=[kpi('Total Charges',sum(rows,F.charges),'Current filtered charges','teal'),kpi('Charge Records',rows.length,'Current filtered records','blue','count')];if(!own)cards.push(kpi('Providers',uniq(rows,F.provider).length,'Unique providers','purple','count'));if(has(rows,F.cpt))cards.push(kpi('CPT / Procedures',uniq(rows,F.cpt).length,'Unique source values','pink','count'));primary=own?(has(rows,F.payer)?group(rows,F.payer,F.charges):has(rows,F.cpt)?group(rows,F.cpt,F.charges):[]):has(rows,F.cpt)?group(rows,F.cpt,F.charges):group(rows,F.provider,F.charges);title=own?(has(rows,F.payer)?'My Charges by Payer':has(rows,F.cpt)?'My Charges by Procedure':'My Charge Breakdown'):(has(rows,F.cpt)?'Charges by CPT / Procedure':'Charges by Provider')}
  return {cards,primary,title,moneyBars}
 }
 
@@ -4277,7 +4308,7 @@ function chargeDetailTable(rows){
  const defs=[['Patient',F.patient],['DOS',['service_date','Service Date','dos','DOS']],['Claim #',F.claim],['Payer',F.payer],['Provider',F.provider],['Status',F.status],['Charges',F.charges],['Payments / Adjustments',['pmts_adjs','PMTS/ADJS','payments_adjustments','Payments/Adjustments']],['Balance',F.balance],['Account #',['account_number','Account Number','patient_acct_no','Patient Acct No']]];
  const cols=defs.filter(([,k])=>has(rows,k));
  const cell=(r,label,k)=>{const v=get(r,k);if(label==='Provider'||label==='Patient')return esc(chargeDisplayName(v));if(label==='DOS')return esc(chargeDate(v));if(/Charges|Payments|Balance/.test(label))return `<span class="den-money">${chargeMoney(v)}</span>`;return esc(v??'—')};
- return `<div class="card tablecard" style="margin-top:11px"><div class="card-head"><div><h3>Charge-Level Detail</h3><p>Client-facing claim detail using source-supported fields only.</p></div><span class="badge">${count(view.length)} matching</span></div><div class="tabletools"><input id="search" placeholder="Search patient, claim, payer, provider or status…" value="${esc(S.search)}"><span class="meta">Showing ${count(view.length?from+1:0)}–${count(Math.min(from+size,view.length))} of ${count(view.length)}</span></div><div class="tablewrap"><table class="table"><thead><tr>${cols.map(([l])=>`<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(([l,k])=>`<td>${cell(r,l,k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="pay2-page"><span>Page ${S.chargePage} of ${pages}</span><button id="chargePrev" ${S.chargePage<=1?'disabled':''}>Previous</button><button id="chargeNext" ${S.chargePage>=pages?'disabled':''}>Next</button></div></div>`
+ return `<div class="card tablecard" style="margin-top:11px"><div class="card-head"><div><h3>Charge-Level Detail</h3><p>${role()==='provider'?'Your provider-attributed claim records using published source fields.':'Client-facing claim detail using source-supported fields only.'}</p></div><span class="badge">${count(view.length)} matching</span></div><div class="tabletools"><input id="search" placeholder="Search patient, claim, payer, provider or status…" value="${esc(S.search)}"><span class="meta">Showing ${count(view.length?from+1:0)}–${count(Math.min(from+size,view.length))} of ${count(view.length)}</span></div><div class="tablewrap"><table class="table"><thead><tr>${cols.map(([l])=>`<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(([l,k])=>`<td>${cell(r,l,k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="pay2-page"><span>Page ${S.chargePage} of ${pages}</span><button id="chargePrev" ${S.chargePage<=1?'disabled':''}>Previous</button><button id="chargeNext" ${S.chargePage>=pages?'disabled':''}>Next</button></div></div>`
 }
 function bindChargeTable(){
  const q=document.getElementById('search');if(q)q.oninput=()=>{S.search=q.value;S.chargePage=1;renderCharges()};
@@ -4286,9 +4317,9 @@ function bindChargeTable(){
 }
 function renderCharges(){
  document.getElementById('content').dataset.module='charges';
- document.getElementById('pageName').textContent='Charges';const rows=moduleRows('charges'),d=moduleDashboard('charges',rows);
+ document.getElementById('pageName').textContent=role()==='provider'?'My Charges':'Charges';const rows=moduleRows('charges'),d=moduleDashboard('charges',rows);
  const status=group(rows,F.status,null);
- document.getElementById('content').innerHTML=hero('Charges','Review billed charges, provider activity and claim workflow from the published charge data.')+filtersHtml()+`<div class="kpis">${d.cards.join('')}</div><div class="grid2"><div class="card"><div class="card-head"><div><h3>${esc(d.title)}</h3><p>Charge exposure ranked from the current published source.</p></div><span class="badge">${count(rows.length)} records</span></div>${bars(d.primary,true)}</div><div class="card"><div class="card-head"><div><h3>Workflow Status</h3><p>Current source-defined claim workflow states.</p></div></div>${bars(status,false)}</div></div>`+chargeDetailTable(rows);
+ document.getElementById('content').innerHTML=hero(role()==='provider'?'My Charges':'Charges',role()==='provider'?'Review only your published charges, payer mix and claim workflow.':'Review billed charges, provider activity and claim workflow from the published charge data.')+filtersHtml()+`<div class="kpis" style="${role()==='provider'?'grid-template-columns:repeat(2,minmax(0,1fr));':''}">${d.cards.join('')}</div><div class="grid2"><div class="card"><div class="card-head"><div><h3>${esc(d.title)}</h3><p>Charge exposure ranked from the current published source.</p></div><span class="badge">${count(rows.length)} records</span></div>${d.primary.length?bars(d.primary,true):'<p class="meta">No source-supported breakdown available.</p>'}</div><div class="card"><div class="card-head"><div><h3>Workflow Status</h3><p>Current source-defined claim workflow states.</p></div></div>${bars(status,false)}</div></div>`+chargeDetailTable(rows);
  bindFilters(()=>{S.chargePage=1;renderCharges()});bindChargeTable()
 }
 
@@ -4304,18 +4335,18 @@ function denStatusHtml(rows){const m=new Map();for(const r of rows){const s=denS
 function denDetailTable(rows,threshold){let view=denQueueRows(rows,threshold);if(S.search){const q=S.search.toLowerCase();view=view.filter(r=>sourceKeys(r).some(k=>String(r[k]??'').toLowerCase().includes(q)))}const pageSize=50,totalPages=Math.max(1,Math.ceil(view.length/pageSize));S.denialPage=Math.min(Math.max(1,S.denialPage||1),totalPages);const from=(S.denialPage-1)*pageSize,shown=view.slice(from,from+pageSize);const core=[['Priority',null],['Patient',F.patient],['DOS',['dos','DOS','service_date','Service Date']],['Claim #',F.claim],['Payer',F.payer],['Status',F.status],['Balance',F.balance],['Charges',F.charges],['Payments / Adjustments',['pmts_adjs','PMTS/ADJS','payments_adjustments','Payments/Adjustments']],['Provider',F.provider]];const cols=[];for(const [label,keys] of core){if(!keys||has(rows,keys))cols.push({label,keys})}
  const cell=(r,c)=>{if(c.label==='Priority'){const p=denPriority(r,threshold),label=p==='Critical'?'High Balance':p==='High'?'Elevated':'Standard';return`<span class="den-priority ${p.toLowerCase()}">${label}</span>`}const v=get(r,c.keys);if(/balance|charge|payment|adjust|withheld|refund/i.test(c.label))return`<span class="den-money">${denMoneyExact(v)}</span>`;return esc(v??'—')};
  const nav=`<div class="den-page"><button data-denpage="prev" ${S.denialPage<=1?'disabled':''}>← Previous</button><span>Page ${count(S.denialPage)} of ${count(totalPages)}</span><button data-denpage="next" ${S.denialPage>=totalPages?'disabled':''}>Next →</button></div>`;
- return `<div class="card den-table"><div class="card-head"><div><h3>Claim-Level Denial Detail</h3><p>Review individual denial and rejection records with the most relevant client-facing fields first.</p></div><span class="badge">${count(view.length)} matching</span></div><div class="den-quick">${[['all','All Denials'],['era','ERA Denied'],['insurance','Insurance Rejected'],['clearing','Clearinghouse Rejected'],['high','High Balance']].map(([k,l])=>`<button data-denq="${k}" class="${(S.denialQueue||'all')===k?'active':''}">${l}</button>`).join('')}</div><div class="tabletools"><input id="search" placeholder="Search patient, claim, payer, status…" value="${esc(S.search)}"><span class="meta">Showing ${count(view.length?from+1:0)}–${count(Math.min(from+pageSize,view.length))} of ${count(view.length)}</span></div><div class="tablewrap"><table class="table"><thead><tr>${cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${cell(r,c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${nav}</div>`}
+ return `<div class="card den-table"><div class="card-head"><div><h3>Claim-Level Denial Detail</h3><p>${role()==='provider'?'Review your provider-attributed denial and rejection records.':'Review individual denial and rejection records with the most relevant client-facing fields first.'}</p></div><span class="badge">${count(view.length)} matching</span></div><div class="den-quick">${[['all','All Denials'],['era','ERA Denied'],['insurance','Insurance Rejected'],['clearing','Clearinghouse Rejected'],['high','High Balance']].map(([k,l])=>`<button data-denq="${k}" class="${(S.denialQueue||'all')===k?'active':''}">${l}</button>`).join('')}</div><div class="tabletools"><input id="search" placeholder="Search patient, claim, payer, status…" value="${esc(S.search)}"><span class="meta">Showing ${count(view.length?from+1:0)}–${count(Math.min(from+pageSize,view.length))} of ${count(view.length)}</span></div><div class="tablewrap"><table class="table"><thead><tr>${cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${cell(r,c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${nav}</div>`}
 function renderDenials(){
  document.getElementById('content').dataset.module='denials';
- document.getElementById('pageName').textContent='Denials';const rows=moduleRows('denials');
- if(!rows.length){document.getElementById('content').innerHTML=hero('Denial Management','Monitor denial exposure and rejection activity for your practice.')+filtersHtml()+'<div class="empty"><b>No published denial records</b>This view will populate automatically when denial data is published.</div>';bindFilters(renderDenials);return}
+ document.getElementById('pageName').textContent=role()==='provider'?'My Denials':'Denials';const rows=moduleRows('denials');
+ if(!rows.length){document.getElementById('content').innerHTML=hero(role()==='provider'?'My Denials':'Denial Management',role()==='provider'?'Review only your published denial and rejection records.':'Monitor denial exposure and rejection activity for your practice.')+filtersHtml()+'<div class="empty"><b>No published denial records</b>This view will populate automatically when denial data is published.</div>';bindFilters(renderDenials);return}
  const exposure=rows.reduce((a,r)=>a+denBalance(r),0),threshold=denHighThreshold(rows),high=threshold==null?[]:rows.filter(r=>denBalance(r)>=threshold),avg=rows.length?exposure/rows.length:null;
  const payers=(()=>{const m=new Map();for(const r of rows){const p=String(get(r,F.payer)||'Unspecified').trim()||'Unspecified';m.set(p,(m.get(p)||0)+denBalance(r))}return[...m].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value)})();
  const top=payers[0]||null,statuses=uniq(rows,F.status),era=rows.filter(r=>/era payer denied/i.test(denStatus(r))),ins=rows.filter(r=>/insurance rejected/i.test(denStatus(r))),clear=rows.filter(r=>/clearinghouse rejected/i.test(denStatus(r)));
  const cards=[kpi('Denial Exposure',exposure,`Outstanding balance across ${count(rows.length)} denial records`,'red'),kpi('Denial Records',rows.length,'Current denial and rejection inventory','pink','count'),kpi('Avg Denial Balance',avg,'Average outstanding balance per record','purple'),kpi('High-Balance Exposure',high.reduce((a,r)=>a+denBalance(r),0),`${count(high.length)} highest-balance records`,'teal')];
  const top5=payers.slice(0,5).reduce((a,x)=>a+x.value,0);
  const actions=[['High-balance exposure',money(high.reduce((a,r)=>a+denBalance(r),0)),count(high.length)+' highest-balance records.','high','Review high balance'],['Insurance rejections',count(ins.length),money(ins.reduce((a,r)=>a+denBalance(r),0))+' current exposure.','insurance','Review insurance rejected'],['Clearinghouse rejections',count(clear.length),money(clear.reduce((a,r)=>a+denBalance(r),0))+' current exposure.','clearing','Review clearinghouse rejected'],['Top 5 payer concentration',exposure?((top5/exposure)*100).toFixed(1)+'%':'—',exposure?'Top 5 payers represent '+((top5/exposure)*100).toFixed(1)+'% of total denial exposure.'+(top?' '+top.name+' is the largest at '+money(top.value)+'.':''):'Payer data not supplied.','all','Review payer mix']];
- document.getElementById('content').innerHTML=hero('Denial Management','Monitor denial exposure, payer concentration, rejection status and claim-level follow-up in one view.')+filtersHtml()+`<div class="den-kpis">${cards.join('')}</div><div class="den-grid"><div class="card"><div class="card-head"><div><h3>Payer Denial Concentration</h3><p>Outstanding denial exposure by payer, with record volume and share of total exposure.</p></div><span class="badge">Top ${Math.min(7,payers.length)} of ${count(payers.length)} payers</span></div>${denPayerHtml(rows)}</div><div class="card"><div class="card-head"><div><div class="den-status-title"><h3>Denial Status Mix</h3></div><p>Record share and financial exposure by source-supplied denial status.</p></div><span class="badge">${count(statuses.length)} statuses</span></div>${denStatusHtml(rows)}</div></div><div class="card den-priority-card" style="margin-bottom:11px"><div class="card-head"><div><h3>Denial Priority Center</h3><p>High-impact areas for client review based on the published denial data.</p></div></div><div class="den-action">${actions.map(([l,v,n,k,b])=>`<article class="${(S.denialQueue||'all')===k?'active':''}"><label>${esc(l)}</label><strong>${esc(v)}</strong><small>${esc(n)}</small><button data-denq="${k}">${esc(b)} →</button></article>`).join('')}</div></div>`+denDetailTable(rows,threshold);
+ document.getElementById('content').innerHTML=hero(role()==='provider'?'My Denials':'Denial Management',role()==='provider'?'Review your denial exposure, payer concentration, rejection status and claim-level follow-up.':'Monitor denial exposure, payer concentration, rejection status and claim-level follow-up in one view.')+filtersHtml()+`<div class="den-kpis">${cards.join('')}</div><div class="den-grid"><div class="card"><div class="card-head"><div><h3>Payer Denial Concentration</h3><p>Outstanding denial exposure by payer, with record volume and share of total exposure.</p></div><span class="badge">Top ${Math.min(7,payers.length)} of ${count(payers.length)} payers</span></div>${denPayerHtml(rows)}</div><div class="card"><div class="card-head"><div><div class="den-status-title"><h3>Denial Status Mix</h3></div><p>Record share and financial exposure by source-supplied denial status.</p></div><span class="badge">${count(statuses.length)} statuses</span></div>${denStatusHtml(rows)}</div></div><div class="card den-priority-card" style="margin-bottom:11px"><div class="card-head"><div><h3>Denial Priority Center</h3><p>${role()==='provider'?'High-impact areas for your follow-up based on your published denial records.':'High-impact areas for client review based on the published denial data.'}</p></div></div><div class="den-action">${actions.map(([l,v,n,k,b])=>`<article class="${(S.denialQueue||'all')===k?'active':''}"><label>${esc(l)}</label><strong>${esc(v)}</strong><small>${esc(n)}</small><button data-denq="${k}">${esc(b)} →</button></article>`).join('')}</div></div>`+denDetailTable(rows,threshold);
  bindFilters(()=>{S.denialQueue='all';S.denialPage=1;renderDenials()});document.getElementById('search')?.addEventListener('input',e=>{S.search=e.target.value;S.denialPage=1;renderDenials()});document.querySelectorAll('[data-denq]').forEach(b=>b.onclick=()=>{S.denialQueue=b.dataset.denq;S.denialPage=1;renderDenials();setTimeout(()=>document.querySelector('.den-table')?.scrollIntoView({behavior:'smooth',block:'start'}),0)});document.querySelectorAll('[data-denpage]').forEach(b=>b.onclick=()=>{S.denialPage=Math.max(1,(S.denialPage||1)+(b.dataset.denpage==='next'?1:-1));renderDenials();setTimeout(()=>document.querySelector('.den-table')?.scrollIntoView({behavior:'smooth',block:'start'}),0)})
 }
 
@@ -4335,6 +4366,7 @@ function paymentBaseRows(){
 }
 function paymentDatasetRows(type){
  let rows=paymentBaseRows().filter(r=>paymentType(r)===type);
+ if(getRole()==='provider')rows=type==='claim'?rows.filter(r=>typeof bhaOwnProviderRecord==='function'&&bhaOwnProviderRecord(r)):[];
  if(type==='summary'){
    if(S.paymentProvider)rows=rows.filter(r=>String(get(r,F.provider)||'').trim()===String(S.paymentProvider).trim());
    return rows
@@ -4432,6 +4464,31 @@ function bindPaymentTable(){
  document.querySelectorAll('[data-pay-provider]').forEach(b=>b.onclick=()=>{S.paymentProvider=b.dataset.payProvider;S.paymentView='claim';S.paymentPage=1;S.search='';renderPayments()})
 }
 function renderPayments(){
+ if(getRole()==='provider'){
+   document.getElementById('content').dataset.module='payments';
+   document.getElementById('pageName').textContent='My Payments';
+   // Never render organization-level financial summary to a provider.
+   // Records lacking a reliable provider attribution are excluded rather than guessed.
+   const own=(S.records.payments||[]).filter(r=>typeof bhaOwnProviderRecord==='function'&&bhaOwnProviderRecord(r));
+   const summary=own.filter(r=>paymentType(r)==='summary');
+   const claims=own.filter(r=>paymentType(r)==='claim');
+   if(summary.length){
+     const amount=(r,key)=>parseNum(r[key]);
+     const total=(key)=>summary.reduce((v,r)=>v+(amount(r,key)||0),0);
+     const deposit=total('total_deposit_amount'),payer=total('payer_payments'),patient=total('patient_payments');
+     const charges=total('charges'),adjustments=total('contractual_adjustment'),writeoffs=total('writeoff_adjustment');
+     const claimCount=total('claim_count');
+     const card=(name,value,detail)=>'<div class="card" style="padding:20px"><small>'+esc(name)+'</small><h2 style="margin:12px 0">'+esc(value)+'</h2><p>'+esc(detail)+'</p></div>';
+     const cash=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+     document.getElementById('content').innerHTML=hero('My Payments','Only payment summary records attributed to your provider are shown. No other provider or practice totals are included.')+
+       '<div class="kpis" style="margin-top:18px">'+card('Total Deposits',cash(deposit),'Uploaded provider payment summary')+card('Insurance Payments',cash(payer),'Payer payments')+card('Patient Payments',cash(patient),'Patient payments')+card('Reported Claims',String(claimCount.toLocaleString('en-US')),'Count from uploaded payment summary')+card('Charges',cash(charges),'Source-reported charges')+card('Contractual Adjustments',cash(adjustments),'Source-reported adjustments')+card('Write-offs',cash(writeoffs),'Source-reported write-offs')+'</div>'+
+       '<div class="card" style="padding:20px;margin-top:16px"><h3>Provider Payment Summary</h3><p>'+esc(String(summary.length))+' verified provider-attributed summary record(s). '+(claims.length?esc(String(claims.length))+' provider-attributed claim payment records available.':'This source contains aggregate payment summaries, not claim-by-claim payment details.')+'</p></div>';
+     return;
+   }
+   document.getElementById('content').innerHTML=hero('My Payments','Payments are visible only when the uploaded records can be securely attributed to your provider profile.')+
+     '<div class="card" style="padding:28px;margin-top:16px"><h3>No verified provider-linked payments available</h3><p>There are no provider-attributed payment summary records available for your profile.</p></div>';
+   return;
+ }
  document.getElementById('content').dataset.module='payments';
  document.getElementById('pageName').textContent='Payments';
  const summary=paymentDatasetRows('summary'),claims=paymentDatasetRows('claim');
@@ -4509,7 +4566,7 @@ function eiStatusKind(v,type){
 function eiEmpty(type){
  const elig=type==='verification';
  const title=elig?'No eligibility data published yet':'No authorization data published yet';
- const desc=elig?'This practice does not currently have published eligibility records. Once data is available, verification status, coverage risk, payer trends and patient-level eligibility detail will appear automatically.':'This practice does not currently have published authorization records. Once data is available, approval status, pending work, payer trends, expiration risk and patient-level authorization detail will appear automatically.';
+ const providerOnly=role()==='provider'; const desc=elig?(providerOnly?'No eligibility records are currently available for your provider profile. Once provider-attributed records are published, eligibility details will appear here.':'This practice does not currently have published eligibility records. Once data is available, verification status, coverage risk, payer trends and patient-level eligibility detail will appear automatically.'):(providerOnly?'No authorization records are currently available for your provider profile. Once provider-attributed records are published, authorization details will appear here.':'This practice does not currently have published authorization records. Once data is available, approval status, pending work, payer trends, expiration risk and patient-level authorization detail will appear automatically.');
  const items=elig?[
   ['Verification Overview','Coverage verification status and exception counts appear when supplied.'],
   ['Coverage Intelligence','Copay, deductible and coinsurance insights appear when available.'],
@@ -4538,9 +4595,9 @@ function eiTable(type,rows){
 }
 function renderEligibility(){
  document.getElementById('content').dataset.module='verification';
- document.getElementById('pageName').textContent='Eligibility';
+ document.getElementById('pageName').textContent=role()==='provider'?'My Eligibility':'Eligibility';
  const rows=moduleRows('verification');
- document.getElementById('content').innerHTML=hero('Eligibility','Monitor verification status, coverage risk and patient eligibility from the data available for this practice.')+(rows.length?filtersHtml():'')+(rows.length?eligibilityBody(rows):eiEmpty('verification'));
+ document.getElementById('content').innerHTML=hero(role()==='provider'?'My Eligibility':'Eligibility',role()==='provider'?'Review only eligibility records attributed to your provider profile when published.':'Monitor verification status, coverage risk and patient eligibility from the data available for this practice.')+(rows.length?filtersHtml():'')+(rows.length?eligibilityBody(rows):eiEmpty('verification'));
  if(!rows.length){const b=document.querySelector('#content .hero .badge');if(b){b.innerHTML='<i></i>Awaiting eligibility data';b.style.opacity='.88'}}
  if(rows.length){bindFilters(renderEligibility);bindTable(rows)}
 }
@@ -4557,9 +4614,9 @@ function eligibilityBody(rows){
 }
 function renderAuth(){
  document.getElementById('content').dataset.module='auth';
- document.getElementById('pageName').textContent='Authorizations';
+ document.getElementById('pageName').textContent=role()==='provider'?'My Authorizations':'Authorizations';
  const rows=moduleRows('auth');
- document.getElementById('content').innerHTML=hero('Authorizations','Track authorization status, pending work and expiration risk from the data available for this practice.')+(rows.length?filtersHtml():'')+(rows.length?authBody(rows):eiEmpty('auth'));
+ document.getElementById('content').innerHTML=hero(role()==='provider'?'My Authorizations':'Authorizations',role()==='provider'?'Review only authorization records attributed to your provider profile when published.':'Track authorization status, pending work and expiration risk from the data available for this practice.')+(rows.length?filtersHtml():'')+(rows.length?authBody(rows):eiEmpty('auth'));
  if(!rows.length){const b=document.querySelector('#content .hero .badge');if(b){b.innerHTML='<i></i>Awaiting authorization data';b.style.opacity='.88'}}
  if(rows.length){bindFilters(renderAuth);bindTable(rows)}
 }
@@ -4588,7 +4645,7 @@ function liveRoleProfile(){return (typeof state!=='undefined'&&state.profile)?st
 function liveClient(){return (typeof state!=='undefined'&&state.client)?state.client:null}
 function updateLiveTopbar(section){
   const title=LIVE_DOC.querySelector('.topbar-page-copy strong');
-  if(title)title.textContent=LOCKED_LABELS[section]||section;
+  if(title){const isProvider=typeof S!=='undefined'&&S.profile?.role==='provider';title.textContent=isProvider&&({overview:1,charges:1,denials:1,verification:1,auth:1,ar:1,payments:1})[section]?'My '+({overview:'Overview',charges:'Charges',denials:'Denials',verification:'Eligibility',auth:'Authorizations',ar:'Accounts Receivable',payments:'Payments'})[section]:(LOCKED_LABELS[section]||section);}
 }
 function ensureLockedHost(){
   const root=LIVE_DOC.getElementById('sectionRoot');
@@ -4613,7 +4670,7 @@ function syncLockedContext(section){
 }
 function resetLockedClientState(){
   Object.assign(S,{records:{},period:'all',from:'',to:'',provider:'',payer:'',cpt:'',search:'',paymentPage:1,paymentPageSize:50,paymentProvider:'',paymentFacility:'',paymentView:'summary',arQueue:'all',arPage:1,arPageSize:50,denialQueue:'all',denialPage:1,chargePage:1});
-  S.charts={};
+  S.charts={};S.__loadedProviderKey=null;
 }
 const V29_REDWOOD_ID='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
 // AUDIT FIX: Never override published Redwood AR with embedded workbook data.
@@ -4697,7 +4754,7 @@ function renderLockedSection(section){
     if(S.profile?.role==='admin' && typeof state!=='undefined' && !state.client){void v22RenderPortfolio(section);return}
     showLockedError(new Error('No practice is selected.'));return
   }
-  const ready=(lockedClientId===cid&&Object.keys(S.records||{}).length>0);
+  const ready=(lockedClientId===cid&&Object.keys(S.records||{}).length>0&&!(S.profile?.role==='provider'&&S.__loadedProviderKey!==bhaProviderKey(S.profile?.provider_name)));
   if(ready){void v29ApplyLocalAr(cid).then(()=>{if(token===lockedRenderToken)renderSection()}).catch(e=>showLockedError(e));return}
   const c=document.getElementById('content');
   if(c)c.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
@@ -4762,7 +4819,7 @@ function v19ProviderOverview(){
  cards.push(kpi('Authorization Attention',pendingAuth+deniedAuth,'Pending, expiring, denied or rejected items','amber','count'));
  if(arAmt!=null)cards.push(kpi('My Outstanding A/R',arAmt,'Only provider-attributed receivables','purple'));
  const denialReason=group(den,F.denial,null),payer=group(charges.length?charges:den,F.payer,null);
- document.getElementById('content').innerHTML=v19RoleHero('PROVIDER WORKSPACE',pname,'A focused view of your own claims, denials and authorization items. Practice-wide financial and administrative data is intentionally excluded.','Provider scoped')+filtersHtml()+`<div class="v19-role-strip"><span>Provider <b>${esc(pname)}</b></span><span>Practice <b>${esc(scope())}</b></span><span>Access <b>Own attributed records only</b></span></div><div class="kpis">${cards.join('')}</div><div class="v19-grid"><div class="card"><div class="card-head"><div><h3>Items Needing My Attention</h3><p>Provider-facing follow-up based only on your mapped records.</p></div></div><div class="v19-actions">${v19ActionCard('red','Denials',count(den.length),den.length?'Review claims that may need documentation or clinical follow-up.':'No mapped denial records currently published.','denials','Review denials')}${v19ActionCard('amber','Authorizations',count(pendingAuth+deniedAuth),(pendingAuth+deniedAuth)?'Review pending, expiring or denied authorization items.':'No authorization attention items currently published.','auth','Review authorizations')}${v19ActionCard('blue','Charges',count(charges.length),charges.length?'Review your provider-attributed charge activity.':'No mapped charge records currently published.','charges','Review charges')}</div></div><div class="card"><div class="card-head"><div><h3>My Payer Mix</h3><p>Volume by payer across your mapped activity.</p></div></div>${bars(payer,false)}</div></div><div class="card"><div class="card-head"><div><h3>My Denial Reasons</h3><p>Source-defined denial reasons on your mapped claims.</p></div></div>${bars(denialReason,false)}</div>`;
+ document.getElementById('content').innerHTML=v19RoleHero('PROVIDER WORKSPACE',pname,'A focused view of your own claims, denials and authorization items. Practice-wide financial and administrative data is intentionally excluded.','Provider scoped')+filtersHtml()+`<div class="v19-role-strip"><span>Provider <b>${esc(pname)}</b></span><span>Practice <b>${esc(scope())}</b></span><span>Access <b>Own attributed records only</b></span></div><div class="kpis">${cards.join('')}</div><div class="v19-grid"><div class="card"><div class="card-head"><div><h3>My Activity & Follow-up</h3><p>Published activity counts; not all records necessarily require action.</p></div></div><div class="v19-actions">${v19ActionCard('red','Denials',count(den.length),den.length?'Review claims that may need documentation or clinical follow-up.':'No mapped denial records currently published.','denials','Review denials')}${v19ActionCard('amber','Authorizations',count(pendingAuth+deniedAuth),(pendingAuth+deniedAuth)?'Review pending, expiring or denied authorization items.':'No authorization attention items currently published.','auth','Review authorizations')}${v19ActionCard('blue','Charges',count(charges.length),charges.length?'View your provider-attributed charge records.':'No mapped charge records currently published.','charges','Review charges')}</div></div><div class="card"><div class="card-head"><div><h3>My Payer Mix</h3><p>Volume by payer across your mapped activity.</p></div></div>${bars(payer,false)}</div></div>${denialReason.length?`<div class="card"><div class="card-head"><div><h3>My Denial Reasons</h3><p>Source-defined denial reasons on your mapped claims.</p></div></div>${bars(denialReason,false)}</div>`:''}`;
  bindFilters(v19ProviderOverview);v19BindActions();
 }
 function v19UserOverview(){
@@ -4945,7 +5002,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
   const PAGE=1000;
   const MAX_PARALLEL=6;
   const mem=new Map(), flights=new Map();
-  const key=(cid,m)=>`bha_v18_rows_${cid}_${m}`;
+  const key=(cid,m)=>`bha_v19_scoped_${String(S?.session?.user?.id||state?.session?.user?.id||'anonymous')}_${role()}_${bhaProviderKey(S?.profile?.provider_name||'')}_${cid}_${m}`;
   const now=()=>Date.now();
   function readCache(cid,m){
     const k=key(cid,m); if(mem.has(k))return mem.get(k);
@@ -4963,18 +5020,18 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
   }
   async function fastModule(m,force=false){
     const cid=String(S?.client?.id||'');if(!cid)return[];
-    if(!force){const hit=readCache(cid,m);if(hit)return hit;const f=flights.get(key(cid,m));if(f)return f}
+    if(!force && role()!=='provider'){const hit=readCache(cid,m);if(hit)return hit;const f=flights.get(key(cid,m));if(f)return f}
     const job=(async()=>{
       const head=await sb.from('rcm_records').select('id',{count:'exact',head:true}).eq('client_id',cid).eq('module',m);
-      if(head.error)throw head.error;const total=Number(head.count||0);if(!total)return writeCache(cid,m,[]);
+      if(head.error)throw head.error;const total=Number(head.count||0);if(!total)return role()==='provider'?[]:writeCache(cid,m,[]);
       const starts=[];for(let from=0;from<total;from+=PAGE)starts.push(from);
       const pages=await parallelMap(starts,MAX_PARALLEL,async from=>{
         const q=await sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id').eq('client_id',cid).eq('module',m).order('uploaded_at',{ascending:false}).range(from,Math.min(from+PAGE-1,total-1));
         if(q.error)throw q.error;return q.data||[];
       });
       let rows=pages.flat().map(normalize);
-      if(role()==='provider'&&S.profile?.provider_name){const pn=String(S.profile.provider_name).trim().toLowerCase();rows=rows.filter(r=>String(get(r,F.provider)||'').trim().toLowerCase()===pn)}
-      return writeCache(cid,m,rows);
+      if(role()==='provider')rows=rows.filter(bhaOwnProviderRecord)
+      return role()==='provider'?rows:writeCache(cid,m,rows);
     })().finally(()=>flights.delete(key(cid,m)));
     flights.set(key(cid,m),job);return job;
   }
@@ -4987,7 +5044,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
     const host=document.getElementById('content');
     if(host)host.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
     const results=await Promise.all(MODS.map(async m=>{try{return[m,await fastModule(m,force)]}catch(e){console.warn('V18 module load',m,e);return[m,[]]}}));
-    S.records=Object.fromEntries(results);return S.records;
+    S.records=Object.fromEntries(results);S.__loadedProviderKey=role()==='provider'?bhaProviderKey(S.profile?.provider_name):null;return S.records;
   };
 
   // Client switches must never reuse another practice's in-memory records.
@@ -5485,3 +5542,35 @@ window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V9_FINAL_LOCK_CANDIDATE';
   window.BHA_STABLE_QA={build:'V17_STABLE_QA_SPEED',revenue:'RPC aggregate + session cache',overview:'existing server summary + 10m cache',prewarm:false};
 })();
 </script>
+
+
+
+<style id="bha-provider-overview-polish-v6">.v19-no-reasons{padding:22px;color:var(--muted,#63748a);font-size:13px}.v19-provider-overview .kpis{grid-template-columns:repeat(auto-fit,minmax(205px,1fr))}</style>
+
+<style id="bha-provider-overview-v7-style">@media(min-width:1100px){body:has(.v19-role-strip) #content>.kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important}body:has(.v19-role-strip) #content>.kpis>.kpi{grid-column:span 2}body:has(.v19-role-strip) #content>.kpis>.kpi:nth-child(4),body:has(.v19-role-strip) #content>.kpis>.kpi:nth-child(5){grid-column:span 3}}</style>
+<style id="bha-provider-overview-final-layout-v9">
+@media (min-width: 1100px) {
+  body:has(#content > .v19-role-strip) #content > .v19-role-strip + .kpis {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+  }
+  body:has(#content > .v19-role-strip) #content > .v19-role-strip + .kpis > .kpi {
+    grid-column: span 2 !important;
+    min-width: 0 !important;
+  }
+  body:has(#content > .v19-role-strip) #content > .v19-role-strip + .kpis > .kpi:nth-child(4),
+  body:has(#content > .v19-role-strip) #content > .v19-role-strip + .kpis > .kpi:nth-child(5) {
+    grid-column: span 3 !important;
+  }
+}
+@media (min-width: 768px) {
+  .sidebar { scrollbar-width: none; }
+  .sidebar::-webkit-scrollbar { display: none; }
+}
+</style>
+
+
+<style id="bha-provider-ar-v10">
+@media(min-width:1120px){.ar2-kpis[style*="repeat(3"]{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+</style>
