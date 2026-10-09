@@ -5046,7 +5046,13 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
     await Promise.all(Array.from({length:Math.min(limit,items.length)},worker));return out;
   }
   async function fastModule(m,force=false){
+    syncLockedContext(state.section||'overview');
     const cid=String(S?.client?.id||'');if(!cid)return[];
+    const requestUser=String(state.profile?.id||'');
+    const requestRole=String(state.profile?.role||'');
+    const requestProvider=bhaProviderKey(state.profile?.provider_name);
+    const validRequest=()=>requestUser&&String(state.profile?.id||'')===requestUser&&String(S.client?.id||'')===cid;
+    if(!validRequest()||(requestRole==='provider'&&!requestProvider))throw new Error('Invalid provider identity');
     if(!force && role()!=='provider'){const hit=readCache(cid,m);if(hit)return hit;const f=flights.get(key(cid,m));if(f)return f}
     const job=(async()=>{
       const head=await sb.from('rcm_records').select('id',{count:'exact',head:true}).eq('client_id',cid).eq('module',m);
@@ -5056,9 +5062,16 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
         const q=await sb.from('rcm_records').select('client_id,module,external_id,data,uploaded_at,import_batch_id').eq('client_id',cid).eq('module',m).order('uploaded_at',{ascending:false}).range(from,Math.min(from+PAGE-1,total-1));
         if(q.error)throw q.error;return q.data||[];
       });
+      if(!validRequest())throw new Error('Session changed during data request; stale results discarded');
       let rows=pages.flat().map(normalize);
-      if(role()==='provider')rows=rows.filter(bhaOwnProviderRecord)
-      return role()==='provider'?rows:writeCache(cid,m,rows);
+      if(requestRole==='provider'){
+        rows=rows.filter(row=>{
+          const raw=m==='payments'?(row.resource_provider??row.provider):(row.provider??row.pvdr);
+          return !!raw&&bhaProviderKey(raw)===requestProvider;
+        });
+      }
+      if(!validRequest())throw new Error('Session changed during provider filtering');
+      return requestRole==='provider'?rows:writeCache(cid,m,rows);
     })().finally(()=>flights.delete(key(cid,m)));
     flights.set(key(cid,m),job);return job;
   }
@@ -5070,8 +5083,14 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
   loadAll=async function(force=false){
     const host=document.getElementById('content');
     if(host)host.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
+    const requestUser=String(state.profile?.id||'');
+    const requestProvider=bhaProviderKey(state.profile?.provider_name);
+    const requestRole=String(state.profile?.role||'');
+    const requestClient=String(S.client?.id||'');
     const results=await Promise.all(MODS.map(async m=>{try{return[m,await fastModule(m,force)]}catch(e){console.warn('V18 module load',m,e);return[m,[]]}}));
-    S.records=Object.fromEntries(results);S.__loadedProviderKey=role()==='provider'?bhaProviderKey(S.profile?.provider_name):null;return S.records;
+    if(!requestUser||String(state.profile?.id||'')!==requestUser||String(S.client?.id||'')!==requestClient)throw new Error('Session changed; stale dashboard data discarded');
+    if(requestRole==='provider'&&bhaProviderKey(state.profile?.provider_name)!==requestProvider)throw new Error('Provider changed; stale data discarded');
+    S.records=Object.fromEntries(results);S.__loadedProviderKey=requestRole==='provider'?requestProvider:null;return S.records;
   };
 
   // Client switches must never reuse another practice's in-memory records.
