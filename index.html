@@ -2523,6 +2523,10 @@ async function logout(){
   const btn=document.getElementById('logoutBtn');if(btn){btn.disabled=true;btn.classList.add('busy')}
   try{if(!DEMO_MODE)await sb.auth.signOut()}catch(e){console.warn('Sign out request failed:',e)}
   clearRecordsCache();
+  resetLockedClientState();
+  lockedClientId=null;
+  lockedLoadPromise=null;
+  S.profile=null;S.session=null;S.client=null;
   state=freshState();
   document.getElementById('app').innerHTML=loginView();
   bindLogin();
@@ -4682,6 +4686,18 @@ const V29_REDWOOD_ID='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
 // Live Supabase rcm_records is authoritative for all roles and practices.
 async function v29ApplyLocalAr(cid){ return; }
 async function ensureLockedData(token){
+  // Always synchronize the legacy data engine with the CURRENT authenticated profile.
+  // A shared practice ID must never allow one provider's loaded state to serve another.
+  const previousUser=String(S.profile?.id||'');
+  const nextUser=String(state.profile?.id||'');
+  if(previousUser!==nextUser){
+    resetLockedClientState();
+    lockedClientId=null;
+    lockedLoadPromise=null;
+    clearRecordsCache();
+  }
+  syncLockedContext(state.section||'overview');
+  if(!nextUser||S.profile?.id!==nextUser)throw new Error('Provider session mismatch: data loading blocked.');
   const cid=String(S.client?.id||'');
   if(!cid)throw new Error('No practice is selected.');
   // Never reuse a practice dataset across different provider identities.
