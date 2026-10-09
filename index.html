@@ -2471,6 +2471,11 @@ async function login(){
     }
     const {data,error}=await sb.auth.signInWithPassword({email,password});
     if(error)throw error;
+    // A successful login must never inherit a preceding account's cached PHI.
+    clearRecordsCache();
+    resetLockedClientState();
+    lockedClientId=null;
+    state.records={};
     state.session=data.session;
     await loadProfile();
     await enterApp();
@@ -4679,7 +4684,13 @@ async function v29ApplyLocalAr(cid){ return; }
 async function ensureLockedData(token){
   const cid=String(S.client?.id||'');
   if(!cid)throw new Error('No practice is selected.');
-  if(lockedClientId===cid&&Object.keys(S.records||{}).length){await v29ApplyLocalAr(cid);return;}
+  // Never reuse a practice dataset across different provider identities.
+  const providerKey=role()==='provider'?bhaProviderKey(S.profile?.provider_name):null;
+  const cacheMatchesIdentity=role()==='provider'
+    ? !!providerKey && S.__loadedProviderKey===providerKey
+    : S.__loadedProviderKey===null;
+  if(lockedClientId===cid&&Object.keys(S.records||{}).length&&cacheMatchesIdentity){await v29ApplyLocalAr(cid);return;}
+  if(lockedClientId===cid&&!cacheMatchesIdentity){resetLockedClientState();clearRecordsCache();}
   if(lockedClientId!==cid){lockedClientId=cid;resetLockedClientState();syncLockedContext(typeof state!=='undefined'?state.section:'overview')}
   if(!lockedLoadPromise){
     lockedLoadPromise=loadAll().finally(()=>{lockedLoadPromise=null});
