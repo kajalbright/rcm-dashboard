@@ -4133,7 +4133,7 @@ function arTable(rows,highThreshold){
  <div class="ar3-page"><span>Page ${S.arPage} of ${pages}</span><button id="arPrev" ${S.arPage<=1?'disabled':''}>Previous</button><button id="arNext" ${S.arPage>=pages?'disabled':''}>Next</button></div></div>`
 }
 function bindARTable(){
- document.getElementById('search')?.addEventListener('input',e=>{S.search=e.target.value;S.arPage=1;renderAR()});
+ document.getElementById('search')?.addEventListener('input',e=>{const pos=e.target.selectionStart,scrollY=window.scrollY;S.search=e.target.value;S.arPage=1;renderAR();const next=document.getElementById('search');if(next){next.focus({preventScroll:true});next.setSelectionRange(pos,pos)}window.scrollTo({top:scrollY,behavior:'instant'})});
  document.querySelectorAll('[data-arfilter]').forEach(b=>b.onclick=()=>{S.arQueue=b.dataset.arfilter;S.arPage=1;renderAR();setTimeout(()=>document.querySelector('.ar2-table')?.scrollIntoView({behavior:'smooth',block:'start'}),0)});
  document.getElementById('arPrev')?.addEventListener('click',()=>{S.arPage=Math.max(1,S.arPage-1);renderAR();setTimeout(()=>document.querySelector('.ar2-table')?.scrollIntoView({block:'start'}),0)});
  document.getElementById('arNext')?.addEventListener('click',()=>{S.arPage++;renderAR();setTimeout(()=>document.querySelector('.ar2-table')?.scrollIntoView({block:'start'}),0)})
@@ -4171,7 +4171,7 @@ function v31RenderRedwoodAR(){
    const wrap=document.querySelector('.ar2-table .tablewrap');const scroll=wrap?.scrollTop||0;
    v31RenderRedwoodAR();const next=document.querySelector('.ar2-table .tablewrap');if(next)next.scrollTop=scroll;
  }));
- const search=document.getElementById('v31Search');search?.addEventListener('input',e=>{const pos=e.target.selectionStart;S.search=e.target.value;S.arPage=1;S.v32Expanded=-1;v31RenderRedwoodAR();const next=document.getElementById('v31Search');next?.focus();next?.setSelectionRange(pos,pos)});
+ const search=document.getElementById('v31Search');search?.addEventListener('input',e=>{const pos=e.target.selectionStart,scrollY=window.scrollY,wrap=document.querySelector('.ar2-table .tablewrap'),tableScroll=wrap?.scrollTop||0;S.search=e.target.value;S.arPage=1;S.v32Expanded=-1;v31RenderRedwoodAR();const next=document.getElementById('v31Search');if(next){next.focus({preventScroll:true});next.setSelectionRange(pos,pos)}const nextWrap=document.querySelector('.ar2-table .tablewrap');if(nextWrap)nextWrap.scrollTop=tableScroll;window.scrollTo({top:scrollY,behavior:'instant'})});
  document.getElementById('v31Provider')?.addEventListener('change',e=>{S.v31Provider=e.target.value;S.arPage=1;v31RenderRedwoodAR()});
  document.getElementById('v31Bucket')?.addEventListener('change',e=>{S.v31Bucket=e.target.value;S.arPage=1;v31RenderRedwoodAR()});
  document.getElementById('arPrev')?.addEventListener('click',()=>{S.arPage--;v31RenderRedwoodAR()});document.getElementById('arNext')?.addEventListener('click',()=>{S.arPage++;v31RenderRedwoodAR()});
