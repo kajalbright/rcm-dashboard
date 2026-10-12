@@ -4043,14 +4043,14 @@ async function loadAll(){
  S.records=Object.fromEntries(results);
 }
 function allRows(){return Object.values(S.records).flat()}
-function filtered(rows,module=null){
+function filtered(rows){
  let out=rows;
  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());let from=null,to=null;
  if(S.period==='30')from=new Date(today.getTime()-29*86400000);
  if(S.period==='90')from=new Date(today.getTime()-89*86400000);
  if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
  if(S.period==='custom'){from=S.from?new Date(S.from+'T00:00:00'):null;to=S.to?new Date(S.to+'T23:59:59'):null}
- if(S.period!=='all'){const getDate=module==='payments'?(r=>dt(get(r,['posted_date','Posted Date','payment_date','Payment Date','deposit_date','Deposit Date']))):rowDate;const dated=rows.filter(r=>getDate(r));if(dated.length||module==='payments')out=rows.filter(r=>{const d=getDate(r);return d&&(!from||d>=from)&&(!to||d<=to)})}
+ if(S.period!=='all'){const dated=rows.filter(r=>rowDate(r));if(dated.length)out=rows.filter(r=>{const d=rowDate(r);return d&&(!from||d>=from)&&(!to||d<=to)})}
  if(S.provider)out=out.filter(r=>String(get(r,F.provider)||'')===S.provider);
  if(S.payer)out=out.filter(r=>String(get(r,F.payer)||'')===S.payer);
  if(S.cpt)out=out.filter(r=>String(get(r,F.cpt)||'')===S.cpt);
@@ -4109,11 +4109,11 @@ function renderOverview(){
  document.getElementById('pageName').textContent=role()==='provider'?'My Overview':'Practice Overview';
  const source=allRows(),flat=filtered(source);
  if(!flat.length){document.getElementById('content').innerHTML=hero(scope(),'No published records match this view.')+filtersHtml()+'<div class="empty"><b>No matching data</b>Choose All Available or clear filters.</div>';bindFilters(renderOverview);return}
- const ar=filtered(S.records.ar||[]),denRows=filtered(S.records.denials||[]),payRows=filtered(S.records.payments||[],'payments'),chargeRows=filtered(S.records.charges||[]);
+ const ar=filtered(S.records.ar||[]),denRows=filtered(S.records.denials||[]),payRows=filtered(S.records.payments||[]),chargeRows=filtered(S.records.charges||[]);
  // Prefer domain-specific sources; fall back to fields embedded in another published source only when needed.
  const bal=has(ar,F.balance)?sum(ar,F.balance):(has(flat,F.balance)?sum(flat,F.balance):null);
  const ch=has(chargeRows,F.charges)?sum(chargeRows,F.charges):(has(ar,F.charges)?sum(ar,F.charges):(has(flat,F.charges)?sum(flat,F.charges):null));
- const pay=has(payRows,F.payments)?sum(payRows,F.payments):(S.period==='all'&&has(flat,F.payments)?sum(flat,F.payments):null);
+ const pay=has(payRows,F.payments)?sum(payRows,F.payments):(has(flat,F.payments)?sum(flat,F.payments):null);
  const claimBase=ar.length?ar:flat,claims=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'?claimBase.length:(uniq(claimBase,F.claim).length||claimBase.length);
  const agedBase=ar.length?ar:flat,hasAge=has(agedBase,F.days)||has(agedBase,F.bucket);
  const old=hasAge?agedBase.filter(r=>(age(r)||0)>90):[],oldBal=old.length&&has(agedBase,F.balance)?sum(old,F.balance):null;
@@ -4128,8 +4128,7 @@ function renderOverview(){
  const primary=[];
  if(bal!=null)primary.push(kpi('Outstanding A/R',bal,'Current published receivables'));
  if(ch!=null)primary.push(kpi('Total Charges',ch,'Available charge activity','teal'));
- if(pay!=null)primary.push(kpi('Payments / Collections',pay,S.period==='all'?'Available posted payments':'Dated payments in selected period','green'));
-  else if(S.period!=='all'&&(S.records.payments||[]).length)primary.push(kpi('Payments / Collections',null,'No verified dated payments for selected period','green'));
+ if(pay!=null)primary.push(kpi('Payments / Collections',pay,'Available posted payments','green'));
  primary.push(kpi('Claims / Records',claims,'Current receivable inventory','purple','count'));
 
  const risk=[];
