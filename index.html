@@ -2320,19 +2320,50 @@ function showEditUserModal(u){
 }
 function closeEditUserModal(){document.getElementById('editUserModal')?.remove()}
 async function saveUser(id){
-  const name=document.getElementById('euName').value.trim(),role=document.getElementById('euRole').value,active=document.getElementById('euActive').value==='true',client_ids=selectedPracticeCards('eu'),access_all=!!document.getElementById('euAllClients')?.checked,client_id=access_all?null:(client_ids[0]||null),err=document.getElementById('euError');
-  if(!name){err.innerHTML='<div class="error">Name is required.</div>';return}
+  const name=document.getElementById('euName').value.trim();
+  const role=document.getElementById('euRole').value;
+  const active=document.getElementById('euActive').value==='true';
+  const client_ids=selectedPracticeCards('eu');
+  const access_all=!!document.getElementById('euAllClients')?.checked;
+  const client_id=access_all?null:(client_ids[0]||null);
+  const err=document.getElementById('euError');
   const originalRole=document.getElementById('euRole').dataset.originalRole;
-  if(role!==originalRole&&(role==='provider'||originalRole==='provider')){err.innerHTML='<div class="error">For security, create a separate account to change into or out of Provider role.</div>';return}
-  if(['client','provider'].includes(role)&&access_all){err.innerHTML='<div class="error">Client and Provider roles cannot use All Clients.</div>';return}if(!access_all&&!client_ids.length){err.innerHTML='<div class="error">Select at least one practice.</div>';return}
   const provider_name=(document.getElementById('euProviderName')?.value||'').trim();
+  if(!canAdmin()){err.innerHTML='<div class="error">Admin permission required.</div>';return}
+  if(!name){err.innerHTML='<div class="error">Name is required.</div>';return}
+  if(role!==originalRole&&(role==='provider'||originalRole==='provider')){err.innerHTML='<div class="error">For security, create a separate account to change into or out of Provider role.</div>';return}
+  if(['client','provider'].includes(role)&&access_all){err.innerHTML='<div class="error">Client and Provider roles cannot use All Clients.</div>';return}
+  if(!access_all&&!client_ids.length){err.innerHTML='<div class="error">Select at least one practice.</div>';return}
   if(role==='provider'&&!provider_name){err.innerHTML='<div class="error">Provider name is required.</div>';return}
-  if(DEMO_MODE){const u=demoUsers.find(x=>x.id===id);if(u)Object.assign(u,{name,role,active,client_id,access_all,provider_name});closeEditUserModal();await loadUsers();toast('User updated');return}
-  const {error}=await sb.rpc('app_admin_update_user',{p_user_id:id,p_name:name,p_role:role===originalRole?null:role,p_client_id:client_id,p_access_all:access_all,p_active:active});
-  if(error){err.innerHTML=`<div class="error">${esc(error.message)}</div>`;return}
-  try{await saveUserClientAccess(id,access_all?[]:client_ids)}catch(e){err.innerHTML=`<div class="error">${esc(e.message)}</div>`;return}
-  if(role==='provider'){const providerUpdate=await sb.rpc('app_admin_set_provider_name',{p_user_id:id,p_provider_name:provider_name});if(providerUpdate.error){err.innerHTML=`<div class="error">${esc(providerUpdate.error.message)}</div>`;return}}
-  await audit('user_updated',{user_id:id,role,client_id,client_ids,access_all,active});closeEditUserModal();await loadUsers();toast('User updated successfully');
+  if(DEMO_MODE){
+    const u=demoUsers.find(x=>x.id===id);
+    if(u)Object.assign(u,{name,role,active,client_id,client_ids:access_all?[]:client_ids,access_all,provider_name});
+    closeEditUserModal();await loadUsers();toast('User updated');return;
+  }
+  const saveButton=document.querySelector('#editUserModal .modal-actions .btn-primary');
+  if(saveButton?.disabled)return;
+  if(saveButton)saveButton.disabled=true;
+  try{
+    const {data,error}=await sb.rpc('app_admin_save_user_atomic',{
+      p_user_id:id,
+      p_name:name,
+      p_role:role,
+      p_active:active,
+      p_client_ids:access_all?[]:client_ids,
+      p_access_all:access_all,
+      p_provider_name:role==='provider'?provider_name:null
+    });
+    if(error)throw error;
+    if(!data?.ok)throw new Error('User update not confirmed.');
+    try{
+      await audit('user_updated',{user_id:id,role,client_id,client_ids,access_all,active});
+    }catch(auditError){console.warn('User saved, audit logging failed:',auditError)}
+    closeEditUserModal();await loadUsers();toast('User updated successfully');
+  }catch(e){
+    err.innerHTML=`<div class="error">${esc(e.message||'Unable to update user.')}</div>`;
+  }finally{
+    if(saveButton?.isConnected)saveButton.disabled=false;
+  }
 }
 async function deleteUser(id){
   if(!canAdmin())return toast('Admin permission required.');
