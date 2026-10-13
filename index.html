@@ -4578,6 +4578,26 @@ function renderPayments(){
        '<div class="card" style="padding:28px;margin-top:16px"><h3>No verified provider-linked payments available</h3><p>No claim-level or provider-summary payments match the provider name assigned to your login.</p></div>';
      return;
    }
+   // Provider claim-level reporting uses Payment Date only; summary has no date dimension.
+   const providerDateFilteredClaims=()=>{
+     if(!claims.some(r=>paymentDateValue(r)))return claims;
+     const today=new Date();const startOfDay=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+     let from=null,to=null;
+     if(S.period==='30')from=new Date(startOfDay.getFullYear(),startOfDay.getMonth(),startOfDay.getDate()-29);
+     if(S.period==='90')from=new Date(startOfDay.getFullYear(),startOfDay.getMonth(),startOfDay.getDate()-89);
+     if(S.period==='ytd')from=new Date(startOfDay.getFullYear(),0,1);
+     if(S.period==='custom'){
+       from=S.from?new Date(S.from+'T00:00:00'):null;
+       to=S.to?new Date(S.to+'T23:59:59'):null;
+     }
+     if(!from&&!to)return claims;
+     return claims.filter(r=>{const d=paymentDateValue(r);return d&&(!from||d>=from)&&(!to||d<=to)});
+   };
+   const providerClaimDateFilters=()=>{
+     if(!claims.some(r=>paymentDateValue(r)))return '';
+     const options=[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom']];
+     return `<div class="pay3-filter" style="margin:12px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="flabel">Payment Date</span>${options.map(([v,label])=>`<button type="button" class="period ${S.period===v?'active':''}" data-provider-pay-period="${v}">${label}</button>`).join('')}${S.period==='custom'?`<label style="font-size:11px">From <input aria-label="Payment From Date" id="providerPayFrom" type="date" value="${esc(S.from||'')}"></label><label style="font-size:11px">To <input aria-label="Payment To Date" id="providerPayTo" type="date" value="${esc(S.to||'')}"></label>`:''}<button type="button" class="period" id="providerPayDateReset">Reset Dates</button></div>`;
+   };
    const view=S.paymentView==='summary'&&summary.length?'summary':claims.length?'claim':'summary';
    S.paymentView=view;
    const tabs=`<div class="pay2-tabs">${summary.length?`<button class="pay2-tab ${view==='summary'?'active':''}" data-provider-pay="summary">Financial Summary</button>`:''}${claims.length?`<button class="pay2-tab ${view==='claim'?'active':''}" data-provider-pay="claim">Claim Financial Detail</button>`:''}</div>`;
@@ -4586,14 +4606,23 @@ function renderPayments(){
      const cards=[card('Reported Payments',cash(paymentExactSum(summary,'Payments',F.payments)),'Source Financial Summary'),card('Payer Payments',cash(paymentExactSum(summary,'Payer Payment',F.payerPay)),'Provider summary'),card('Patient Payments',cash(paymentExactSum(summary,'Patient Payment',F.patientPay)),'Provider summary'),card('Provider Summary Rows',String(summary.length),'Only your attributed rows')];
      document.getElementById('content').innerHTML=hero('My Payments','Provider-linked financial summary only; no organization-wide totals.')+tabs+paymentPeriodBanner('summary',summary)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(summary,'My Financial Summary');
    }else{
-     const payments=paymentExactSum(claims,'Payment',['payment','Payment']);
-     const payer=paymentExactSum(claims,'Payer Payment',F.payerPay);
-     const patient=paymentExactSum(claims,'Patient Payment',F.patientPay);
-     const adjustments=paymentExactSum(claims,'Contractual Adjustment',F.contractual);
+     const filteredClaims=providerDateFilteredClaims();
+     const payments=paymentExactSum(filteredClaims,'Payment',['payment','Payment']);
+     const payer=paymentExactSum(filteredClaims,'Payer Payment',F.payerPay);
+     const patient=paymentExactSum(filteredClaims,'Patient Payment',F.patientPay);
+     const adjustments=paymentExactSum(filteredClaims,'Contractual Adjustment',F.contractual);
      const cards=[card('Payments',cash(payments),'Your claim-level payment transactions'),card('Payer Payments',cash(payer),'Your payer payment transactions'),card('Patient Payments',cash(patient),'Your patient payment transactions'),card('Contractual Adjustments',cash(adjustments),'Your claim-level adjustments'),card('Payment Records',String(claims.length.toLocaleString('en-US')),'Provider-matched source rows')];
-     document.getElementById('content').innerHTML=hero('My Payments','Claim-level payment records matched to your assigned provider only.')+tabs+paymentPeriodBanner('claim',claims)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(claims,'My Claim Financial Detail');
+     document.getElementById('content').innerHTML=hero('My Payments','Claim-level payment records matched to your assigned provider only.')+tabs+providerClaimDateFilters()+paymentPeriodBanner('claim',filteredClaims)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(filteredClaims,'My Claim Financial Detail');
    }
    document.querySelectorAll('[data-provider-pay]').forEach(b=>b.onclick=()=>{S.paymentView=b.dataset.providerPay;S.paymentPage=1;S.search='';renderPayments()});
+   document.querySelectorAll('[data-provider-pay-period]').forEach(b=>b.addEventListener('click',()=>{
+     S.period=b.dataset.providerPayPeriod;
+     if(S.period!=='custom'){S.from='';S.to=''}
+     S.paymentPage=1;S.search='';renderPayments();
+   }));
+   document.getElementById('providerPayFrom')?.addEventListener('change',e=>{S.from=e.target.value;S.paymentPage=1;renderPayments()});
+   document.getElementById('providerPayTo')?.addEventListener('change',e=>{S.to=e.target.value;S.paymentPage=1;renderPayments()});
+   document.getElementById('providerPayDateReset')?.addEventListener('click',()=>{S.period='all';S.from='';S.to='';S.paymentPage=1;renderPayments()});
    bindPaymentTable();
    return;
  }
