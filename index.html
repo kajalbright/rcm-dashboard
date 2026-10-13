@@ -4034,7 +4034,7 @@ function bhaProviderKey(value){
 function bhaOwnProviderRecord(row){
   if(role()!=='provider')return true;
   const own=bhaProviderKey(S.profile?.provider_name);
-  const raw=row?.__payment_dataset_type==='summary'||row?.resource_provider!=null ? row?.resource_provider : get(row,F.provider);
+  const raw=get(row,F.provider);
   return !!own && !!bhaProviderKey(raw) && bhaProviderKey(raw)===own
 }
 function role(){return S.profile?.role||'client'}
@@ -4561,26 +4561,33 @@ function renderPayments(){
  if(getRole()==='provider'){
    document.getElementById('content').dataset.module='payments';
    document.getElementById('pageName').textContent='My Payments';
-   // Never render organization-level financial summary to a provider.
-   // Records lacking a reliable provider attribution are excluded rather than guessed.
-   const own=(S.records.payments||[]).filter(r=>typeof bhaOwnProviderRecord==='function'&&bhaOwnProviderRecord(r));
+   const own=paymentBaseRows().filter(r=>bhaOwnProviderRecord(r));
    const summary=own.filter(r=>paymentType(r)==='summary');
    const claims=own.filter(r=>paymentType(r)==='claim');
-   if(summary.length){
-     const amount=(r,key)=>parseNum(r[key]);
-     const total=(key)=>summary.reduce((v,r)=>v+(amount(r,key)||0),0);
-     const deposit=total('total_deposit_amount'),payer=total('payer_payments'),patient=total('patient_payments');
-     const charges=total('charges'),adjustments=total('contractual_adjustment'),writeoffs=total('writeoff_adjustment');
-     const claimCount=total('claim_count');
-     const card=(name,value,detail)=>'<div class="card" style="padding:20px"><small>'+esc(name)+'</small><h2 style="margin:12px 0">'+esc(value)+'</h2><p>'+esc(detail)+'</p></div>';
-     const cash=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-     document.getElementById('content').innerHTML=hero('My Payments','Only payment summary records attributed to your provider are shown. No other provider or practice totals are included.')+
-       paymentPeriodBanner('summary',summary)+'<div class="kpis" style="margin-top:18px">'+card('Total Deposits',cash(deposit),'Uploaded provider payment summary')+card('Insurance Payments',cash(payer),'Payer payments')+card('Patient Payments',cash(patient),'Patient payments')+card('Reported Claims',String(claimCount.toLocaleString('en-US')),'Count from uploaded payment summary')+card('Charges',cash(charges),'Source-reported charges')+card('Contractual Adjustments',cash(adjustments),'Source-reported adjustments')+card('Write-offs',cash(writeoffs),'Source-reported write-offs')+'</div>'+
-       '<div class="card" style="padding:20px;margin-top:16px"><h3>Provider Payment Summary</h3><p>'+esc(String(summary.length))+' verified provider-attributed summary record(s). '+(claims.length?esc(String(claims.length))+' provider-attributed claim payment records available.':'This source contains aggregate payment summaries, not claim-by-claim payment details.')+'</p></div>';
+   const card=(name,value,detail)=>`<div class="card" style="padding:20px"><small>${esc(name)}</small><h2 style="margin:12px 0">${esc(value)}</h2><p>${esc(detail)}</p></div>`;
+   const cash=n=>n==null?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+   if(!summary.length&&!claims.length){
+     document.getElementById('content').innerHTML=hero('My Payments','Only payment records attributed to your provider profile can be displayed.')+
+       '<div class="card" style="padding:28px;margin-top:16px"><h3>No verified provider-linked payments available</h3><p>No claim-level or provider-summary payments match the provider name assigned to your login.</p></div>';
      return;
    }
-   document.getElementById('content').innerHTML=hero('My Payments','Payments are visible only when the uploaded records can be securely attributed to your provider profile.')+
-     '<div class="card" style="padding:28px;margin-top:16px"><h3>No verified provider-linked payments available</h3><p>There are no provider-attributed payment summary records available for your profile.</p></div>';
+   const view=S.paymentView==='summary'&&summary.length?'summary':claims.length?'claim':'summary';
+   S.paymentView=view;
+   const tabs=`<div class="pay2-tabs">${summary.length?`<button class="pay2-tab ${view==='summary'?'active':''}" data-provider-pay="summary">Financial Summary</button>`:''}${claims.length?`<button class="pay2-tab ${view==='claim'?'active':''}" data-provider-pay="claim">Claim Financial Detail</button>`:''}</div>`;
+   if(view==='summary'){
+     const total=(keys)=>sum(summary,keys);
+     const cards=[card('Reported Payments',cash(paymentExactSum(summary,'Payments',F.payments)),'Source Financial Summary'),card('Payer Payments',cash(paymentExactSum(summary,'Payer Payment',F.payerPay)),'Provider summary'),card('Patient Payments',cash(paymentExactSum(summary,'Patient Payment',F.patientPay)),'Provider summary'),card('Provider Summary Rows',String(summary.length),'Only your attributed rows')];
+     document.getElementById('content').innerHTML=hero('My Payments','Provider-linked financial summary only; no organization-wide totals.')+tabs+paymentPeriodBanner('summary',summary)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(summary,'My Financial Summary');
+   }else{
+     const payments=paymentExactSum(claims,'Payment',['payment','Payment']);
+     const payer=paymentExactSum(claims,'Payer Payment',F.payerPay);
+     const patient=paymentExactSum(claims,'Patient Payment',F.patientPay);
+     const adjustments=paymentExactSum(claims,'Contractual Adjustment',F.contractual);
+     const cards=[card('Payments',cash(payments),'Your claim-level payment transactions'),card('Payer Payments',cash(payer),'Your payer payment transactions'),card('Patient Payments',cash(patient),'Your patient payment transactions'),card('Contractual Adjustments',cash(adjustments),'Your claim-level adjustments'),card('Payment Records',String(claims.length.toLocaleString('en-US')),'Provider-matched source rows')];
+     document.getElementById('content').innerHTML=hero('My Payments','Claim-level payment records matched to your assigned provider only.')+tabs+paymentPeriodBanner('claim',claims)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(claims,'My Claim Financial Detail');
+   }
+   document.querySelectorAll('[data-provider-pay]').forEach(b=>b.onclick=()=>{S.paymentView=b.dataset.providerPay;S.paymentPage=1;S.search='';renderPayments()});
+   bindPaymentTable();
    return;
  }
  document.getElementById('content').dataset.module='payments';
@@ -5151,7 +5158,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
       let rows=pages.flat().map(normalize);
       if(requestRole==='provider'){
         rows=rows.filter(row=>{
-          const raw=m==='payments'?(row.resource_provider??row.provider):(row.provider??row.pvdr);
+          const raw=m==='payments'?get(row,F.provider):(row.provider??row.pvdr);
           return !!raw&&bhaProviderKey(raw)===requestProvider;
         });
       }
