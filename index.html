@@ -4074,8 +4074,8 @@ function allRows(){return Object.values(S.records).flat()}
 function filtered(rows){
  let out=rows;
  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());let from=null,to=null;
- if(S.period==='30')from=new Date(today.getTime()-29*86400000);
- if(S.period==='90')from=new Date(today.getTime()-89*86400000);
+ if(S.period==='30')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-29);
+ if(S.period==='90')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-89);
  if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
  if(S.period==='custom'){from=S.from?new Date(S.from+'T00:00:00'):null;to=S.to?new Date(S.to+'T23:59:59'):null}
  if(S.period!=='all'){const dated=rows.filter(r=>rowDate(r));if(dated.length)out=rows.filter(r=>{const d=rowDate(r);return d&&(!from||d>=from)&&(!to||d<=to)})}
@@ -4432,9 +4432,21 @@ function paymentDateValue(r){
  const key=keys.find(k=>String(headerLabel(r,k)).toLowerCase().replace(/[^a-z0-9]/g,'')==='paymentdate');
  const raw=key!==undefined?r[key]:get(r,['payment_date','Payment Date','paymentDate']);
  if(raw===null||raw===undefined||raw==='')return null;
- if(typeof raw==='string'&&/^\d{5}(?:\.0+)?$/.test(raw.trim()))return dt(Number(raw));
- const parsed=dt(raw);
- if(!parsed||parsed.getFullYear()<2000||parsed.getFullYear()>2100)return null;
+ // Payment dates are calendar dates, not instants. Normalize Excel serials and
+ // source strings to local calendar midnight so display and filtering agree.
+ let parsed=null;
+ if(typeof raw==='number'||(typeof raw==='string'&&/^\d{5}(?:\.0+)?$/.test(raw.trim()))){
+   const n=Number(raw);
+   if(n<20000||n>80000)return null;
+   const excel=new Date(Date.UTC(1899,11,30)+Math.round(n)*86400000);
+   parsed=new Date(excel.getUTCFullYear(),excel.getUTCMonth(),excel.getUTCDate());
+ }else if(raw instanceof Date){
+   parsed=new Date(raw.getFullYear(),raw.getMonth(),raw.getDate());
+ }else{
+   parsed=dt(raw);
+   if(parsed)parsed=new Date(parsed.getFullYear(),parsed.getMonth(),parsed.getDate());
+ }
+ if(!parsed||!Number.isFinite(parsed.getTime())||parsed.getFullYear()<2000||parsed.getFullYear()>2100)return null;
  return parsed;
 }
 function paymentDatasetRows(type){
@@ -4451,8 +4463,8 @@ function paymentDatasetRows(type){
    const dated=rows.filter(r=>paymentDateValue(r));
    if(dated.length){
      const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());let from=null,to=null;
-     if(S.period==='30')from=new Date(today.getTime()-29*86400000);
-     if(S.period==='90')from=new Date(today.getTime()-89*86400000);
+     if(S.period==='30')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-29);
+     if(S.period==='90')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-89);
      if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
      if(S.period==='custom'){from=S.from?new Date(S.from+'T00:00:00'):null;to=S.to?new Date(S.to+'T23:59:59'):null}
      rows=rows.filter(r=>{const d=paymentDateValue(r);return d&&(!from||d>=from)&&(!to||d<=to)})
@@ -4502,7 +4514,7 @@ function paymentPeriodBanner(type,rows){
  const base=paymentBaseRows().filter(r=>paymentType(r)==='claim');
  const dates=base.map(r=>paymentDateValue(r)).filter(Boolean).sort((a,b)=>a-b);
  const visible=rows.map(r=>paymentDateValue(r)).filter(Boolean).sort((a,b)=>a-b);
- const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
+ const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
  if(!dates.length)return `<div class="card" style="padding:14px 20px;margin:10px 0 14px"><strong>Payment date period: Not available in source</strong></div>`;
  const all=`${fmt(dates[0])} – ${fmt(dates[dates.length-1])}`;
  const shown=visible.length?`${fmt(visible[0])} – ${fmt(visible[visible.length-1])}`:'No matching payment dates';
