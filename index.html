@@ -11,7 +11,31 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-09-local-ar-provider-replacement';</script>
+<script>const BHA_BUILD_ID='2026-10-14-provider-payments-version-check-v1';</script>
+<script id="bha-version-check">
+(function(){
+  if(location.protocol!=='https:' && location.protocol!=='http:')return;
+  let checking=false,lastCheck=0;
+  async function checkBuild(){
+    if(checking||document.hidden||Date.now()-lastCheck<60000)return;
+    checking=true;lastCheck=Date.now();
+    try{
+      const url=new URL(location.href);url.searchParams.set('bha_check',String(Date.now()));
+      const response=await fetch(url.toString(),{cache:'no-store',credentials:'same-origin'});
+      if(!response.ok)return;
+      const html=await response.text();
+      const match=html.match(/const BHA_BUILD_ID=['"]([^'"]+)['"]/);
+      if(!match||match[1]===BHA_BUILD_ID)return;
+      const next=new URL(location.href);next.searchParams.delete('bha_check');
+      next.searchParams.set('bha_version',match[1]);
+      location.replace(next.toString());
+    }catch(e){}finally{checking=false;}
+  }
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkBuild()});
+  window.addEventListener('focus',checkBuild);
+  window.addEventListener('pageshow',checkBuild);
+})();
+</script>
 <script>
 /* V6 PREMIUM COMPLETE LOCAL BATCH foundation */
 const BHA_PREMIUM_MODULES = {
@@ -4636,7 +4660,7 @@ function renderPayments(){
    if(view==='summary'){
      const total=(keys)=>sum(summary,keys);
      const cards=[card('Reported Payments',cash(paymentExactSum(summary,'Payments',F.payments)),'Source Financial Summary'),card('Payer Payments',cash(paymentExactSum(summary,'Payer Payment',F.payerPay)),'Provider summary'),card('Patient Payments',cash(paymentExactSum(summary,'Patient Payment',F.patientPay)),'Provider summary'),card('Provider Summary Rows',String(summary.length),'Only your attributed rows')];
-     document.getElementById('content').innerHTML=hero('My Payments','Provider-linked financial summary only; no organization-wide totals.')+tabs+paymentPeriodBanner('summary',summary)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(summary,'My Financial Summary');
+     document.getElementById('content').innerHTML=hero('My Payments','Provider-linked financial summary only; no organization-wide totals.')+tabs+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(summary,'My Financial Summary');
    }else{
      const filteredClaims=providerDateFilteredClaims();
      const payments=paymentExactSum(filteredClaims,'Payment',['payment','Payment']);
@@ -4644,7 +4668,7 @@ function renderPayments(){
      const patient=paymentExactSum(filteredClaims,'Patient Payment',F.patientPay);
      const adjustments=paymentExactSum(filteredClaims,'Contractual Adjustment',F.contractual);
      const cards=[card('Payments',cash(payments),'Your claim-level payment transactions'),card('Payer Payments',cash(payer),'Your payer payment transactions'),card('Patient Payments',cash(patient),'Your patient payment transactions'),card('Contractual Adjustments',cash(adjustments),'Your claim-level adjustments'),card('Payment Records',String(claims.length.toLocaleString('en-US')),'Provider-matched source rows')];
-     document.getElementById('content').innerHTML=hero('My Payments','Claim-level payment records matched to your assigned provider only.')+tabs+providerClaimDateFilters()+paymentPeriodBanner('claim',filteredClaims)+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(filteredClaims,'My Claim Financial Detail');
+     document.getElementById('content').innerHTML=hero('My Payments','Claim-level payment records matched to your assigned provider only.')+tabs+providerClaimDateFilters()+`<div class="pay2-kpis">${cards.join('')}</div>`+bhaLocalSourceTable(filteredClaims,'My Claim Financial Detail');
    }
    document.querySelectorAll('[data-provider-pay]').forEach(b=>b.onclick=()=>{S.paymentView=b.dataset.providerPay;S.paymentPage=1;S.search='';renderPayments()});
    document.querySelectorAll('[data-provider-pay-period]').forEach(b=>b.addEventListener('click',()=>{
