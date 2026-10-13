@@ -637,6 +637,13 @@ const recordsCache=new Map();
 let SEARCH_TEXT_CACHE=new WeakMap();
 const RECORD_CACHE_TTL_MS=300000;
 function clearRecordsCache(){recordsCache.clear();SEARCH_TEXT_CACHE=new WeakMap();Object.values(state.charts||{}).forEach(c=>{try{c?.destroy?.()}catch(_){}});state.charts={};state.dashboard=null;state.dashboardKey=null;}
+function bhaPurgeBrowserDataCache(){
+ const prefixes=['bha_exec_client_v55_','bha_exec_v14_','bha_v19_scoped_','bha_v17_ri_rpc_','bha-ri-forecast:'];
+ for(const storage of [window.sessionStorage,window.localStorage]){
+  try{for(let i=storage.length-1;i>=0;i--){const k=storage.key(i);if(k&&prefixes.some(p=>k.startsWith(p)))storage.removeItem(k)}}catch(e){console.warn('Unable to clear BHA cache',e)}
+ }
+}
+
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function parseNumericValue(v){
   if(v===null||v===undefined||v==='')return null;
@@ -1807,7 +1814,7 @@ async function fetchExecutiveDashboard(){
   // V55: one secure server-side aggregate replaces separate summary + aging scans.
   // Raw RCM rows are not downloaded for Overview.
   const one=async id=>{
-    const ck=`bha_exec_client_v55_${id}`;
+    const ck=`bha_exec_client_v55_${state.session?.user?.id||'anonymous'}_${id}`;
     try{
       const c=JSON.parse(sessionStorage.getItem(ck)||'null');
       if(c&&Date.now()-c.savedAt<300000)return c.data;
@@ -1881,11 +1888,9 @@ function v13PrintReport(){
  setTimeout(()=>{document.body.classList.remove('v13-print-report');document.title=old},300);
 }
 
-function v14DashStorageKey(key){return `bha_exec_v14_${key}`}
-function v14ReadDashCache(key){
- try{const x=JSON.parse(localStorage.getItem(v14DashStorageKey(key))||'null');return x&&x.data&&Date.now()-Number(x.savedAt||0)<600000?x:null}catch(_){return null}
-}
-function v14WriteDashCache(key,data){try{localStorage.setItem(v14DashStorageKey(key),JSON.stringify({savedAt:Date.now(),data}))}catch(_){}}
+function v14DashStorageKey(key){return `bha_exec_v14_${state.session?.user?.id||'anonymous'}_${state.profile?.role||'unknown'}_${key}`}
+function v14ReadDashCache(key){return null}
+function v14WriteDashCache(key,data){/* Sensitive overview aggregates are not persisted across sessions. */}
 function v15ProviderOverview(){
  const root=document.getElementById('overviewRoot');if(!root)return;
  const mapped=String(state.profile?.provider_name||'').trim();
@@ -2533,6 +2538,7 @@ async function login(){
     if(error)throw error;
     // A successful login must never inherit a preceding account's cached PHI.
     clearRecordsCache();
+    bhaPurgeBrowserDataCache();
     state.records={};
     state.session=data.session;
     await loadProfile();
@@ -2581,6 +2587,7 @@ async function logout(){
   const btn=document.getElementById('logoutBtn');if(btn){btn.disabled=true;btn.classList.add('busy')}
   try{if(!DEMO_MODE)await sb.auth.signOut()}catch(e){console.warn('Sign out request failed:',e)}
   clearRecordsCache();
+  bhaPurgeBrowserDataCache();
   state=freshState();
   document.getElementById('app').innerHTML=loginView();
   bindLogin();
@@ -3195,7 +3202,7 @@ function riPrintPayerReport(x,payerName,client){
 </style>
 </body></html>`);w.document.close();setTimeout(()=>w.print(),250);
 }
-function riForecastBaselineKey(){return `bha-ri-forecast:${state.client?.id||state.profile?.client_id||'unknown'}`}
+function riForecastBaselineKey(){return `bha-ri-forecast:${state.session?.user?.id||'anonymous'}:${state.client?.id||state.profile?.client_id||'unknown'}`}
 function riForecastBaseline(x){try{return JSON.parse(localStorage.getItem(riForecastBaselineKey())||'null')}catch(_){return null}}
 function riSaveForecastBaseline(x){const b={saved_at:new Date().toISOString(),p30:x.p30,p60:x.p60,p90:x.p90,totalAR:x.totalAR,totalPaid:x.totalPaid};localStorage.setItem(riForecastBaselineKey(),JSON.stringify(b));toast('Forecast baseline saved on this browser.');riRefresh()}
 
@@ -5231,6 +5238,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
         catch(_){ await sb.auth.signOut(); }
       }
     }catch(e){ console.warn('Logout request failed; clearing local workspace.',e); }
+    try{ if(typeof bhaPurgeBrowserDataCache==='function')bhaPurgeBrowserDataCache(); }catch(_){}
     try{ sessionStorage.clear(); }catch(_){}
     try{
       if(typeof state!=='undefined' && typeof freshState==='function') state=freshState();
