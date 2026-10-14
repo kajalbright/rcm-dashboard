@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-14-provider-payments-version-check-v1';</script>
+<script>const BHA_BUILD_ID='2026-10-15-provider-dedupe-client-refresh-v2';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -34,6 +34,8 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkBuild()});
   window.addEventListener('focus',checkBuild);
   window.addEventListener('pageshow',checkBuild);
+  // Check periodically while the portal remains open in a client browser.
+  setInterval(checkBuild,300000);
 })();
 </script>
 <script>
@@ -4102,6 +4104,18 @@ async function loadAll(){
  S.records=Object.fromEntries(results);
 }
 function allRows(){return Object.values(S.records).flat()}
+// Normalize display/filter variants without modifying the source dataset.
+function bhaUniqueProviderNames(rows){
+ const byKey=new Map();
+ for(const r of rows){
+  const name=String(get(r,F.provider)||'').trim().replace(/\s*,\s*/g,', ').replace(/\s+/g,' ');
+  const key=bhaProviderKey(name);
+  if(!key)continue;
+  const existing=byKey.get(key);
+  if(!existing || (name.includes(', ')&&!existing.includes(', ')))byKey.set(key,name);
+ }
+ return [...byKey.values()].sort((a,b)=>a.localeCompare(b));
+}
 function filtered(rows){
  let out=rows;
  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());let from=null,to=null;
@@ -4110,13 +4124,13 @@ function filtered(rows){
  if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
  if(S.period==='custom'){from=S.from?new Date(S.from+'T00:00:00'):null;to=S.to?new Date(S.to+'T23:59:59'):null}
  if(S.period!=='all'){const dated=rows.filter(r=>rowDate(r));if(dated.length)out=rows.filter(r=>{const d=rowDate(r);return d&&(!from||d>=from)&&(!to||d<=to)})}
- if(S.provider)out=out.filter(r=>String(get(r,F.provider)||'')===S.provider);
+ if(S.provider)out=out.filter(r=>bhaProviderKey(get(r,F.provider))===bhaProviderKey(S.provider));
  if(S.payer)out=out.filter(r=>String(get(r,F.payer)||'')===S.payer);
  if(S.cpt)out=out.filter(r=>String(get(r,F.cpt)||'')===S.cpt);
  return out;
 }
 function filtersHtml(){
- const flat=(document.getElementById('content')?.dataset.module==='ar'?(S.records.ar||[]):allRows()),providers=uniq(flat,F.provider),payers=uniq(flat,F.payer),cpts=uniq(flat,F.cpt);
+ const flat=(document.getElementById('content')?.dataset.module==='ar'?(S.records.ar||[]):allRows()),providers=bhaUniqueProviderNames(flat),payers=uniq(flat,F.payer),cpts=uniq(flat,F.cpt);
  const opts=(a,s,l)=>'<option value="">'+l+'</option>'+a.map(v=>`<option value="${esc(v)}" ${v===s?'selected':''}>${esc(v)}</option>`).join('');
  return `<div class="filters"><span class="flabel">Reporting Period</span>${[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom']].map(([v,l])=>`<button class="period ${S.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}${S.period==='custom'?`<input id="from" type="date" value="${esc(S.from)}"><input id="to" type="date" value="${esc(S.to)}">`:''}${role()!=='provider'&&providers.length?`<select id="provider">${opts(providers,S.provider,'All Providers')}</select>`:''}${payers.length?`<select id="payer">${opts(payers,S.payer,'All Payers')}</select>`:''}${cpts.length?`<select id="cpt">${opts(cpts,S.cpt,'All CPT / Procedures')}</select>`:''}<button class="period" id="reset">Reset</button><span class="filter-note">Filters appear only when the corresponding data is available.</span></div>`
 }
