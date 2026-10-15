@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-15-provider-dedupe-client-refresh-v2';</script>
+<script>const BHA_BUILD_ID='2026-10-16-caldwell-eligibility-source-columns-v1';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -4242,7 +4242,30 @@ function renderOverview(){
  document.querySelectorAll('[data-action-go]').forEach(b=>b.onclick=()=>{S.search='';if(typeof window.navigateToSection==='function')window.navigateToSection(b.dataset.actionGo);});
  if(validTrend)drawTrend(tr,trendFlags)
 }
-function moduleRows(m){return filtered(S.records[m]||[])}
+// Caldwell verification uses the source worksheet's original field labels.
+// Scope these aliases to Caldwell only; other practices/modules retain their existing filters.
+function bhaCaldwellVerification(){return String(S.client?.name||'').trim().toLowerCase()==='caldwell medical services'}
+function bhaCaldwellField(r,names){return get(r,names)}
+function bhaCaldwellVerificationRows(rows){
+ let out=rows;
+ const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ let from=null,to=null;
+ if(S.period==='30'){from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-29);to=new Date(today.getFullYear(),today.getMonth(),today.getDate(),23,59,59,999);}
+ if(S.period==='90'){from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-89);to=new Date(today.getFullYear(),today.getMonth(),today.getDate(),23,59,59,999);}
+ if(S.period==='ytd'){from=new Date(today.getFullYear(),0,1);to=new Date(today.getFullYear(),today.getMonth(),today.getDate(),23,59,59,999);}
+ if(S.period==='custom'){from=S.from?new Date(S.from+'T00:00:00'):null;to=S.to?new Date(S.to+'T23:59:59'):null}
+ if(S.period!=='all')out=out.filter(r=>{const d=dt(bhaCaldwellField(r,['APPMNT DATE','Appointment Date','Appt Date','appointment_date']));return d&&(!from||d>=from)&&(!to||d<=to)});
+ if(S.provider)out=out.filter(r=>bhaProviderKey(bhaCaldwellField(r,['PROVIDER','Provider','provider_name']))===bhaProviderKey(S.provider));
+ if(S.payer)out=out.filter(r=>String(bhaCaldwellField(r,['INSURANCE NAME','Insurance Name','insurance_name','Payer'])||'').trim()===S.payer);
+ return out;
+}
+function bhaCaldwellVerificationFilters(){
+ const rows=S.records.verification||[];
+ const providers=bhaUniqueProviderNames(rows),payers=uniq(rows,['INSURANCE NAME','Insurance Name','insurance_name','Payer']);
+ const options=(arr,selected,placeholder)=>'<option value="">'+placeholder+'</option>'+arr.map(v=>`<option value="${esc(v)}" ${v===selected?'selected':''}>${esc(v)}</option>`).join('');
+ return `<div class="filters"><span class="flabel">Reporting Period</span>${[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom']].map(([v,l])=>`<button class="period ${S.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}${S.period==='custom'?`<input id="from" type="date" value="${esc(S.from)}"><input id="to" type="date" value="${esc(S.to)}">`:''}${role()!=='provider'&&providers.length?`<select id="provider">${options(providers,S.provider,'All Providers')}</select>`:''}${payers.length?`<select id="payer">${options(payers,S.payer,'All Payers')}</select>`:''}<button class="period" id="reset">Reset</button><span class="filter-note">Date uses APPMNT DATE; payer uses INSURANCE NAME.</span></div>`;
+}
+function moduleRows(m){return m==='verification'&&bhaCaldwellVerification()?bhaCaldwellVerificationRows(S.records[m]||[]):filtered(S.records[m]||[])}
 
 function arAgingDetailed(rows){
  const defs=[['0–30',0,30,'#2a67ef'],['31–60',31,60,'#0a9b91'],['61–90',61,90,'#7257d8'],['91–120',91,120,'#d89118'],['121–180',121,180,'#e06c31'],['181–240',181,240,'#df5267'],['241–365',241,365,'#bf3f62'],['365+',366,99999,'#9e3154']];
@@ -4787,7 +4810,46 @@ function eiEmpty(type){
  ];
  return `<div class="ei-empty"><div class="ei-empty-top"><div><h3>${title}</h3><p>${desc}</p></div><span class="ei-ready"><i></i>Awaiting published data</span></div><div class="ei-plan">${items.map(x=>`<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div></div>`
 }
+function eiSourceTable(type,rows){
+ if(!rows.length)return'';
+ // Source worksheet and internal fields are not columns in the user's sheet.
+ const keys=r=>sourceKeys(r).filter(k=>String(k).toLowerCase()!=='source_worksheet');
+ const columns=[],seen=new Set();
+ for(const r of rows){for(const key of keys(r)){
+  const label=String(headerLabel(r,key));
+  const identity=label.trim().toLocaleLowerCase();
+  if(!identity||seen.has(identity))continue;
+  seen.add(identity);columns.push({label});
+ }}
+ // Hide only synthetic, entirely empty trailing placeholder columns (e.g. COLUMN 27).
+ // Never hide a real source field merely because it appears after Status or is blank.
+ const visibleColumns=columns.filter(({label})=>{
+  if(!/^column[\s_-]*\d+$/i.test(label.trim()))return true;
+  return rows.some(r=>{
+   const k=keys(r).find(k=>String(headerLabel(r,k)).trim().toLocaleLowerCase()===label.trim().toLocaleLowerCase());
+   return k!==undefined&&String(r[k]??'').trim()!=='';
+  });
+ });
+ let view=rows;
+ if(S.search){const q=S.search.toLowerCase();view=rows.filter(r=>keys(r).some(k=>String(r[k]??'').toLowerCase().includes(q)))}
+ // Preserve original spreadsheet order within each import; do not sort by date.
+ // Mixed historical batches have no guaranteed cross-batch source ordering.
+ view=view.map((r,i)=>({r,i})).sort((a,b)=>{
+  const ai=Number(a.r.__source_row_index),bi=Number(b.r.__source_row_index);
+  const ab=String(a.r.__source_batch_id||a.r.import_batch_id||''),bb=String(b.r.__source_batch_id||b.r.import_batch_id||'');
+  if(ab&&bb&&ab===bb&&Number.isFinite(ai)&&Number.isFinite(bi))return ai-bi||a.i-b.i;
+  return a.i-b.i;
+ }).map(x=>x.r);
+ const shown=view.slice(0,200);
+ function cell(r,label){
+  const key=keys(r).find(k=>String(headerLabel(r,k)).trim().toLocaleLowerCase()===label.trim().toLocaleLowerCase());
+  const value=key===undefined?'':r[key];
+  return esc(value==null?'':String(value));
+ }
+ return `<div class="card tablecard ei-table"><div class="card-head"><div><h3>${type==='verification'?'Patient Eligibility Detail':'Patient Authorization Detail'}</h3><p>Original source columns and values; internal worksheet metadata hidden.</p></div><span class="badge">${count(view.length)} records</span></div><div class="tabletools"><input id="search" placeholder="Search any uploaded column…" value="${esc(S.search)}"><span class="meta">Showing ${count(Math.min(view.length,200))} of ${count(view.length)} · ${visibleColumns.length} source columns</span></div><div class="tablewrap"><table class="table"><thead><tr>${visibleColumns.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${visibleColumns.map(c=>`<td>${cell(r,c.label)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+}
 function eiTable(type,rows){
+ if(type==='verification' && String(state.client?.name||'').trim().toLowerCase()==='caldwell medical services')return eiSourceTable(type,rows);
  if(!rows.length)return'';
  const E=type==='verification'?EI.eligibility:EI.auth;
  const defs=(type==='verification'?[
@@ -4804,9 +4866,9 @@ function renderEligibility(){
  document.getElementById('content').dataset.module='verification';
  document.getElementById('pageName').textContent=role()==='provider'?'My Eligibility':'Eligibility';
  const rows=moduleRows('verification');
- document.getElementById('content').innerHTML=hero(role()==='provider'?'My Eligibility':'Eligibility',role()==='provider'?'Review only eligibility records attributed to your provider profile when published.':'Monitor verification status, coverage risk and patient eligibility from the data available for this practice.')+(rows.length?filtersHtml():'')+(rows.length?eligibilityBody(rows):eiEmpty('verification'));
+ document.getElementById('content').innerHTML=hero(role()==='provider'?'My Eligibility':'Eligibility',role()==='provider'?'Review only eligibility records attributed to your provider profile when published.':'Monitor verification status, coverage risk and patient eligibility from the data available for this practice.')+((S.records.verification||[]).length?(bhaCaldwellVerification()?bhaCaldwellVerificationFilters():filtersHtml()):'')+(rows.length?eligibilityBody(rows):eiEmpty('verification'));
  if(!rows.length){const b=document.querySelector('#content .hero .badge');if(b){b.innerHTML='<i></i>Awaiting eligibility data';b.style.opacity='.88'}}
- if(rows.length){bindFilters(renderEligibility);bindTable(rows)}
+ if((S.records.verification||[]).length){bindFilters(renderEligibility);if(rows.length)bindTable(rows)}
 }
 function eligibilityBody(rows){
  const E=EI.eligibility,st=rows.map(r=>eiStatusKind(get(r,E.status),'verification')),good=st.filter(x=>x==='good').length,bad=st.filter(x=>x==='bad').length,pending=st.filter(x=>x==='pending').length,unknown=st.filter(x=>x==='unknown').length;
