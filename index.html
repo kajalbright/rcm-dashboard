@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-20-production-candidate-rcm-import-v7';</script>
+<script>const BHA_BUILD_ID='2026-10-20-session-isolation-fix-v8';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -5037,7 +5037,7 @@ function syncLockedContext(section){
 }
 function resetLockedClientState(){
   Object.assign(S,{records:{},period:'all',from:'',to:'',provider:'',payer:'',cpt:'',search:'',paymentPage:1,paymentPageSize:50,paymentProvider:'',paymentFacility:'',paymentView:'summary',arQueue:'all',arPage:1,arPageSize:50,denialQueue:'all',denialPage:1,chargePage:1});
-  S.charts={};S.__loadedProviderKey=null;
+  S.charts={};S.__loadedProviderKey=null;S.__loadedUserId=null;S.__loadedRole=null;
 }
 const V29_REDWOOD_ID='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
 // AUDIT FIX: Never override published Redwood AR with embedded workbook data.
@@ -5046,7 +5046,7 @@ async function v29ApplyLocalAr(cid){ return; }
 async function ensureLockedData(token){
   // Always synchronize the legacy data engine with the CURRENT authenticated profile.
   // A shared practice ID must never allow one provider's loaded state to serve another.
-  const previousUser=String(S.profile?.id||'');
+  const previousUser=String(S.__loadedUserId||'');
   const nextUser=String(state.profile?.id||'');
   if(previousUser!==nextUser){
     resetLockedClientState();
@@ -5063,7 +5063,7 @@ async function ensureLockedData(token){
   const cacheMatchesIdentity=role()==='provider'
     ? !!providerKey && S.__loadedProviderKey===providerKey
     : S.__loadedProviderKey===null;
-  if(lockedClientId===cid&&Object.keys(S.records||{}).length&&cacheMatchesIdentity){await v29ApplyLocalAr(cid);return;}
+  if(lockedClientId===cid&&Object.keys(S.records||{}).length&&cacheMatchesIdentity&&S.__loadedUserId===nextUser&&S.__loadedRole===String(state.profile?.role||'')){await v29ApplyLocalAr(cid);return;}
   if(lockedClientId===cid&&!cacheMatchesIdentity){resetLockedClientState();clearRecordsCache();}
   if(lockedClientId!==cid){lockedClientId=cid;resetLockedClientState();syncLockedContext(typeof state!=='undefined'?state.section:'overview')}
   if(!lockedLoadPromise){
@@ -5139,7 +5139,7 @@ function renderLockedSection(section){
     if(S.profile?.role==='admin' && typeof state!=='undefined' && !state.client){void v22RenderPortfolio(section);return}
     showLockedError(new Error('No practice is selected.'));return
   }
-  const ready=(lockedClientId===cid&&Object.keys(S.records||{}).length>0&&!(S.profile?.role==='provider'&&S.__loadedProviderKey!==bhaProviderKey(S.profile?.provider_name)));
+  const ready=(lockedClientId===cid&&Object.keys(S.records||{}).length>0&&S.__loadedUserId===String(state.profile?.id||'')&&S.__loadedRole===String(state.profile?.role||'')&&(S.profile?.role==='provider'?S.__loadedProviderKey===bhaProviderKey(S.profile?.provider_name):S.__loadedProviderKey===null));
   if(ready){void v29ApplyLocalAr(cid).then(()=>{if(token===lockedRenderToken)renderSection()}).catch(e=>showLockedError(e));return}
   const c=document.getElementById('content');
   if(c)c.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
@@ -5455,7 +5455,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
     const results=await Promise.all(MODS.map(async m=>{try{return[m,await fastModule(m,force)]}catch(e){console.warn('V18 module load',m,e);return[m,[]]}}));
     if(!requestUser||String(state.profile?.id||'')!==requestUser||String(S.client?.id||'')!==requestClient)throw new Error('Session changed; stale dashboard data discarded');
     if(requestRole==='provider'&&bhaProviderKey(state.profile?.provider_name)!==requestProvider)throw new Error('Provider changed; stale data discarded');
-    S.records=Object.fromEntries(results);S.__loadedProviderKey=requestRole==='provider'?requestProvider:null;return S.records;
+    S.records=Object.fromEntries(results);S.__loadedProviderKey=requestRole==='provider'?requestProvider:null;S.__loadedUserId=requestUser;S.__loadedRole=requestRole;return S.records;
   };
 
   // Client switches must never reuse another practice's in-memory records.
@@ -5508,7 +5508,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
     try{ sessionStorage.clear(); }catch(_){}
     try{
       if(typeof state!=='undefined' && typeof freshState==='function') state=freshState();
-      if(typeof S!=='undefined') Object.assign(S,{session:null,profile:null,client:null,clients:[],records:{},section:'overview'});
+      if(typeof S!=='undefined') Object.assign(S,{session:null,profile:null,client:null,clients:[],records:{},section:'overview',__loadedProviderKey:null,__loadedUserId:null,__loadedRole:null});
     }catch(_){}
     const app=document.getElementById('app');
     if(app && typeof loginView==='function'){
