@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-16-caldwell-eligibility-source-columns-v1';</script>
+<script>const BHA_BUILD_ID='2026-10-20-production-candidate-rcm-import-v7';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -2159,16 +2159,17 @@ async function importCsv(){
     if((redwoodWorkbook||redwoodCsv)&&String(clientId)!==redwoodId)
       throw new Error('Redwood A/R source cannot be imported to another practice.');
     if(String(clientId)===redwoodId&&module==='ar'){
-      // Production rcm-import v6 has been verified for 8,318 claims and $2,203,554.27.
+      // Server-side rcm-import v7 enforces the approved 8,146-row / $2,089,232.89 replacement.
+      // Approved final Redwood A/R replacement: 8,146 claims totaling $2,089,232.89 (2026-10-20).
       if(mode!=='replace')throw new Error('Redwood A/R must use Replace mode to prevent duplicates.');
-      if(rows.length!==8318)throw new Error(`Expected 8,318 Redwood claims; found ${rows.length.toLocaleString()}. No records uploaded.`);
+      if(rows.length!==8146)throw new Error(`Expected 8,146 Redwood claims; found ${rows.length.toLocaleString()}. No records uploaded.`);
       const cents=rows.reduce((sum,row)=>{
         const value=Number(String(row.balance??row.Balance??'').replace(/[$,]/g,''));
         if(!Number.isFinite(value))throw new Error('Invalid Redwood claim balance.');
         if(!String(row.provider??row.Provider??'').trim())throw new Error('A Redwood claim is missing provider.');
         return sum+Math.round(value*100);
       },0);
-      if(cents!==220355427)throw new Error(`Redwood balance mismatch: $${(cents/100).toFixed(2)}. Expected $2,203,554.27. Import blocked.`);
+      if(cents!==208923289)throw new Error(`Redwood balance mismatch: $${(cents/100).toFixed(2)}. Expected $2,089,232.89. Import blocked.`);
     }
 
     if(DEMO_MODE){
@@ -4181,15 +4182,53 @@ function overviewAgingPremium(rows){
  let cursor=0,parts=[];for(const x of g){const pct=total?x.bal/total*100:0;parts.push(`${x.c} ${cursor.toFixed(2)}% ${(cursor+pct).toFixed(2)}%`);cursor+=pct}
  return `<div class="ov3-aging-visual"><div class="ov3-ring-wrap"><div class="ov3-ring" style="background:conic-gradient(${parts.join(',')})"><div class="ov3-ring-center"><div><b>${money(total)}</b><span>Total A/R</span></div></div></div></div><div class="ov3-age-legend">${g.map(x=>`<div class="ov3-age-item"><span><i style="background:${x.c}"></i>${x.l} days</span><b>${money(x.bal)}</b><small>${count(x.cnt)} claims · ${total?((x.bal/total)*100).toFixed(1):0}%</small></div>`).join('')}</div></div>`
 }
+// BHA local-only fix: Practice Overview collections from dated claim financial detail.
+// Financial Summary is provider-level aggregate data and must never be added to claim totals.
+function bhaOverviewClaimPayments(){
+ const claim=(S.records.payments||[]).filter(r=>paymentType(r)==='claim'&&r.__payment_import_state!=='staged');
+ const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ let from=null,to=null;
+ if(S.period==='30')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-29);
+ if(S.period==='90')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-89);
+ if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
+ if(S.period==='custom'){
+  from=S.from?new Date(S.from+'T00:00:00'):null;
+  to=S.to?new Date(S.to+'T23:59:59'):null;
+ }
+ return claim.filter(r=>{
+  const date=paymentDateValue(r);
+  if(!date)return false; // undated claims are not attributed to any reporting period
+  if(from&&date<from)return false;
+  if(to&&date>to)return false;
+  if(S.provider&&bhaProviderKey(get(r,F.provider))!==bhaProviderKey(S.provider))return false;
+  if(S.payer&&String(get(r,F.payer)||'')!==S.payer)return false;
+  if(S.cpt&&String(get(r,F.cpt)||'')!==S.cpt)return false;
+  return true;
+ });
+}
+function bhaOverviewClaimDeposit(r){
+ // Use the exact source column, not posted_amount, payer-only payments or the summary dataset.
+ const n=parseNum(get(r,['total_deposit_amount','Total Deposit Amount']));
+ return n===null?0:n;
+}
+function bhaOverviewPaymentTrend(rows){
+ const m=new Map();
+ for(const r of rows){
+  const d=paymentDateValue(r);if(!d)continue;
+  const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  m.set(key,(m.get(key)||0)+bhaOverviewClaimDeposit(r));
+ }
+ return m;
+}
 function renderOverview(){
  document.getElementById('pageName').textContent=role()==='provider'?'My Overview':'Practice Overview';
  const source=allRows(),flat=filtered(source);
  if(!flat.length){document.getElementById('content').innerHTML=hero(scope(),'No published records match this view.')+filtersHtml()+'<div class="empty"><b>No matching data</b>Choose All Available or clear filters.</div>';bindFilters(renderOverview);return}
- const ar=filtered(S.records.ar||[]),denRows=filtered(S.records.denials||[]),payRows=filtered(S.records.payments||[]),chargeRows=filtered(S.records.charges||[]);
+ const ar=filtered(S.records.ar||[]),denRows=filtered(S.records.denials||[]),payRows=bhaOverviewClaimPayments(),chargeRows=filtered(S.records.charges||[]);
  // Prefer domain-specific sources; fall back to fields embedded in another published source only when needed.
  const bal=has(ar,F.balance)?sum(ar,F.balance):(has(flat,F.balance)?sum(flat,F.balance):null);
  const ch=has(chargeRows,F.charges)?sum(chargeRows,F.charges):(has(ar,F.charges)?sum(ar,F.charges):(has(flat,F.charges)?sum(flat,F.charges):null));
- const pay=has(payRows,F.payments)?sum(payRows,F.payments):(has(flat,F.payments)?sum(flat,F.payments):null);
+ const pay=payRows.length?payRows.reduce((a,r)=>a+bhaOverviewClaimDeposit(r),0):null;
  const claimBase=ar.length?ar:flat,claims=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'?claimBase.length:(uniq(claimBase,F.claim).length||claimBase.length);
  const agedBase=ar.length?ar:flat,hasAge=has(agedBase,F.days)||has(agedBase,F.bucket);
  const old=hasAge?agedBase.filter(r=>(age(r)||0)>90):[],oldBal=old.length&&has(agedBase,F.balance)?sum(old,F.balance):null;
@@ -4204,7 +4243,7 @@ function renderOverview(){
  const primary=[];
  if(bal!=null)primary.push(kpi('Outstanding A/R',bal,'Current published receivables'));
  if(ch!=null)primary.push(kpi('Total Charges',ch,'Available charge activity','teal'));
- if(pay!=null)primary.push(kpi('Payments / Collections',pay,'Available posted payments','green'));
+ if(pay!=null)primary.push(kpi('Payments / Collections',pay,'Claim Financial Detail · Payment Date · Net deposits','green'));
  primary.push(kpi('Claims / Records',claims,'Current receivable inventory','purple','count'));
 
  const risk=[];
@@ -4219,13 +4258,69 @@ function renderOverview(){
  const payerHtml=payerData.length?`<div class="ov2-conc">${payerData.slice(0,7).map(x=>`<div class="ov2-conc-row"><span class="name" title="${esc(x.name)}">${esc(x.name)}</span><div class="track"><div class="fill" style="width:${Math.max(3,x.value/Math.max(1,payerData[0].value)*100)}%"></div></div><span class="amt">${money(x.value)}<small>${payerTotal?((x.value/payerTotal)*100).toFixed(1):0}% of visible exposure</small></span></div>`).join('')}</div>`:'<div class="empty"><b>Payer field not present</b>Payer concentration will appear when the source includes payer information.</div>';
 
  const isRedwoodExcel=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'&&ar.some(r=>r.source_worksheet);
- const sourceBands=[['Current (0–30)','current','#2f6df6'],['31–60 Days','aging_31_60','#10a48f'],['61–90 Days','aging_61_90','#7657e8'],['91–120 Days','aging_91_120','#f09a35'],['Over 120 Days','aging_120_plus','#e4576b']];
- const sourceTotals=sourceBands.map(([label,key,color])=>({label,key,color,value:ar.reduce((a,r)=>a+(Number(r[key])||0),0),count:ar.filter(r=>Number(r[key])!==0).length}));
+ // Match actual Redwood AR Excel import keys, as already supported by AR Management.
+ const sourceBands=[['Current (0–30)',['current'],'#2f6df6'],['31–60 Days',['31_60','aging_31_60','31-60'],'#10a48f'],['61–90 Days',['61_90','aging_61_90','61-90'],'#7657e8'],['91–120 Days',['91_120','aging_91_120','91-120'],'#f09a35'],['Over 120 Days',['over_120','aging_120_plus','aging_121_plus','120+'],'#e4576b']];
+ const sourceAmount=(r,keys)=>parseNum(get(r,keys))||0;
+ const sourceTotals=sourceBands.map(([label,keys,color])=>({label,key:keys[0],color,value:ar.reduce((a,r)=>a+sourceAmount(r,keys),0),count:ar.filter(r=>sourceAmount(r,keys)!==0).length}));
  const sourceTotal=sourceTotals.reduce((a,x)=>a+x.value,0);
  const sourceAgingHtml=`<div class="ov3-aging-visual"><div class="ov3-ring-wrap"><div class="ov3-ring" style="background:conic-gradient(${(()=>{let p=0;return sourceTotals.map(x=>{const start=p;p+=sourceTotal?x.value/sourceTotal*100:0;return x.color+' '+start.toFixed(3)+'% '+p.toFixed(3)+'%'}).join(',')})()})"><div class="ov3-ring-center"><div><b>${money(sourceTotal)}</b><span>Total A/R</span></div></div></div></div><div class="ov3-age-legend">${sourceTotals.map(x=>`<div class="ov3-age-item"><span><i style="background:${x.color}"></i>${x.label}</span><b>${money(x.value)}</b><small>${count(x.count)} claims · ${sourceTotal?(x.value/sourceTotal*100).toFixed(1):0}%</small></div>`).join('')}</div></div>`;
  const missingPayerNote='<div style="padding:17px 19px;border:1px solid #d8e5f0;border-radius:13px;background:#f6faff;color:#42627e;font-size:13px"><b style="color:#123955">Payer breakdown requires a payer-to-claim mapping</b><p style="margin:7px 0 0">The supplied claim-aging worksheets include claim, patient, CPT and aging amounts, but no payer-name column. Payer information from other modules cannot be assigned to these claims without a verified match.</p></div>';
- const tr=overviewTrend(ar,chargeRows,payRows),validTrend=tr.length>=2;
- const trendFlags={ch:trustworthyDateSet(chargeRows,'charges')&&has(chargeRows,F.charges),pay:trustworthyDateSet(payRows,'payments')&&has(payRows,F.payments),bal:trustworthyDateSet(ar,'ar')&&has(ar,F.balance)};
+ const tr=overviewTrend(ar,chargeRows,[]);
+ const claimPaymentMonths=bhaOverviewPaymentTrend(payRows);
+ const today=new Date();
+ let rangeStart=null,rangeEnd=null;
+ if(S.period==='custom'){
+  rangeStart=S.from?dt(S.from):null;
+  rangeEnd=S.to?dt(S.to):null;
+ }else if(S.period==='30'||S.period==='90'){
+  rangeStart=new Date(today.getFullYear(),today.getMonth(),today.getDate()-(S.period==='30'?29:89));
+  rangeEnd=today;
+ }else if(S.period==='ytd'){
+  rangeStart=new Date(today.getFullYear(),0,1);
+  rangeEnd=today;
+ }
+ const dailyTrend=!!(S.period==='custom'&&rangeStart&&rangeEnd&&rangeEnd>=rangeStart&&
+  (rangeEnd-rangeStart)/86400000<=62);
+ const labelMonth=key=>new Date(key+'-01T00:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+ if(dailyTrend){
+  // Within a short custom period, chart each calendar day instead of a single monthly dot.
+  // Payments come solely from dated Claim Financial Detail net deposits.
+  const byDay=new Map();
+  const add=(r,field,amount,date)=>{
+   if(!date||date<rangeStart||date>new Date(rangeEnd.getFullYear(),rangeEnd.getMonth(),rangeEnd.getDate(),23,59,59,999))return;
+   const key=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+   const item=byDay.get(key)||{charges:0,payments:0,balance:0};item[field]+=amount;byDay.set(key,item);
+  };
+  for(const r of payRows)add(r,'payments',bhaOverviewClaimDeposit(r),paymentDateValue(r));
+  for(const r of chargeRows){const n=parseNum(get(r,F.charges));if(n!==null)add(r,'charges',n,moduleDate(r,'charges'))}
+  for(const r of ar){const n=parseNum(get(r,F.balance));if(n!==null)add(r,'balance',n,moduleDate(r,'ar'))}
+  tr.length=0;
+  for(let d=new Date(rangeStart.getFullYear(),rangeStart.getMonth(),rangeStart.getDate());d<=rangeEnd;d.setDate(d.getDate()+1)){
+   const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+   const row=byDay.get(key)||{charges:0,payments:0,balance:0};
+   tr.push({label:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}),...row});
+  }
+ }else{
+  const otherMonths=new Map(tr.map(x=>[x.label,{...x}]));
+  for(const [key,amount] of claimPaymentMonths){
+   const label=labelMonth(key),item=otherMonths.get(label)||{label,charges:0,payments:0,balance:0};
+   item.payments=amount;otherMonths.set(label,item);
+  }
+  const periodMonth=label=>{const d=new Date('1 '+label);return Number.isNaN(d.getTime())?null:d.getFullYear()*12+d.getMonth()};
+  const first=rangeStart?rangeStart.getFullYear()*12+rangeStart.getMonth():null;
+  const last=rangeEnd?rangeEnd.getFullYear()*12+rangeEnd.getMonth():null;
+  const scoped=[...otherMonths.values()].filter(item=>{const m=periodMonth(item.label);return m!==null&&(first===null||m>=first)&&(last===null||m<=last)}).sort((a,b)=>periodMonth(a.label)-periodMonth(b.label));
+  tr.splice(0,tr.length,...scoped.slice(-12));
+ }
+ const validTrend=tr.length>=1;
+ const trendFlags={ch:trustworthyDateSet(chargeRows,'charges')&&has(chargeRows,F.charges),pay:payRows.length>0,bal:trustworthyDateSet(ar,'ar')&&has(ar,F.balance)};
+ // Separate source aging amount columns take precedence over generic age/period columns.
+ const verifiedAging=sourceBands.some(([,keys])=>ar.some(r=>get(r,keys)!==null));
+ const ambiguousGenericAging=!verifiedAging&&agedBase.length>0&&agedBase.every(r=>{
+  const n=parseNum(get(r,F.days));return n===0||n===null;
+ })&&!has(agedBase,F.bucket);
+ const agingDisplay=verifiedAging?sourceAgingHtml:(ambiguousGenericAging?
+  '<div class="empty"><b>Aging breakdown not verified</b>The source does not provide usable aging amounts or claim-age buckets. A/R is not automatically classified as 0–30 days.</div>':overviewAgingPremium(agedBase));
  const actions=[];
  if(oldBal!=null)actions.push(['Aging risk',money(oldBal),(isRedwoodExcel?count(sourceTotals[3].count+sourceTotals[4].count):count(old.length))+' aging-bucket entries have balances older than 90 days.','ar','Review A/R']);
  if(denialCount)actions.push(['Denial risk',denialExposure!=null?money(denialExposure):count(denialCount),count(denialCount)+' denial records need visibility.','denials','Review denials']);
@@ -4237,9 +4332,9 @@ function renderOverview(){
  document.getElementById('content').innerHTML=customHero+filtersHtml()+`<div class="ov3">`+
  `<div class="ov2-summary primary">${primary.join('')}</div>`+
  (risk.length?`<div class="ov2-risk">${risk.join('')}</div>`:'')+
- (validTrend?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">Financial Trend</h3><p>Monthly movement from dated records.</p></div><span class="badge">${tr.length} valid months</span></div><div class="trend"><canvas id="trend"></canvas></div></div>`:'')+
+ (validTrend?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">Financial Trend</h3><p>${dailyTrend?'Daily movement from dated records.':'Monthly movement from dated records.'}</p></div><span class="badge">${tr.length} ${dailyTrend?'days':'valid months'}</span></div><div class="trend"><canvas id="trend"></canvas></div></div>`:'')+
  (isRedwoodExcel?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Source-verified claim aging across all five Excel report buckets.</p></div><span class="badge">${count(ar.length)} source records</span></div>${sourceAgingHtml}</div>`:
- `<div class="ov3-visual-grid"><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">Top Payer Exposure</h3><p>Largest payer concentrations in the visible receivable source.</p></div><span class="badge">${count(payerData.length)} payers</span></div>${payerHtml}</div><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Graphical balance concentration across executive aging bands.</p></div></div>${overviewAgingPremium(agedBase)}</div></div>`)+
+ `<div class="ov3-visual-grid"><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">Top Payer Exposure</h3><p>Largest payer concentrations in the visible receivable source.</p></div><span class="badge">${count(payerData.length)} payers</span></div>${payerHtml}</div><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Graphical balance concentration across executive aging bands.</p></div></div>${agingDisplay}</div></div>`)+
  (actions.length?`<div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">Revenue Cycle Action Center</h3><p>Priority signals from published practice data.</p></div><span class="badge">${actions.length} active signals</span></div><div class="ov2-actions" style="display:grid;grid-template-columns:repeat(${Math.min(actions.length,3)},minmax(0,1fr));gap:12px">${actions.slice(0,3).map(([tag,val,txt,go,label])=>`<div class="ov2-action"><span class="tag">${esc(tag)}</span><strong>${esc(val)}</strong><p>${esc(txt)}</p><button data-action-go="${go}">${esc(label)} →</button></div>`).join('')}</div></div>`:'')+`</div>`;
  bindFilters(renderOverview);
  document.querySelectorAll('[data-action-go]').forEach(b=>b.onclick=()=>{S.search='';if(typeof window.navigateToSection==='function')window.navigateToSection(b.dataset.actionGo);});
@@ -4365,7 +4460,7 @@ function v31RenderRedwoodAR(){
    if(arDatePreset==='custom')return (!customFrom||dt>=customFrom)&&(!customTo||dt<=customTo);
    return dt>=arStart&&dt<=arToday;
  });
- if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the validated 8,318-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
+ if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the approved 8,146-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
  const n=(r,k)=>{
   const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120'],balance:['balance','Balance'],charges:['charges','Charges']};
   for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const parsed=Number(String(value).replace(/[$,]/g,''));if(Number.isFinite(parsed))return parsed;}}
@@ -4380,7 +4475,7 @@ function v31RenderRedwoodAR(){
  const kpis=[kpi('Outstanding A/R',total,'Updated provider-mapped AR report'),kpi('Claims / Records',countRows,'Source claim records','purple','count'),kpi('A/R Over 90 Days',over90,'91–120 and over 120 day balances','amber'),kpi('A/R Over 120 Days',over120,'Exact source 120+ bucket','red'),kpi('Avg Balance / Claim',countRows?total/countRows:0,'Average source balance'),kpi('High Balance A/R',high.balance||0,count(highRows.length)+' high-balance records','teal')];
  const aging=buckets.map(([key,label,color])=>{const amount=rows.reduce((a,r)=>a+n(r,key),0),qty=rows.filter(r=>n(r,key)!==0).length;return `<div class="ar3-aging-item" style="border-top:4px solid ${color};padding:18px;border-radius:12px;border:1px solid #dae6f0;border-top:4px solid ${color};background:#f8fbfe"><b style="font-size:11px;color:#63809b">${label}</b><h3 style="margin:8px 0">${money(amount)}</h3><small>${count(qty)} claims · ${total?(100*amount/total).toFixed(1):'0.0'}% of A/R</small></div>`}).join('');
  const arText=(r,keys)=>{for(const key of keys){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim())return String(value).trim();}return '';};
- const arPatient=r=>arText(r,['patient_name','patient','Patient Name','Patient','patientName']);
+ const arPatient=r=>arText(r,['patient_name','patient','Patient Name','Patient','patientName','patient_id']);
  const arAccount=r=>arText(r,['account_no','patient_id','Patient Acct No','Patient Account No','account_number','account']);
  const rawQuery=S.search||'',bucket=S.v31Bucket||'all';
  const dateOptions=[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom Range']];
@@ -5126,11 +5221,18 @@ function v19UserOverview(){
 function v19AdminOverview(){
  document.getElementById('pageName').textContent='Admin Command Center';
  const ar=filtered(S.records.ar||[]),den=filtered(S.records.denials||[]),pay=filtered(S.records.payments||[]),chg=filtered(S.records.charges||[]),ver=filtered(S.records.verification||[]),auth=filtered(S.records.auth||[]);
- const arAmt=has(ar,F.balance)?Math.abs(sum(ar,F.balance)||0):null,denAmt=den.length?(has(den,F.balance)?Math.abs(sum(den,F.balance)||0):null):null,payAmt=has(pay,F.payments)?Math.abs(sum(pay,F.payments)||0):null,chgAmt=has(chg,F.charges)?Math.abs(sum(chg,F.charges)||0):null;
+ const arAmt=has(ar,F.balance)?Math.abs(sum(ar,F.balance)||0):null,denAmt=den.length?(has(den,F.balance)?Math.abs(sum(den,F.balance)||0):null):null,chgAmt=has(chg,F.charges)?Math.abs(sum(chg,F.charges)||0):null;
+ // Reuse the client Practice Overview's claim-detail-only, payment-date and net-deposit logic.
+ // Never combine the provider Financial Summary rows with claim-level transactions.
+ const adminClaimPayments=bhaOverviewClaimPayments();
+ const payAmt=adminClaimPayments.length?adminClaimPayments.reduce((total,r)=>total+bhaOverviewClaimDeposit(r),0):null;
+ // The administration workspace's practice list is maintained in the main app state.
+ const adminPractices=Array.isArray(state?.clients)&&state.clients.length?state.clients:(Array.isArray(S.clients)?S.clients:[]);
+ const adminPracticeCount=adminPractices.length;
  const old=ar.filter(r=>(age(r)||0)>90),oldAmt=old.length&&has(old,F.balance)?Math.abs(sum(old,F.balance)||0):null;
- const cards=[];if(arAmt!=null)cards.push(kpi('Outstanding A/R',arAmt,`${count(ar.length)} A/R records`,'blue'));if(payAmt!=null)cards.push(kpi('Published Payments',payAmt,`${count(pay.length)} payment records`,'green'));if(denAmt!=null)cards.push(kpi('Denial Exposure',denAmt,`${count(den.length)} denial records`,'red'));if(chgAmt!=null)cards.push(kpi('Published Charges',chgAmt,`${count(chg.length)} charge records`,'teal'));cards.push(kpi('Authorized Clients',S.clients.length,'Practices available to this administrator','purple','count'));
+ const cards=[];if(arAmt!=null)cards.push(kpi('Outstanding A/R',arAmt,`${count(ar.length)} A/R records`,'blue'));if(payAmt!=null)cards.push(kpi('Payments / Collections',payAmt,`${count(adminClaimPayments.length)} dated claim-detail rows`,'green'));if(denAmt!=null)cards.push(kpi('Denial Exposure',denAmt,`${count(den.length)} denial records`,'red'));if(chgAmt!=null)cards.push(kpi('Published Charges',chgAmt,`${count(chg.length)} charge records`,'teal'));cards.push(kpi('Authorized Clients',adminPracticeCount,'Practices available to this administrator','purple','count'));
  const payer=group(ar,F.payer,F.balance),provider=group(chg,F.provider,F.charges);
- document.getElementById('content').innerHTML=v19RoleHero('BHA ADMIN COMMAND CENTER',scope(),'Control client workspaces, revenue operations, access and platform activity from one administrative view.','Administrator')+filtersHtml()+`<div class="v19-role-strip"><span>Workspace <b>${esc(scope())}</b></span><span>Access <b>Administrator</b></span><span>Authorized practices <b>${count(S.clients.length)}</b></span></div><div class="kpis">${cards.join('')}</div><div class="card"><div class="card-head"><div><h3>Administrative Action Center</h3><p>Separate platform administration from day-to-day client reporting.</p></div><span class="badge">Admin only</span></div><div class="v19-actions">${v19ActionCard('blue','Client Workspaces',count(S.clients.length),'Open or switch between authorized client practices.','clients','Manage clients')}${v19ActionCard('purple','Users & Access','Permissions','Manage Admin, BHA User, Client and Provider access.','users','Manage access')}${v19ActionCard('teal','Data Operations','Imports','Publish and maintain client RCM datasets.','imports','Open data operations')}${v19ActionCard('amber','Audit & Activity','Controls','Review administrative and data activity.','activity','Open audit log')}</div></div><div class="v19-grid"><div class="card"><div class="card-head"><div><h3>Revenue Risk — Selected Practice</h3><p>Financial signals remain client-scoped even in Admin mode.</p></div></div><div class="v19-actions">${v19ActionCard('red','A/R 91+ Days',oldAmt!=null?money(oldAmt):count(old.length),`${count(old.length)} aged receivable records in the selected practice.`,'ar','Review A/R')}${v19ActionCard('pink','Denials',denAmt!=null?money(denAmt):count(den.length),`${count(den.length)} denial records in scope.`,'denials','Review denials')}</div></div><div class="card"><div class="card-head"><div><h3>Operational Coverage</h3><p>Dataset availability for the selected practice.</p></div></div><div class="v19-workload">${[['A/R',ar.length],['Denials',den.length],['Payments',pay.length],['Eligibility',ver.length],['Authorizations',auth.length],['Charges',chg.length]].map(x=>`<div><span>${x[0]}</span><b>${count(x[1])}</b></div>`).join('')}</div></div></div><div class="v19-grid"><div class="card"><div class="card-head"><div><h3>Top Payer A/R Exposure</h3><p>Selected-practice receivable concentration.</p></div></div>${bars(payer,true)}</div><div class="card"><div class="card-head"><div><h3>Provider Charge Activity</h3><p>Selected-practice provider activity where supported.</p></div></div>${bars(provider,true)}</div></div>`;
+ document.getElementById('content').innerHTML=v19RoleHero('BHA ADMIN COMMAND CENTER',scope(),'Control client workspaces, revenue operations, access and platform activity from one administrative view.','Administrator')+filtersHtml()+`<div class="v19-role-strip"><span>Workspace <b>${esc(scope())}</b></span><span>Access <b>Administrator</b></span><span>Authorized practices <b>${count(adminPracticeCount)}</b></span></div><div class="kpis">${cards.join('')}</div><div class="card"><div class="card-head"><div><h3>Administrative Action Center</h3><p>Separate platform administration from day-to-day client reporting.</p></div><span class="badge">Admin only</span></div><div class="v19-actions">${v19ActionCard('blue','Client Workspaces',count(adminPracticeCount),'Open or switch between authorized client practices.','clients','Manage clients')}${v19ActionCard('purple','Users & Access','Permissions','Manage Admin, BHA User, Client and Provider access.','users','Manage access')}${v19ActionCard('teal','Data Operations','Imports','Publish and maintain client RCM datasets.','imports','Open data operations')}${v19ActionCard('amber','Audit & Activity','Controls','Review administrative and data activity.','activity','Open audit log')}</div></div><div class="v19-grid"><div class="card"><div class="card-head"><div><h3>Revenue Risk — Selected Practice</h3><p>Financial signals remain client-scoped even in Admin mode.</p></div></div><div class="v19-actions">${v19ActionCard('red','A/R 91+ Days',oldAmt!=null?money(oldAmt):count(old.length),`${count(old.length)} aged receivable records in the selected practice.`,'ar','Review A/R')}${v19ActionCard('pink','Denials',denAmt!=null?money(denAmt):count(den.length),`${count(den.length)} denial records in scope.`,'denials','Review denials')}</div></div><div class="card"><div class="card-head"><div><h3>Operational Coverage</h3><p>Dataset availability for the selected practice.</p></div></div><div class="v19-workload">${[['A/R',ar.length],['Denials',den.length],['Payments',pay.length],['Eligibility',ver.length],['Authorizations',auth.length],['Charges',chg.length]].map(x=>`<div><span>${x[0]}</span><b>${count(x[1])}</b></div>`).join('')}</div></div></div><div class="v19-grid"><div class="card"><div class="card-head"><div><h3>Top Payer A/R Exposure</h3><p>Selected-practice receivable concentration.</p></div></div>${bars(payer,true)}</div><div class="card"><div class="card-head"><div><h3>Provider Charge Activity</h3><p>Selected-practice provider activity where supported.</p></div></div>${bars(provider,true)}</div></div>`;
  bindFilters(v19AdminOverview);v19BindActions();
 }
 const v19ClientOverview=renderOverview;
