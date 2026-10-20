@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-20-ar-aging-accounting-negative-fix-v9';</script>
+<script>const BHA_BUILD_ID='2026-10-21-revenue-insights-reconciliation-v11';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -3101,6 +3101,12 @@ boot();
 <style id="v43-premium-portfolio-intelligence">
 .ri-portfolio-hero{border-radius:22px;padding:28px 30px;background:linear-gradient(120deg,#082f49 0%,#145473 62%,#17627b 100%);color:#fff;display:flex;justify-content:space-between;align-items:center;gap:26px;box-shadow:0 16px 36px rgba(11,48,72,.13)}.ri-portfolio-hero h2{font-size:28px;line-height:1.12;margin:8px 0 8px;max-width:760px}.ri-portfolio-hero p{margin:0;max-width:800px;color:#c8dce9;font-size:13px;line-height:1.55}.ri-portfolio-badge{min-width:165px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);padding:15px 17px;border-radius:16px}.ri-portfolio-badge span,.ri-portfolio-badge small{display:block;color:#c2d8e6;font-size:10px}.ri-portfolio-badge strong{display:block;font-size:27px;margin:3px 0}.ri-portfolio-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.ri-portfolio-kpis article{padding:17px 18px;background:#fff;border:1px solid #dce6f1;border-radius:17px;box-shadow:0 8px 24px rgba(20,55,90,.045)}.ri-portfolio-kpis span{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#71859c;font-weight:850}.ri-portfolio-kpis strong{display:block;font-size:25px;color:#102f4c;margin:6px 0 2px}.ri-portfolio-kpis small{color:#8294a8;font-size:10px}.ri-portfolio-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding:6px 2px 0}.ri-portfolio-head h3{margin:5px 0 3px;color:#123653;font-size:17px}.ri-portfolio-head p{margin:0;color:#7b8fa5;font-size:11px}.ri-separation{font-size:10px;font-weight:800;color:#147b69;background:#edf9f5;border:1px solid #d5eee6;border-radius:999px;padding:7px 10px}.ri-practice-list{display:grid;gap:12px}.ri-practice-card{background:#fff;border:1px solid #dce6f1;border-radius:18px;padding:18px 20px;box-shadow:0 8px 24px rgba(20,55,90,.045);transition:.18s ease}.ri-practice-card:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(20,55,90,.075);border-color:#c8d9ea}.ri-practice-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.ri-practice-kicker{font-size:8px;letter-spacing:.1em;color:#8296aa;font-weight:850}.ri-practice-top h3{font-size:16px;color:#123653;margin:4px 0 0}.ri-status{font-size:9px;font-weight:850;border-radius:999px;padding:6px 9px}.ri-status.stable{background:#eaf8f3;color:#14765f}.ri-status.watch{background:#fff7e6;color:#98690b}.ri-status.attention{background:#fff0f0;color:#b53b46}.ri-status.data{background:#f1f4f8;color:#687c91}.ri-practice-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:16px 0;border:1px solid #e6edf4;border-radius:13px;overflow:hidden;background:#fbfcfe}.ri-practice-metrics>div{padding:12px 14px;border-right:1px solid #e6edf4}.ri-practice-metrics>div:last-child{border-right:0}.ri-practice-metrics span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#8092a5;font-weight:800}.ri-practice-metrics strong{display:block;margin-top:5px;color:#153a57;font-size:15px}.ri-practice-foot{display:flex;align-items:center;justify-content:space-between;gap:18px}.ri-practice-foot b,.ri-practice-foot small{display:block}.ri-practice-foot b{font-size:10px;color:#526b82}.ri-practice-foot small{font-size:9px;color:#8a9bad;margin-top:3px}.ri-practice-foot .btn{white-space:nowrap}@media(max-width:1000px){.ri-portfolio-kpis{grid-template-columns:repeat(2,1fr)}.ri-practice-metrics{grid-template-columns:repeat(2,1fr)}.ri-practice-metrics>div:nth-child(2){border-right:0}.ri-practice-metrics>div:nth-child(-n+2){border-bottom:1px solid #e6edf4}}@media(max-width:650px){.ri-portfolio-hero{flex-direction:column;align-items:flex-start}.ri-portfolio-badge{width:100%}.ri-portfolio-kpis{grid-template-columns:1fr}.ri-portfolio-head,.ri-practice-foot{align-items:flex-start;flex-direction:column}.ri-practice-metrics{grid-template-columns:1fr}.ri-practice-metrics>div{border-right:0!important;border-bottom:1px solid #e6edf4}.ri-practice-metrics>div:last-child{border-bottom:0}.ri-practice-foot .btn{width:100%}}
 </style>
+<script id="bha-v10-legacy-ri-binding">
+// A defined callable binding prevents legacy Revenue Intelligence wrappers from throwing
+// before the canonical revenue workspace installs its renderer later in this document.
+var riRender = (typeof window.riRender === 'function') ? window.riRender : async function(){};
+window.riRender = riRender;
+</script>
 <script id="v46-brigette-production-engines">
 /* V46 — Brigette Revenue Intelligence production engines.
    Adds reusable bank-deposit and contract-rate datasets, conservative reconciliation,
@@ -5275,7 +5281,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
    const clientId=state.client?.id||state.profile?.client_id,cn=bhaPracticeDisplayName(state.client?.name)||clientName();if(!clientId){root.innerHTML='<div class="notice">Select a practice to open Revenue Intelligence.</div>';return}
    try{
      const x=await bhaV56FastIntelligence(clientId);if(state.section!=='intelligence'||!document.getElementById('riRoot'))return;
-     const lockedPay=paymentTotalFromLocked(); if(lockedPay&&lockedPay.total>0){x.totalPaid=lockedPay.total;x.payCount=lockedPay.count}
+     // Keep reconciled claim-level net-deposit total; no mixed-dataset override.
      let hasBank=false,hasContracts=false;try{[hasBank,hasContracts]=await Promise.all([bhaV56ModuleExists('bank_deposits',clientId),bhaV56ModuleExists('contract_rates',clientId)])}catch(_){ }
      const oldPct=pct(x.old90,x.totalAR);
      root.innerHTML=`
@@ -5344,7 +5350,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
    const clientId=state.client?.id||state.profile?.client_id,cn=bhaPracticeDisplayName(state.client?.name)||clientName();if(!clientId){root.innerHTML='<div class="notice">Select a practice to open Revenue Intelligence.</div>';return}
    try{
      const x=await bhaV56FastIntelligence(clientId);if(state.section!=='intelligence'||!document.getElementById('riRoot'))return;
-     const lockedPay=paymentTotalFromLocked(); if(lockedPay&&lockedPay.total>0){x.totalPaid=lockedPay.total;x.payCount=lockedPay.count}
+     // Keep reconciled claim-level net-deposit total; no mixed-dataset override.
      let hasBank=false,hasContracts=false;try{[hasBank,hasContracts]=await Promise.all([bhaV56ModuleExists('bank_deposits',clientId),bhaV56ModuleExists('contract_rates',clientId)])}catch(_){ }
      const oldPct=pct(x.old90,x.totalAR);
      root.innerHTML=`
@@ -5390,6 +5396,11 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
 <!-- V18 FINAL ARCHITECTURE LOCAL TEST: performance-only data transport layer. No business formulas/cards changed. -->
 <script id="bha-v18-final-architecture">
 (function(){
+  if(typeof loadAll !== 'function' || typeof resetLockedClientState !== 'function'){
+    // These loaders are private to the locked-module closure; no global override is valid.
+    return;
+  }
+
   const CACHE_TTL=10*60*1000;
   const PAGE=1000;
   const MAX_PARALLEL=6;
@@ -5699,8 +5710,10 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
     for(const d of ar){
       const bal=n(val(d,BAL));
       if(bal!==null)totalAR+=bal;
-      const a=age4(d);
-      if(a!==null && a>90 && bal!==null)old90+=bal;
+      const a91=n(val(d,['91_120','aging_91_120','91-120']));
+      const a120=n(val(d,['over_120','aging_120_plus','aging_121_plus','120+']));
+      if(a91!==null || a120!==null)old90+=(a91||0)+(a120||0);
+      else { const a=age4(d); if(a!==null && a>90 && bal!==null)old90+=bal; }
       const raw=String(val(d,PAYER)||'').trim();
       // Blank payer values are not converted into a fake "Unspecified" top payer.
       if(raw){
@@ -5709,16 +5722,19 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
       }
     }
 
-    let totalPaid=0;
+    // Claim Financial Detail net deposits only; summary rows duplicate the activity.
+    let totalPaid=0,datedPayCount=0;
     for(const d of payments){
-      const x=n(val(d,PAY)); if(x!==null)totalPaid+=x;
+      if(String(d.__payment_dataset_type||'').trim().toLowerCase()!=='claim_financial_detail')continue;
+      const amount=n(val(d,['total_deposit_amount']));
+      if(amount!==null){totalPaid+=amount;datedPayCount++}
     }
 
     const payers=[...payerMap.values()].sort((a,b)=>b.ar-a.ar);
     const denialExposure=Number(summary.denial_amount||0);
     const data={
       summary,payers,totalAR,totalPaid,
-      arCount:ar.length,payCount:payments.length,
+      arCount:ar.length,payCount:datedPayCount,
       denialExposure,old90,
       weighted:0,p30:0,p60:0,p90:0,
       conf:{label:'Not available',score:0},
@@ -5788,7 +5804,7 @@ window.BHA_LOCAL_QA_BUILD='2026-10-09-audit-v2-not-production-approved';
    const clientId=state.client?.id||state.profile?.client_id,cn=bhaPracticeDisplayName(state.client?.name)||clientName();if(!clientId){root.innerHTML='<div class="notice">Select a practice to open Revenue Intelligence.</div>';return}
    try{
      const x=await bhaV56FastIntelligence(clientId);if(state.section!=='intelligence'||!document.getElementById('riRoot'))return;
-     const lockedPay=paymentTotalFromLocked(); if(lockedPay&&lockedPay.total>0){x.totalPaid=lockedPay.total;x.payCount=lockedPay.count}
+     // Keep reconciled claim-level net-deposit total; no mixed-dataset override.
      let hasBank=false,hasContracts=false;try{[hasBank,hasContracts]=await Promise.all([bhaV56ModuleExists('bank_deposits',clientId),bhaV56ModuleExists('contract_rates',clientId)])}catch(_){ }
      const oldPct=pct(x.old90,x.totalAR);
      root.innerHTML=`
@@ -5986,3 +6002,57 @@ window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V9_FINAL_LOCK_CANDIDATE';
 <style id="bha-provider-ar-v10">
 @media(min-width:1120px){.ar2-kpis[style*="repeat(3"]{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 </style>
+
+<script id="bha-ri-v12-final-source-reconciliation">
+// Final override must run AFTER V17, whose fastRevenue previously replaced the corrected V11 loader.
+(function(){
+  const previous=typeof bhaV56FastIntelligence==='function'?bhaV56FastIntelligence:null;
+  if(!previous)return;
+  const cache=new Map(),pending=new Map(),TTL=5*60*1000;
+  const keyFor=id=>String(id)+'|'+String(window.state?.profile?.id||'');
+  function amount(value){
+    if(value==null||String(value).trim()==='')return null;
+    const str=String(value).trim();const parentheses=/^\(.*\)$/.test(str);
+    const v=Number(str.replace(/[,$\s()]/g,''));
+    return Number.isFinite(v)?(parentheses?-Math.abs(v):v):null;
+  }
+  async function rows(module,clientId){
+    const head=await sb.from('rcm_records').select('id',{count:'exact',head:true}).eq('client_id',clientId).eq('module',module);
+    if(head.error)throw head.error;
+    const count=Number(head.count||0),jobs=[];
+    for(let start=0;start<count;start+=1000){
+      jobs.push(sb.from('rcm_records').select('data').eq('client_id',clientId).eq('module',module).order('id',{ascending:true}).range(start,Math.min(start+999,count-1)));
+    }
+    const results=await Promise.all(jobs),all=[];
+    for(const page of results){if(page.error)throw page.error;for(const entry of page.data||[])all.push(entry.data||{})}
+    if(all.length!==count)throw new Error('Incomplete '+module+' source data; refusing incorrect financial totals');
+    return all;
+  }
+  const corrected=async function(clientId,force=false){
+    const key=keyFor(clientId),old=cache.get(key);
+    if(!force&&old&&Date.now()-old.time<TTL)return {...old.value};
+    if(!force&&pending.has(key))return pending.get(key);
+    const job=(async()=>{
+      const [base,ar,payments]=await Promise.all([previous(clientId,force),rows('ar',clientId),rows('payments',clientId)]);
+      let totalAR=0,old90=0,totalPaid=0,detailCount=0;
+      for(const row of ar){
+        totalAR+=amount(row.balance)||0;
+        old90+=(amount(row['91_120'])||0)+(amount(row.over_120)||0);
+      }
+      for(const row of payments){
+        if(String(row.__payment_dataset_type||'').trim().toLowerCase()!=='claim_financial_detail')continue;
+        const a=amount(row.total_deposit_amount);
+        if(a!==null){totalPaid+=a;detailCount++}
+      }
+      if(!ar.length||!detailCount)throw new Error('Source data unavailable; cannot verify Revenue Insights totals');
+      const result={...base,totalAR,old90,totalPaid,arCount:ar.length,payCount:detailCount};
+      // Redwood AR export has no payer field: do not attribute the full balance to "Unspecified".
+      if(ar.every(row=>!String(row.payer||'').trim()))result.payers=[];
+      cache.set(key,{time:Date.now(),value:result});return {...result};
+    })().finally(()=>pending.delete(key));
+    pending.set(key,job);return job;
+  };
+  try{bhaV56FastIntelligence=corrected}catch(_){window.bhaV56FastIntelligence=corrected}
+  window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V12_FINAL_SOURCE_RECONCILED';
+})();
+</script>
