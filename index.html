@@ -4181,6 +4181,49 @@ function overviewAgingPremium(rows){
  let cursor=0,parts=[];for(const x of g){const pct=total?x.bal/total*100:0;parts.push(`${x.c} ${cursor.toFixed(2)}% ${(cursor+pct).toFixed(2)}%`);cursor+=pct}
  return `<div class="ov3-aging-visual"><div class="ov3-ring-wrap"><div class="ov3-ring" style="background:conic-gradient(${parts.join(',')})"><div class="ov3-ring-center"><div><b>${money(total)}</b><span>Total A/R</span></div></div></div></div><div class="ov3-age-legend">${g.map(x=>`<div class="ov3-age-item"><span><i style="background:${x.c}"></i>${x.l} days</span><b>${money(x.bal)}</b><small>${count(x.cnt)} claims · ${total?((x.bal/total)*100).toFixed(1):0}%</small></div>`).join('')}</div></div>`
 }
+
+// Claim-detail net collections use signed deposit amounts and Payment Date,
+// matching the Payment Posting claim-detail view. Other modules remain unchanged.
+function overviewClaimPaymentRows(){
+ const all=(S.records.payments||[]).filter(r=>
+   r.__payment_dataset_type==='claim_financial_detail' &&
+   r.__payment_import_state!=='staged');
+ if(!all.length)return null;
+ const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ let from=null,to=null;
+ if(S.period==='30')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-29);
+ if(S.period==='90')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-89);
+ if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
+ if(S.period==='custom'){
+   from=S.from?new Date(S.from+'T00:00:00'):null;
+   to=S.to?new Date(S.to+'T23:59:59'):null;
+ }
+ return all.filter(r=>{
+   if(S.provider && bhaProviderKey(get(r,F.provider))!==bhaProviderKey(S.provider))return false;
+   if(S.payer && String(get(r,F.payer)||'')!==S.payer)return false;
+   if(S.period!=='all'){
+     const d=paymentDateValue(r);
+     if(!d||from&&d<from||to&&d>to)return false;
+   }
+   return true;
+ });
+}
+function overviewClaimPaymentTotal(rows){
+ let total=0;
+ for(const r of rows)total+=parseNum(r.total_deposit_amount)||0;
+ return total;
+}
+function overviewClaimPaymentTrend(rows){
+ const monthly=new Map();
+ for(const r of rows){
+   const d=paymentDateValue(r);
+   if(!d)continue;
+   const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+   monthly.set(key,(monthly.get(key)||0)+(parseNum(r.total_deposit_amount)||0));
+ }
+ return [...monthly].sort((a,b)=>a[0].localeCompare(b[0]));
+}
+
 function renderOverview(){
  document.getElementById('pageName').textContent=role()==='provider'?'My Overview':'Practice Overview';
  const source=allRows(),flat=filtered(source);
@@ -4189,7 +4232,8 @@ function renderOverview(){
  // Prefer domain-specific sources; fall back to fields embedded in another published source only when needed.
  const bal=has(ar,F.balance)?sum(ar,F.balance):(has(flat,F.balance)?sum(flat,F.balance):null);
  const ch=has(chargeRows,F.charges)?sum(chargeRows,F.charges):(has(ar,F.charges)?sum(ar,F.charges):(has(flat,F.charges)?sum(flat,F.charges):null));
- const pay=has(payRows,F.payments)?sum(payRows,F.payments):(has(flat,F.payments)?sum(flat,F.payments):null);
+ const claimPayRows=overviewClaimPaymentRows();
+ const pay=claimPayRows!==null?overviewClaimPaymentTotal(claimPayRows):(has(payRows,F.payments)?sum(payRows,F.payments):(has(flat,F.payments)?sum(flat,F.payments):null));
  const claimBase=ar.length?ar:flat,claims=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'?claimBase.length:(uniq(claimBase,F.claim).length||claimBase.length);
  const agedBase=ar.length?ar:flat,hasAge=has(agedBase,F.days)||has(agedBase,F.bucket);
  const old=hasAge?agedBase.filter(r=>(age(r)||0)>90):[],oldBal=old.length&&has(agedBase,F.balance)?sum(old,F.balance):null;
@@ -4224,8 +4268,25 @@ function renderOverview(){
  const sourceTotal=sourceTotals.reduce((a,x)=>a+x.value,0);
  const sourceAgingHtml=`<div class="ov3-aging-visual"><div class="ov3-ring-wrap"><div class="ov3-ring" style="background:conic-gradient(${(()=>{let p=0;return sourceTotals.map(x=>{const start=p;p+=sourceTotal?x.value/sourceTotal*100:0;return x.color+' '+start.toFixed(3)+'% '+p.toFixed(3)+'%'}).join(',')})()})"><div class="ov3-ring-center"><div><b>${money(sourceTotal)}</b><span>Total A/R</span></div></div></div></div><div class="ov3-age-legend">${sourceTotals.map(x=>`<div class="ov3-age-item"><span><i style="background:${x.color}"></i>${x.label}</span><b>${money(x.value)}</b><small>${count(x.count)} claims · ${sourceTotal?(x.value/sourceTotal*100).toFixed(1):0}%</small></div>`).join('')}</div></div>`;
  const missingPayerNote='<div style="padding:17px 19px;border:1px solid #d8e5f0;border-radius:13px;background:#f6faff;color:#42627e;font-size:13px"><b style="color:#123955">Payer breakdown requires a payer-to-claim mapping</b><p style="margin:7px 0 0">The supplied claim-aging worksheets include claim, patient, CPT and aging amounts, but no payer-name column. Payer information from other modules cannot be assigned to these claims without a verified match.</p></div>';
- const tr=overviewTrend(ar,chargeRows,payRows),validTrend=tr.length>=2;
- const trendFlags={ch:trustworthyDateSet(chargeRows,'charges')&&has(chargeRows,F.charges),pay:trustworthyDateSet(payRows,'payments')&&has(payRows,F.payments),bal:trustworthyDateSet(ar,'ar')&&has(ar,F.balance)};
+ let tr=overviewTrend(ar,chargeRows,claimPayRows!==null?[]:payRows);
+ if(claimPayRows!==null){
+   const paymentMonths=new Map(overviewClaimPaymentTrend(claimPayRows));
+   const monthKeys=new Set(tr.map(x=>{
+     const [month,year]=x.label.split(' ');
+     return '20'+year+'-'+String(new Date(month+' 1, 2026').getMonth()+1).padStart(2,'0');
+   }));
+   for(const k of paymentMonths.keys())monthKeys.add(k);
+   const existing=new Map(tr.map(x=>{
+     const [month,year]=x.label.split(' ');
+     return ['20'+year+'-'+String(new Date(month+' 1, 2026').getMonth()+1).padStart(2,'0'),x];
+   }));
+   tr=[...monthKeys].sort().map(k=>({
+     ...(existing.get(k)||{label:new Date(k+'-01T00:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'}),charges:0,balance:0}),
+     payments:paymentMonths.get(k)||0
+   }));
+ }
+ const validTrend=tr.length>=2;
+ const trendFlags={ch:trustworthyDateSet(chargeRows,'charges')&&has(chargeRows,F.charges),pay:claimPayRows!==null?overviewClaimPaymentTrend(claimPayRows).length>0:(trustworthyDateSet(payRows,'payments')&&has(payRows,F.payments)),bal:trustworthyDateSet(ar,'ar')&&has(ar,F.balance)};
  const actions=[];
  if(oldBal!=null)actions.push(['Aging risk',money(oldBal),(isRedwoodExcel?count(sourceTotals[3].count+sourceTotals[4].count):count(old.length))+' aging-bucket entries have balances older than 90 days.','ar','Review A/R']);
  if(denialCount)actions.push(['Denial risk',denialExposure!=null?money(denialExposure):count(denialCount),count(denialCount)+' denial records need visibility.','denials','Review denials']);
