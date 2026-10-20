@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-20-session-isolation-fix-v8';</script>
+<script>const BHA_BUILD_ID='2026-10-20-ar-aging-accounting-negative-fix-v9';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -4260,7 +4260,7 @@ function renderOverview(){
  const isRedwoodExcel=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'&&ar.some(r=>r.source_worksheet);
  // Match actual Redwood AR Excel import keys, as already supported by AR Management.
  const sourceBands=[['Current (0–30)',['current'],'#2f6df6'],['31–60 Days',['31_60','aging_31_60','31-60'],'#10a48f'],['61–90 Days',['61_90','aging_61_90','61-90'],'#7657e8'],['91–120 Days',['91_120','aging_91_120','91-120'],'#f09a35'],['Over 120 Days',['over_120','aging_120_plus','aging_121_plus','120+'],'#e4576b']];
- const sourceAmount=(r,keys)=>parseNum(get(r,keys))||0;
+ const sourceAmount=(r,keys)=>{const raw=get(r,keys);if(raw==null||String(raw).trim()==='')return 0;const t=String(raw).trim(),negative=/^\s*\(.*\)\s*$/.test(t);const number=Number(t.replace(/[()$,\s]/g,''));return Number.isFinite(number)?(negative?-Math.abs(number):number):0;};
  const sourceTotals=sourceBands.map(([label,keys,color])=>({label,key:keys[0],color,value:ar.reduce((a,r)=>a+sourceAmount(r,keys),0),count:ar.filter(r=>sourceAmount(r,keys)!==0).length}));
  const sourceTotal=sourceTotals.reduce((a,x)=>a+x.value,0);
  const sourceAgingHtml=`<div class="ov3-aging-visual"><div class="ov3-ring-wrap"><div class="ov3-ring" style="background:conic-gradient(${(()=>{let p=0;return sourceTotals.map(x=>{const start=p;p+=sourceTotal?x.value/sourceTotal*100:0;return x.color+' '+start.toFixed(3)+'% '+p.toFixed(3)+'%'}).join(',')})()})"><div class="ov3-ring-center"><div><b>${money(sourceTotal)}</b><span>Total A/R</span></div></div></div></div><div class="ov3-age-legend">${sourceTotals.map(x=>`<div class="ov3-age-item"><span><i style="background:${x.color}"></i>${x.label}</span><b>${money(x.value)}</b><small>${count(x.count)} claims · ${sourceTotal?(x.value/sourceTotal*100).toFixed(1):0}%</small></div>`).join('')}</div></div>`;
@@ -4463,7 +4463,7 @@ function v31RenderRedwoodAR(){
  if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the approved 8,146-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
  const n=(r,k)=>{
   const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120'],balance:['balance','Balance'],charges:['charges','Charges']};
-  for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const parsed=Number(String(value).replace(/[$,]/g,''));if(Number.isFinite(parsed))return parsed;}}
+  for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const raw=String(value).trim(),negative=/^\(.*\)$/.test(raw);const parsed=Number(raw.replace(/[()$,\s]/g,''));if(Number.isFinite(parsed))return negative?-Math.abs(parsed):parsed;}}
   return 0;
  };
  const buckets=[['current','Current (0–30)','#2563eb'],['aging_31_60','31–60 Days','#0d9488'],['aging_61_90','61–90 Days','#7c3aed'],['aging_91_120','91–120 Days','#d97706'],['aging_120_plus','Over 120 Days','#e11d48']];
