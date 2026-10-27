@@ -2159,17 +2159,17 @@ async function importCsv(){
     if((redwoodWorkbook||redwoodCsv)&&String(clientId)!==redwoodId)
       throw new Error('Redwood A/R source cannot be imported to another practice.');
     if(String(clientId)===redwoodId&&module==='ar'){
-      // Server-side rcm-import v7 enforces the approved 8,146-row / $2,089,232.89 replacement.
-      // Approved final Redwood A/R replacement: 8,146 claims totaling $2,089,232.89 (2026-10-20).
+      // Server-side rcm-import must enforce approved 7,216-row / $1,840,043.66 replacement.
+      // Approved Redwood A/R replacement: 7,216 claims totaling $1,840,043.66 (2026-10-27).
       if(mode!=='replace')throw new Error('Redwood A/R must use Replace mode to prevent duplicates.');
-      if(rows.length!==8146)throw new Error(`Expected 8,146 Redwood claims; found ${rows.length.toLocaleString()}. No records uploaded.`);
+      if(rows.length!==7216)throw new Error(`Expected 7,216 Redwood claims; found ${rows.length.toLocaleString()}. No records uploaded.`);
       const cents=rows.reduce((sum,row)=>{
         const value=Number(String(row.balance??row.Balance??'').replace(/[$,]/g,''));
         if(!Number.isFinite(value))throw new Error('Invalid Redwood claim balance.');
         if(!String(row.provider??row.Provider??'').trim())throw new Error('A Redwood claim is missing provider.');
         return sum+Math.round(value*100);
       },0);
-      if(cents!==208923289)throw new Error(`Redwood balance mismatch: $${(cents/100).toFixed(2)}. Expected $2,089,232.89. Import blocked.`);
+      if(cents!==184004366)throw new Error(`Redwood balance mismatch: $${(cents/100).toFixed(2)}. Expected $1,840,043.66. Import blocked.`);
     }
 
     if(DEMO_MODE){
@@ -4466,7 +4466,7 @@ function v31RenderRedwoodAR(){
    if(arDatePreset==='custom')return (!customFrom||dt>=customFrom)&&(!customTo||dt<=customTo);
    return dt>=arStart&&dt<=arToday;
  });
- if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the approved 8,146-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
+ if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the approved 7,216-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
  const n=(r,k)=>{
   const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120'],balance:['balance','Balance'],charges:['charges','Charges']};
   for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const raw=String(value).trim(),negative=/^\(.*\)$/.test(raw);const parsed=Number(raw.replace(/[()$,\s]/g,''));if(Number.isFinite(parsed))return negative?-Math.abs(parsed):parsed;}}
