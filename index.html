@@ -4170,7 +4170,16 @@ async function fetchModule(m){
    if(q.error)throw q.error;total=Number(q.count??0);for(const x of q.data||[]){const d={...(x.data||{}),client_id:x.client_id,__external_id:x.external_id,__db_uploaded_at:x.uploaded_at,__source_batch_id:x.import_batch_id};rows.push(d)}if(!(q.data||[]).length)break;from+=size;
  }
  if(role()==='provider')rows=rows.filter(bhaOwnProviderRecord)
+ // Vedova source files contain separate audit-note worksheets. Never count these
+ // notes as financial or eligibility records; keep database unchanged.
+ if(String(S.client?.name||'').trim().toLowerCase()==='vedova clinic' && (m==='ar'||m==='verification')){
+   rows=rows.filter(r=>!bhaVedovaAuditWorksheet(r));
+ }
  return rows;
+}
+function bhaVedovaAuditWorksheet(r){
+ const source=String(get(r,['source_worksheet','Source Worksheet'])||'').trim().toLowerCase();
+ return /^audit(?:\b|\s*[-_:])/.test(source) || source.includes('do not upload');
 }
 async function loadAll(){
  const host=document.getElementById('content');if(host)host.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
@@ -4290,7 +4299,61 @@ function bhaOverviewPaymentTrend(rows){
  }
  return m;
 }
+/* BHA Vedova client overview only; source-reported money is NOT verified outstanding AR. */
+function bhaVedovaClientOverview(){
+ const root=document.getElementById('content');if(!root)return;
+ const allAR=(S.records.ar||[]).filter(r=>!String(get(r,['source_worksheet','Source Worksheet'])||'').toLowerCase().includes('audit notes'));
+ const allPay=(S.records.payments||[]).filter(r=>r.__payment_dataset_type==='payment_breakdown'&&r.__payment_import_state!=='staged');
+ const today=new Date();let from=null,to=null;
+ if(S.period==='30'||S.period==='90')from=new Date(today.getFullYear(),today.getMonth(),today.getDate()-(S.period==='30'?29:89));
+ if(S.period==='ytd')from=new Date(today.getFullYear(),0,1);
+ if(S.period==='custom'){from=S.from?new Date(S.from+'T00:00:00'):null;to=S.to?new Date(S.to+'T23:59:59'):null}
+ const inRange=(d)=>!((from&&!d)||(to&&!d))&&(!from||d>=from)&&(!to||d<=to);
+ const ar=allAR.filter(r=>{const d=dt(get(r,['dos','DOS']));return S.period==='all'||inRange(d)});
+ const pay=allPay.filter(r=>{const d=dt(bhaPayDate(r));return S.period==='all'||inRange(d)});
+ const n=(r,key)=>parseNum(get(r,[key]))||0;
+ const fp=ar.reduce((a,r)=>a+n(r,'patient_amount_due'),0),fi=ar.reduce((a,r)=>a+n(r,'insurance_amount_due'),0);
+ const cents=(r)=>{const raw=String(bhaPayValue(r,'Applicable')||r.applicable||'').replace(/[$,]/g,'').trim();return /^-?\d+(\.\d{1,2})?$/.test(raw)?Math.round(Number(raw)*100):0};
+ const pc=pay.reduce((a,r)=>a+cents(r),0);
+ const usd=v=>Number(v||0).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ const paymentUSD=c=>usd(c/100);
+ const payers=new Map(),statuses=new Map(),methods=new Map();
+ ar.forEach(r=>{const name=String(get(r,['primary_insurer_name'])||'Unspecified').trim()||'Unspecified';payers.set(name,(payers.get(name)||0)+n(r,'insurance_amount_due'));const k=String(get(r,['insurance_balance_status'])||'Unspecified').trim()||'Unspecified';statuses.set(k,(statuses.get(k)||0)+1)});
+ pay.forEach(r=>{
+   const raw=String(bhaPayValue(r,'Payment Type')||'').trim();
+   const type=raw.toLowerCase();
+   // Transaction numbers in check descriptions must NOT become chart categories.
+   const k=/\b(?:credit|debit)\s*card\b|\bcard\b/.test(type)?'Card':
+           /\b(?:check|cheque)\b/.test(type)?'Check':
+           /\bach\b|\beft\b|\bwire\b/.test(type)?'Electronic transfer':
+           (raw||'Unspecified');
+   methods.set(k,(methods.get(k)||0)+cents(r));
+ });
+ const payerList=[...payers].sort((a,b)=>b[1]-a[1]).slice(0,6),statusList=[...statuses].sort((a,b)=>b[1]-a[1]),methodList=[...methods].sort((a,b)=>b[1]-a[1]);
+ const graph=(items,isMoney,asCents=false)=>{const mx=Math.max(1,...items.map(x=>Math.abs(x[1])));return items.length?items.map(([label,value])=>`<div class="vo-row"><span title="${esc(label)}">${esc(label)}</span><div class="vo-track"><div class="vo-fill" style="width:${Math.max(0,Math.min(100,Math.abs(value)/mx*100))}%"></div></div><b>${isMoney?(asCents?paymentUSD(value):usd(value)):count(value)+' rows'}</b></div>`).join(''):'<p class="vo-empty">No records for the selected period.</p>'};
+ const card=(label,val,note,accent)=>`<div class="vo-kpi" style="--vo-accent:${accent}"><span>${esc(label)}</span><strong>${esc(val)}</strong><small>${esc(note)}</small></div>`;
+ const opts=[['all','All Available'],['30','Last 30 Days'],['90','Last 90 Days'],['ytd','YTD'],['custom','Custom']];
+ root.dataset.module='overview';document.getElementById('pageName').textContent='Practice Overview';
+ root.innerHTML=`<style>
+ .vo{display:grid;gap:15px}.vo-hero{background:linear-gradient(118deg,#082b41,#075c67 57%,#843276);color:white;border-radius:23px;padding:27px 30px;display:flex;align-items:center;justify-content:space-between;gap:20px}.vo-hero small{font-size:9px;color:#8aeee2;letter-spacing:.15em;font-weight:800}.vo-hero h2{font-size:27px;margin:8px 0;color:#fff}.vo-hero p{color:#c9e4e9;line-height:1.6;font-size:11px;margin:0;max-width:690px}.vo-hero .vo-live{border:1px solid #ffffff38;padding:8px 12px;border-radius:18px;background:#ffffff1a;font-size:9px;white-space:nowrap}
+ .vo-filter{display:flex;align-items:center;flex-wrap:wrap;gap:7px;border-radius:14px;background:#fff;padding:12px;border:1px solid #e0e8f1}.vo-filter span{font-size:9px;font-weight:800;color:#648094;margin-right:5px}.vo-filter button{font-size:9px;font-weight:750;padding:9px 11px;background:#f5f8fb;color:#496478;border:1px solid #dce7f0;border-radius:9px}.vo-filter button.active{background:#07506a;color:white}.vo-filter input{font-size:10px;padding:8px;border:1px solid #dce7f0;border-radius:9px}.vo-filter .vo-sub{margin-left:auto;color:#879bae;font-size:9px}
+ .vo-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.vo-kpi{position:relative;overflow:hidden;background:#fff;border:1px solid #e0e8f1;border-radius:16px;padding:17px 19px;box-shadow:0 8px 24px #162f4c09}.vo-kpi:before{content:'';position:absolute;inset:0 auto 0 0;width:4px;background:var(--vo-accent)}.vo-kpi span{font-size:9px;color:#71889c;font-weight:800;letter-spacing:.06em;text-transform:uppercase;display:block}.vo-kpi strong{display:block;font-size:25px;letter-spacing:-.02em;color:#12354e;margin:10px 0 6px}.vo-kpi small{font-size:9px;color:#879aac}
+ .vo-note{border:1px solid #eadbae;background:#fffaf0;color:#795e2b;padding:12px 15px;border-radius:12px;font-size:10px;line-height:1.6}.vo-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vo-card{padding:20px;background:#fff;border:1px solid #e0e8ef;border-radius:17px;min-width:0}.vo-card h3{font-size:13px;color:#163c55;margin:0 0 5px}.vo-card>p{font-size:10px;color:#8296a7;margin:0 0 18px}.vo-row{display:grid;grid-template-columns:155px minmax(0,1fr) 99px;gap:12px;align-items:center;margin:12px 0;font-size:10px}.vo-row>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#567186}.vo-row>b{text-align:right;font-size:10px;color:#173c56}.vo-track{height:9px;background:#eaf0f5;border-radius:9px;overflow:hidden}.vo-fill{height:100%;border-radius:9px;background:linear-gradient(90deg,#2768e9,#18ae99)}.vo-empty{font-size:10px;color:#8699aa}.vo-actions{display:flex;flex-wrap:wrap;gap:8px}.vo-actions button{padding:11px 14px;background:#f0f6fb;border:1px solid #d8e6ef;border-radius:10px;color:#225675;font-size:10px;font-weight:800}
+ @media(max-width:1100px){.vo-kpis{grid-template-columns:repeat(2,1fr)}.vo-panels{grid-template-columns:1fr}}@media(max-width:650px){.vo-kpis{grid-template-columns:1fr}.vo-hero{flex-direction:column;align-items:flex-start}.vo-row{grid-template-columns:95px 1fr 80px}}
+ </style><div class="vo">
+ <section class="vo-hero"><div><small>PRACTICE PERFORMANCE · SOURCE-VERIFIED</small><h2>Vedova Clinic</h2><p>Practice snapshot combining reported billing amounts and applied payment allocations. Data is shown only where supported by uploaded reports.</p></div><div class="vo-live">● Published practice data</div></section>
+ <section class="vo-filter"><span>REPORTING PERIOD</span>${opts.map(([v,label])=>`<button data-vo-period="${v}" class="${S.period===v?'active':''}">${label}</button>`).join('')}${S.period==='custom'?`<input type="date" id="voFrom" value="${esc(S.from||'')}"><input type="date" id="voTo" value="${esc(S.to||'')}">`:''}<button id="voReset">Reset</button><span class="vo-sub">A/R by DOS · Payments by Payment Date</span></section>
+ <div class="vo-kpis">${card('Combined reported amount due',usd(fp+fi),'Source-reported; not verified outstanding','#087f75')}${card('Insurance amount due',usd(fi),'From Billing Transactions','#2563eb')}${card('Patient amount due',usd(fp),'From Billing Transactions','#d52c84')}${card('Allocated collections',paymentUSD(pc),'Sum of Applicable, no duplicate Amount','#13a78d')}${card('Billing transaction rows',count(ar.length),'Excludes Audit Notes worksheet','#7357d8')}${card('Payment allocation rows',count(pay.length),'Source Payment Breakdown records','#da8b18')}${card('Payers represented',count(payers.size),'Primary insurer groups in AR','#2878eb')}${card('Insurance workflow statuses',count(statuses.size),'Distinct source billing statuses','#ab54bd')}</div>
+ <div class="vo-note"><b>Financial interpretation:</b> Patient and Insurance Amount Due are source-reported, not confirmed unpaid A/R. Some source rows marked Paid in Full still contain amounts due. No fabricated A/R aging or payer/patient payment split is shown. Audit Notes worksheet rows are excluded from this view.</div>
+ <div class="vo-panels"><section class="vo-card"><h3>Insurance reported amount due by payer</h3><p>Derived from Billing Transactions · source-reported amounts</p>${graph(payerList,true)}</section><section class="vo-card"><h3>Insurance billing workflow</h3><p>Status distribution from source transactions</p>${graph(statusList,false)}</section><section class="vo-card"><h3>Payment method mix</h3><p>From Payments Breakdown · allocated values only</p>${graph(methodList,true,true)}</section><section class="vo-card"><h3>Practice at a glance</h3><p>Only reliable dimensions from uploaded reports</p><div class="vo-actions"><button data-vo-nav="ar">View Accounts Receivable</button><button data-vo-nav="payments">View Payment Details</button></div><p style="margin-top:14px">Verified aging buckets are unavailable from this source; billing statuses are displayed instead of fabricated aged balances.</p></section></div></div>`;
+ root.querySelectorAll('[data-vo-period]').forEach(b=>b.addEventListener('click',()=>{S.period=b.dataset.voPeriod;if(S.period!=='custom'){S.from='';S.to=''}bhaVedovaClientOverview()}));
+ root.querySelector('#voFrom')?.addEventListener('change',e=>{S.from=e.target.value;bhaVedovaClientOverview()});
+ root.querySelector('#voTo')?.addEventListener('change',e=>{S.to=e.target.value;bhaVedovaClientOverview()});
+ root.querySelector('#voReset')?.addEventListener('click',()=>{S.period='all';S.from='';S.to='';bhaVedovaClientOverview()});
+ root.querySelectorAll('[data-vo-nav]').forEach(b=>b.addEventListener('click',()=>{if(typeof window.navigateToSection==='function')window.navigateToSection(b.dataset.voNav);else{S.section=b.dataset.voNav;renderSection()}}));
+}
 function renderOverview(){
+ if(role()==='client'&&String(S.client?.name||'').trim().toLowerCase()==='vedova clinic'){bhaVedovaClientOverview();return;}
  document.getElementById('pageName').textContent=role()==='provider'?'My Overview':'Practice Overview';
  const source=allRows(),flat=filtered(source);
  if(!flat.length){document.getElementById('content').innerHTML=hero(scope(),'No published records match this view.')+filtersHtml()+'<div class="empty"><b>No matching data</b>Choose All Available or clear filters.</div>';bindFilters(renderOverview);return}
@@ -4584,28 +4647,62 @@ function v31RenderRedwoodAR(){
 }
 /* Vedova AR: source-safe presentation only. Does not modify database or other clinics. */
 function bhaVedovaAR(){
- const raw=(S.records.ar||[]);
- const rows=filtered(raw.filter(r=>String(get(r,['source_worksheet','Source Worksheet'])||'').toLowerCase().indexOf('audit notes')<0));
+ // Vedova-only client AR view. Every metric uses precisely the filtered billing rows.
+ const source=(S.records.ar||[]).filter(r=>!(/audit\s*[- ]?notes?|do not upload/i).test(String(get(r,['source_worksheet','Source Worksheet'])||'')));
+ const getVal=(r,key)=>String(get(r,[key])??'').trim();
  const num=(r,k)=>parseNum(get(r,[k]))||0;
  const dollar=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+ const f=S.vedovaARFilters||(S.vedovaARFilters={period:'all',from:'',to:'',payer:'',patient:'',insurance:'',cpt:'',network:''});
+ const parseDos=v=>{
+   const t=String(v||'').trim();if(!t)return null;
+   let m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+   if(m){const y=+m[1],mo=+m[2],d=+m[3],z=new Date(y,mo-1,d);return z.getFullYear()===y&&z.getMonth()===mo-1&&z.getDate()===d?z:null;}
+   m=t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+   if(m){const y=+m[3],mo=+m[1],d=+m[2],z=new Date(y,mo-1,d);return z.getFullYear()===y&&z.getMonth()===mo-1&&z.getDate()===d?z:null;}
+   return null;
+ };
+ const dateStart=v=>{const x=String(v||'').split('-').map(Number);return x.length===3&&x.every(Number.isFinite)?new Date(x[0],x[1]-1,x[2]):null};
+ const today=new Date();today.setHours(0,0,0,0);
+ const presetStart=()=>{
+   if(f.period==='30'||f.period==='90'){const d=new Date(today);d.setDate(d.getDate()-(Number(f.period)-1));return d;}
+   if(f.period==='ytd')return new Date(today.getFullYear(),0,1);
+   return null;
+ };
+ const start=presetStart(),customFrom=f.period==='custom'?dateStart(f.from):null,customTo=f.period==='custom'?dateStart(f.to):null;
+ const options=(key)=>[...new Set(source.map(r=>getVal(r,key)).filter(Boolean))].sort((x,y)=>x.localeCompare(y,undefined,{numeric:true}));
+ const q=String(S.vedovaARSearch||'').trim().toLowerCase();
+ const rows=source.filter(r=>{
+   if(f.period!=='all'){
+     const d=parseDos(getVal(r,'dos'));
+     if(!d)return false;
+     if(f.period==='custom'){if(customFrom&&d<customFrom)return false;if(customTo&&d>customTo)return false;}
+     else if(d<start||d>today)return false;
+   }
+   if(f.payer&&getVal(r,'primary_insurer_name')!==f.payer)return false;
+   if(f.patient&&getVal(r,'patient_balance_status')!==f.patient)return false;
+   if(f.insurance&&getVal(r,'insurance_balance_status')!==f.insurance)return false;
+   if(f.cpt&&getVal(r,'service_code')!==f.cpt)return false;
+   if(f.network&&getVal(r,'in_network')!==f.network)return false;
+   if(q&&!['first_name','last_name','primary_insurer_name','service_code','patient_balance_status','insurance_balance_status','dos','patient_member_id'].some(k=>getVal(r,k).toLowerCase().includes(q)))return false;
+   return true;
+ });
  const dueP=rows.reduce((a,r)=>a+num(r,'patient_amount_due'),0);
  const dueI=rows.reduce((a,r)=>a+num(r,'insurance_amount_due'),0);
  const due=dueP+dueI;
- const q=String(S.vedovaARSearch||'').trim().toLowerCase();
- const selected=rows.filter(r=>!q||['first_name','last_name','primary_insurer_name','service_code','patient_balance_status','insurance_balance_status'].some(k=>String(get(r,[k])||'').toLowerCase().includes(q)));
- const pageSize=50,pages=Math.max(1,Math.ceil(selected.length/pageSize));
+ const pageSize=50,pages=Math.max(1,Math.ceil(rows.length/pageSize));
  S.arPage=Math.max(1,Math.min(S.arPage||1,pages));
- const page=selected.slice((S.arPage-1)*pageSize,S.arPage*pageSize);
+ const page=rows.slice((S.arPage-1)*pageSize,S.arPage*pageSize);
  const insurance=new Map(),statuses=new Map();
  for(const r of rows){
-   const payer=String(get(r,['primary_insurer_name'])||'Unspecified').trim()||'Unspecified';
+   const payer=getVal(r,'primary_insurer_name')||'Unspecified';
    const x=insurance.get(payer)||{name:payer,n:0,v:0};x.n++;x.v+=num(r,'insurance_amount_due');insurance.set(payer,x);
-   const st=String(get(r,['insurance_balance_status'])||'Unspecified').trim()||'Unspecified';statuses.set(st,(statuses.get(st)||0)+1);
+   const st=getVal(r,'insurance_balance_status')||'Unspecified';statuses.set(st,(statuses.get(st)||0)+1);
  }
  const p=[...insurance.values()].sort((a,b)=>b.v-a.v).slice(0,6),pMax=Math.max(1,...p.map(x=>x.v));
  const sts=[...statuses].sort((a,b)=>b[1]-a[1]);
  const metric=(label,value,note,color)=>`<article class="vda-kpi" style="--vda-color:${color}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></article>`;
  const headers=[['DOS','dos'],['Patient','name'],['Service','service_code'],['Insurer','primary_insurer_name'],['Patient amount due','patient_amount_due'],['Insurance amount due','insurance_amount_due'],['Patient status','patient_balance_status'],['Insurance status','insurance_balance_status']];
+ const sel=(id,label,key,prop)=>`<label class="vda-filter-item" for="${id}"><span>${esc(label)}</span><select id="${id}"><option value="">All ${esc(label)}</option>${options(key).map(v=>`<option value="${esc(v)}" ${f[prop]===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label>`;
  document.getElementById('pageName').textContent='Accounts Receivable';
  document.getElementById('content').dataset.module='ar';
  document.getElementById('content').innerHTML=`
@@ -4614,16 +4711,24 @@ function bhaVedovaAR(){
  .vda-note{background:#fffbf2;border:1px solid #f0dfaf;border-radius:13px;padding:13px 16px;font-size:11px;line-height:1.6;color:#795722}.vda-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.vda-kpi{position:relative;overflow:hidden;padding:18px;background:#fff;border:1px solid #dfe8ef;border-radius:16px;box-shadow:0 8px 24px rgba(14,45,67,.04)}.vda-kpi:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--vda-color)}.vda-kpi span{display:block;color:#74899c;font-weight:800;font-size:9px;letter-spacing:.06em;text-transform:uppercase}.vda-kpi strong{display:block;font-size:23px;margin:9px 0;color:#112e48}.vda-kpi small{color:#7f91a2;font-size:9px}
  .vda-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vda-card{background:#fff;border:1px solid #e0e8f0;border-radius:16px;padding:18px}.vda-card h3{margin:0 0 5px;font-size:14px}.vda-card>p{font-size:10px;color:#8090a2;margin:0 0 17px}.vda-bar{display:grid;grid-template-columns:140px minmax(0,1fr) 95px;align-items:center;gap:10px;margin:11px 0;font-size:10px}.vda-bar label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#536b7c}.vda-track{height:9px;border-radius:30px;background:#eaf0f5;overflow:hidden}.vda-fill{height:100%;border-radius:30px;background:linear-gradient(90deg,#2878ee,#15a997)}.vda-bar b{text-align:right;font-size:10px}
  .vda-table{overflow:auto;max-height:560px;border:1px solid #e5ecf2;border-radius:11px}.vda-table table{border-collapse:collapse;min-width:1100px;width:100%}.vda-table th{position:sticky;top:0;background:#f3f7fa;font-size:9px;white-space:nowrap;text-align:left;padding:11px;color:#557087}.vda-table td{padding:10px;border-bottom:1px solid #edf1f5;font-size:10px;white-space:nowrap}.vda-tool{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0}.vda-tool input{padding:11px;border:1px solid #dbe5ef;border-radius:9px;min-width:300px}.vda-tool button{padding:9px 12px;border:1px solid #cfdeeb;border-radius:8px;background:#fff}.vda-muted{color:#758b9e;font-size:10px}
- @media(max-width:1100px){.vda-grid{grid-template-columns:repeat(2,1fr)}.vda-panels{grid-template-columns:1fr}}@media(max-width:600px){.vda-grid{grid-template-columns:1fr}.vda-bar{grid-template-columns:100px 1fr 65px}.vda-tool input{min-width:0;width:100%}}
+ .vda-filters{background:#fff;border:1px solid #dde6ef;border-radius:14px;padding:15px 16px;box-shadow:0 6px 22px rgba(14,45,67,.035)}.vda-filter-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}.vda-filter-head b{font-size:12px;color:#173b52}.vda-filter-head button{background:#f3f7fb;border:1px solid #d7e3ed;border-radius:9px;padding:8px 12px;font-weight:750;font-size:10px;color:#2a506d}.vda-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:11px}.vda-filter-item{display:flex;flex-direction:column;gap:6px;min-width:0}.vda-filter-item span{font-size:9px;font-weight:800;color:#61798e}.vda-filter-item select,.vda-filter-item input{width:100%;min-width:0;border:1px solid #d8e3ed;border-radius:9px;background:#fff;padding:10px 9px;font-size:11px;color:#233e55}.vda-filter-dates{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}.vda-filter-dates .vda-filter-item{min-width:155px}.vda-empty{padding:20px;border:1px dashed #cfdeeb;border-radius:10px;color:#6b8094;font-size:11px;text-align:center}
+ @media(max-width:1100px){.vda-grid{grid-template-columns:repeat(2,1fr)}.vda-panels{grid-template-columns:1fr}.vda-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.vda-grid{grid-template-columns:1fr}.vda-bar{grid-template-columns:100px 1fr 65px}.vda-tool input{min-width:0;width:100%}.vda-filter-grid{grid-template-columns:1fr}}
  </style>
  <div class="vda-wrap">
- <section class="vda-hero"><small>PRACTICE INTELLIGENCE · SOURCE-BASED</small><h2>Accounts Receivable · Vedova Clinic</h2><p>Financial exposure and billing workflow from the uploaded Billing Transactions report. ${count(rows.length)} actual billing rows in the selected reporting period.</p></section>
- <div class="vda-note"><strong>Financial interpretation:</strong> This source reports Patient Amount Due and Insurance Amount Due, but does not establish that these are currently outstanding balances. Some rows marked “Paid in Full” also contain an amount due. Values below are <b>source-reported amounts due</b>, not verified outstanding A/R. Aging is not calculated without a reliable unpaid-balance reference date. Audit Notes worksheets are excluded from this display.</div>
- <div class="vda-grid">${metric('Combined reported amount due',dollar(due),'Patient + insurance amount due','#087f75')}${metric('Insurance reported due',dollar(dueI),'From original source','#2563eb')}${metric('Patient reported due',dollar(dueP),'From original source','#d52c84')}${metric('Billing transaction rows',count(rows.length),'Excludes audit-note worksheet','#7357d8')}</div>
- <div class="vda-panels"><section class="vda-card"><h3>Insurance amount due by payer</h3><p>Top insurance groups by source-reported amount due</p>${p.map(x=>`<div class="vda-bar"><label title="${esc(x.name)}">${esc(x.name)}</label><div class="vda-track"><div class="vda-fill" style="width:${Math.max(0,x.v/pMax*100)}%"></div></div><b>${dollar(x.v)}</b></div>`).join('')}</section><section class="vda-card"><h3>Insurance billing workflow</h3><p>Status field from uploaded transactions · not claim aging</p>${sts.map(([k,v])=>`<div class="vda-bar"><label title="${esc(k)}">${esc(k)}</label><div class="vda-track"><div class="vda-fill" style="width:${v/Math.max(1,rows.length)*100}%"></div></div><b>${count(v)} rows</b></div>`).join('')}</section></div>
- <section class="vda-card"><h3>Source Billing Transactions</h3><p>Patient, insurance, service, reported amounts and source status preserved</p><div class="vda-tool"><input id="vdaSearch" placeholder="Search patient, payer, CPT or status" value="${esc(S.vedovaARSearch||'')}"><span class="vda-muted">${count(selected.length)} matching · Page ${S.arPage} / ${pages}</span></div><div class="vda-table"><table><thead><tr>${headers.map(x=>`<th>${esc(x[0])}</th>`).join('')}</tr></thead><tbody>${page.map(r=>`<tr>${headers.map(([label,key])=>{let val=key==='name'?[get(r,['first_name']),get(r,['last_name'])].filter(Boolean).join(' '):get(r,[key]);if(key==='patient_amount_due'||key==='insurance_amount_due')val=dollar(parseNum(val)||0);return `<td>${esc(val??'—')}</td>`}).join('')}</tr>`).join('')}</tbody></table></div><div class="vda-tool"><span class="vda-muted">Showing ${selected.length?(S.arPage-1)*pageSize+1:0}–${Math.min(S.arPage*pageSize,selected.length)} of ${count(selected.length)}</span><div><button id="vdaPrev" ${S.arPage<=1?'disabled':''}>Previous</button> <button id="vdaNext" ${S.arPage>=pages?'disabled':''}>Next</button></div></div></section>
+ <section class="vda-hero"><small>PRACTICE INTELLIGENCE · SOURCE-BASED</small><h2>Accounts Receivable · Vedova Clinic</h2><p>Financial exposure and billing workflow from the uploaded Billing Transactions report. ${count(rows.length)} billing rows match the current filters.</p></section>
+ <div class="vda-note"><strong>Reporting Note:</strong> Financial figures reflect the amounts reported in the uploaded billing data. Outstanding balances and aging are displayed only when supported by verified source information.</div>
+ <section class="vda-filters"><div class="vda-filter-head"><b>Explore Billing Transactions</b><button id="vdaResetFilters" type="button">Reset All Filters</button></div><div class="vda-filter-grid">
+ <label class="vda-filter-item" for="vdaPeriod"><span>Date of Service</span><select id="vdaPeriod"><option value="all" ${f.period==='all'?'selected':''}>All Available</option><option value="30" ${f.period==='30'?'selected':''}>Last 30 Days</option><option value="90" ${f.period==='90'?'selected':''}>Last 90 Days</option><option value="ytd" ${f.period==='ytd'?'selected':''}>Year to Date</option><option value="custom" ${f.period==='custom'?'selected':''}>Custom Range</option></select></label>
+ ${sel('vdaFPayer','Insurance / Payer','primary_insurer_name','payer')}${sel('vdaFPatient','Patient Status','patient_balance_status','patient')}${sel('vdaFInsurance','Insurance Status','insurance_balance_status','insurance')}${sel('vdaFCpt','CPT / Service','service_code','cpt')}${sel('vdaFNetwork','In-Network','in_network','network')}
+ </div>${f.period==='custom'?`<div class="vda-filter-dates"><label class="vda-filter-item" for="vdaFrom"><span>From (DOS)</span><input id="vdaFrom" type="date" value="${esc(f.from||'')}"></label><label class="vda-filter-item" for="vdaTo"><span>To (DOS)</span><input id="vdaTo" type="date" value="${esc(f.to||'')}"></label></div>`:''}<div class="vda-muted" style="margin-top:10px">${count(rows.length)} of ${count(source.length)} billing rows selected · KPIs and charts follow these filters.</div></section>
+ <div class="vda-grid">${metric('Combined reported amount due',dollar(due),'Patient + insurance amount due','#087f75')}${metric('Insurance reported due',dollar(dueI),'From original source','#2563eb')}${metric('Patient reported due',dollar(dueP),'From original source','#d52c84')}${metric('Billing transaction rows',count(rows.length),'Current filtered billing rows','#7357d8')}</div>
+ <div class="vda-panels"><section class="vda-card"><h3>Insurance amount due by payer</h3><p>Top insurance groups by source-reported amount due</p>${p.length?p.map(x=>`<div class="vda-bar"><label title="${esc(x.name)}">${esc(x.name)}</label><div class="vda-track"><div class="vda-fill" style="width:${Math.max(0,x.v/pMax*100)}%"></div></div><b>${dollar(x.v)}</b></div>`).join(''):'<div class="vda-empty">No matching payer balances in this selection.</div>'}</section><section class="vda-card"><h3>Insurance billing workflow</h3><p>Status field from uploaded transactions · not claim aging</p>${sts.length?sts.map(([k,v])=>`<div class="vda-bar"><label title="${esc(k)}">${esc(k)}</label><div class="vda-track"><div class="vda-fill" style="width:${v/Math.max(1,rows.length)*100}%"></div></div><b>${count(v)} rows</b></div>`).join(''):'<div class="vda-empty">No matching insurance workflow records.</div>'}</section></div>
+ <section class="vda-card"><h3>Source Billing Transactions</h3><p>Patient, insurance, service, reported amounts and source status preserved</p><div class="vda-tool"><input id="vdaSearch" placeholder="Search patient, payer, CPT or status" value="${esc(S.vedovaARSearch||'')}"><span class="vda-muted">${count(rows.length)} matching · Page ${S.arPage} / ${pages}</span></div><div class="vda-table"><table><thead><tr>${headers.map(x=>`<th>${esc(x[0])}</th>`).join('')}</tr></thead><tbody>${page.length?page.map(r=>`<tr>${headers.map(([label,key])=>{let val=key==='name'?[get(r,['first_name']),get(r,['last_name'])].filter(Boolean).join(' '):get(r,[key]);if(key==='patient_amount_due'||key==='insurance_amount_due')val=dollar(parseNum(val)||0);return `<td>${esc(val??'—')}</td>`}).join('')}</tr>`).join(''):'<tr><td colspan="8" class="vda-empty">No records match the selected filters.</td></tr>'}</tbody></table></div><div class="vda-tool"><span class="vda-muted">Showing ${rows.length?(S.arPage-1)*pageSize+1:0}–${Math.min(S.arPage*pageSize,rows.length)} of ${count(rows.length)}</span><div><button id="vdaPrev" ${S.arPage<=1?'disabled':''}>Previous</button> <button id="vdaNext" ${S.arPage>=pages?'disabled':''}>Next</button></div></div></section>
  </div>`;
- const search=document.getElementById('vdaSearch');search?.addEventListener('input',e=>{const pos=e.target.selectionStart;S.vedovaARSearch=e.target.value;S.arPage=1;bhaVedovaAR();const x=document.getElementById('vdaSearch');x?.focus({preventScroll:true});x?.setSelectionRange(pos,pos)});
+ const rerender=()=>{S.arPage=1;bhaVedovaAR()};
+ [['vdaPeriod','period'],['vdaFPayer','payer'],['vdaFPatient','patient'],['vdaFInsurance','insurance'],['vdaFCpt','cpt'],['vdaFNetwork','network'],['vdaFrom','from'],['vdaTo','to']].forEach(([id,key])=>document.getElementById(id)?.addEventListener('change',e=>{f[key]=e.target.value;rerender()}));
+ document.getElementById('vdaResetFilters')?.addEventListener('click',()=>{Object.assign(f,{period:'all',from:'',to:'',payer:'',patient:'',insurance:'',cpt:'',network:''});S.vedovaARSearch='';rerender()});
+ const search=document.getElementById('vdaSearch');search?.addEventListener('input',e=>{const pos=e.target.selectionStart;S.vedovaARSearch=e.target.value;rerender();const x=document.getElementById('vdaSearch');x?.focus({preventScroll:true});x?.setSelectionRange(pos,pos)});
  document.getElementById('vdaPrev')?.addEventListener('click',()=>{S.arPage--;bhaVedovaAR()});
  document.getElementById('vdaNext')?.addEventListener('click',()=>{S.arPage++;bhaVedovaAR()});
 }
