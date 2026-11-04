@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-10-21-revenue-insights-reconciliation-v11';</script>
+<script>const BHA_BUILD_ID='2026-11-04-payments-breakdown-shadow-fix-v4';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -545,6 +545,9 @@ body{background:var(--v8-bg)}
 #content[data-module="ar"] .ar2-table .table th:nth-child(2){min-width:150px}
 #content[data-module="ar"] .ar3-page{padding:16px 4px}
 @media(max-width:1000px){#content[data-module="ar"] .ar2-table .tablewrap{max-width:100%}}
+
+/* BHA adaptive payment presentation: only publish available report scopes */
+.bha-break-dashboard{display:grid;gap:14px;margin:14px 0}.bha-break-hero{padding:22px 24px;border-radius:20px;background:linear-gradient(110deg,#07364a,#0d6170 58%,#812f77);color:#fff;display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}.bha-break-hero h2{font-size:29px;margin:8px 0}.bha-break-hero p{font-size:11px;color:#cde2e9;max-width:650px;margin:0}.bha-break-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.bha-break-stat{background:#fff;padding:18px;border:1px solid #e2eaf1;border-radius:16px;box-shadow:0 9px 24px rgba(13,40,63,.04)}.bha-break-stat label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#75869b;font-weight:800}.bha-break-stat strong{display:block;font-size:24px;color:#0e334d;margin:9px 0}.bha-break-stat small{font-size:10px;color:#8293a5}.bha-break-panels{display:grid;grid-template-columns:1.28fr 1fr;gap:13px}.bha-break-panel{background:#fff;border:1px solid #e1eaf2;border-radius:17px;padding:19px 20px;box-shadow:0 10px 28px rgba(13,40,63,.04);min-width:0}.bha-break-panel h3{font-size:13px;color:#163950;margin:0 0 4px}.bha-break-panel p{font-size:10px;color:#8695a8;margin:0 0 16px}.bha-break-bars{display:grid;gap:12px}.bha-break-bar{display:grid;grid-template-columns:minmax(95px,155px) 1fr 90px;gap:10px;align-items:center;font-size:10px}.bha-break-bar .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#526c82}.bha-break-bar .track{height:11px;background:#edf3f7;border-radius:20px;overflow:hidden}.bha-break-bar .fill{height:100%;border-radius:20px;background:linear-gradient(90deg,#2376e8,#15a997)}.bha-break-bar .amt{text-align:right;font-size:10px;font-weight:800;color:#173e55}.bha-break-bar:nth-child(2n) .fill{background:linear-gradient(90deg,#0a9b90,#28c0b2)}.bha-break-bar:nth-child(3n) .fill{background:linear-gradient(90deg,#a94ba2,#dd78ae)}.bha-break-notice{font-size:10px;padding:11px 14px;border:1px solid #dbe9ed;border-radius:10px;background:#f7fbfc;color:#557082}.bha-break-period{color:#c0e7e5;font-size:11px;font-weight:700}.bha-break-filters{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 18px;border:1px solid #e3eaf1;background:white;border-radius:14px}.bha-break-filters label{font-size:11px;font-weight:700;color:#526d82}.bha-break-filters input{margin-left:5px;border:1px solid #dce5ed;border-radius:9px;padding:8px;color:#263e54}.bha-break-filters button{border:1px solid #dce5ed;border-radius:9px;padding:8px 12px;background:#f5f8fc;color:#33506a;cursor:pointer}.bha-break-empty{color:#8a98a7;font-size:11px;padding:18px 0}@media(max-width:1100px){.bha-break-panels{grid-template-columns:1fr}.bha-break-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.bha-break-kpis{grid-template-columns:1fr}.bha-break-bar{grid-template-columns:90px 1fr 73px}.bha-break-hero h2{font-size:23px}}
 </style>
 
 <style id="v36-access-ui">
@@ -636,6 +639,45 @@ body{background:var(--v8-bg)}
 .bha-ar-grid .v32-view{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:4px 9px;white-space:nowrap;border:1px solid #cbd9e6;border-radius:6px;background:#f8fbff;color:#214a65;font:inherit;cursor:pointer;}
 .bha-ar-grid .v32-expanded td{white-space:normal!important;overflow:visible!important;}
 @media(max-width:1200px){.bha-ar-grid{min-width:1480px!important}}
+</style>
+
+<style id="bha-payment-breakdown-premium-v3">
+/* Scope all presentation exclusively to the payment breakdown component. */
+#content .bha-break-dashboard{display:grid!important;gap:16px!important;margin:16px 0 0!important;width:100%;font-family:Inter,system-ui,sans-serif!important;color:#18344a}
+#content .bha-break-dashboard .bha-break-hero{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:22px!important;flex-wrap:wrap!important;padding:24px 28px!important;border-radius:20px!important;background:linear-gradient(115deg,#073047 0%,#0c6270 62%,#822f76 100%)!important;color:#fff!important;box-shadow:0 15px 38px rgba(8,38,61,.12)!important}
+#content .bha-break-dashboard .bha-break-hero h2{font-size:27px!important;font-weight:800!important;letter-spacing:-.03em!important;line-height:1.18!important;margin:7px 0 8px!important;color:#fff!important}
+#content .bha-break-dashboard .bha-break-hero p{font-size:11px!important;line-height:1.65!important;color:#d3e6ee!important;max-width:600px!important;margin:0!important}
+#content .bha-break-dashboard .bha-break-period{font-size:10px!important;color:#d0e6ef!important;text-align:right!important;font-weight:700!important}
+#content .bha-break-dashboard .bha-break-hero>div:last-child{text-align:right!important}
+#content .bha-break-dashboard .exec-kicker{font-size:9px!important;color:#83e9db!important;letter-spacing:.13em!important;font-weight:800!important}
+#content .bha-break-dashboard .bha-break-filters{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:10px!important;border:1px solid #e1e9f1!important;background:#fff!important;padding:13px 18px!important;border-radius:15px!important;box-shadow:0 5px 18px rgba(18,45,71,.035)!important}
+#content .bha-break-dashboard .bha-break-filters label{font-size:10px!important;font-weight:750!important;color:#526c83!important;display:inline-flex!important;align-items:center!important;gap:7px!important}
+#content .bha-break-dashboard .bha-break-filters input{background:#fff!important;border:1px solid #d9e3ed!important;border-radius:9px!important;font-size:11px!important;min-height:35px!important;padding:6px 9px!important;margin:0!important}
+#content .bha-break-dashboard .bha-break-filters button{background:#f3f7fc!important;border:1px solid #dce6f0!important;border-radius:9px!important;padding:9px 12px!important;color:#315675!important;font-size:10px!important;font-weight:800!important;cursor:pointer!important}
+#content .bha-break-dashboard .bha-break-kpis{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important}
+#content .bha-break-dashboard .bha-break-stat{display:flex!important;flex-direction:column!important;min-width:0!important;background:#fff!important;border:1px solid #e0e8f1!important;border-radius:16px!important;padding:17px 18px!important;box-shadow:0 8px 24px rgba(12,41,65,.048)!important}
+#content .bha-break-dashboard .bha-break-stat:nth-child(1){border-left:4px solid #0bb095!important}
+#content .bha-break-dashboard .bha-break-stat:nth-child(2){border-left:4px solid #2f6fe6!important}
+#content .bha-break-dashboard .bha-break-stat:nth-child(3){border-left:4px solid #a459c8!important}
+#content .bha-break-dashboard .bha-break-stat:nth-child(4){border-left:4px solid #d48628!important}
+#content .bha-break-dashboard .bha-break-stat label{font-size:9px!important;letter-spacing:.07em!important;text-transform:uppercase!important;color:#74879a!important;font-weight:850!important}
+#content .bha-break-dashboard .bha-break-stat strong{display:block!important;font-size:25px!important;font-weight:850!important;letter-spacing:-.03em!important;line-height:1.15!important;margin:10px 0 5px!important;color:#13334b!important}
+#content .bha-break-dashboard .bha-break-stat small{display:block!important;font-size:10px!important;color:#8595a6!important;line-height:1.4!important}
+#content .bha-break-dashboard .bha-break-panels{display:grid!important;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)!important;gap:13px!important}
+#content .bha-break-dashboard .bha-break-panel{background:#fff!important;border:1px solid #e1eaf2!important;border-radius:17px!important;padding:20px!important;min-width:0!important;box-shadow:0 8px 28px rgba(12,41,65,.045)!important}
+#content .bha-break-dashboard .bha-break-panel h3{font-size:13px!important;font-weight:850!important;color:#15384f!important;margin:0 0 5px!important}
+#content .bha-break-dashboard .bha-break-panel p{font-size:10px!important;color:#7e90a4!important;margin:0 0 17px!important;line-height:1.5!important}
+#content .bha-break-dashboard .bha-break-bars{display:grid!important;gap:12px!important}
+#content .bha-break-dashboard .bha-break-bar{display:grid!important;grid-template-columns:minmax(90px,130px) minmax(0,1fr) 95px!important;gap:10px!important;align-items:center!important;font-size:10px!important}
+#content .bha-break-dashboard .bha-break-bar .nm{font-size:10px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#526b7e!important}
+#content .bha-break-dashboard .bha-break-bar .track{display:block!important;height:10px!important;background:#edf2f7!important;overflow:hidden!important;border-radius:20px!important}
+#content .bha-break-dashboard .bha-break-bar .fill{display:block!important;height:100%!important;border-radius:20px!important;background:linear-gradient(90deg,#2f6fed,#12ad9e)!important}
+#content .bha-break-dashboard .bha-break-bar:nth-child(2n) .fill{background:linear-gradient(90deg,#0e9e97,#45cdb6)!important}
+#content .bha-break-dashboard .bha-break-bar:nth-child(3n) .fill{background:linear-gradient(90deg,#9554ce,#da74ad)!important}
+#content .bha-break-dashboard .bha-break-bar .amt{text-align:right!important;font-size:10px!important;font-weight:850!important;color:#173d54!important;white-space:nowrap!important}
+#content .bha-break-dashboard .bha-break-notice{background:#f7fcfd!important;border:1px solid #dbe9ed!important;border-radius:12px!important;color:#527082!important;font-size:10px!important;padding:13px 15px!important;line-height:1.6!important}
+@media(max-width:1150px){#content .bha-break-dashboard .bha-break-panels{grid-template-columns:1fr!important}#content .bha-break-dashboard .bha-break-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:680px){#content .bha-break-dashboard .bha-break-kpis{grid-template-columns:1fr!important}#content .bha-break-dashboard .bha-break-hero{padding:20px!important}#content .bha-break-dashboard .bha-break-hero>div:last-child{text-align:left!important}#content .bha-break-dashboard .bha-break-bar{grid-template-columns:minmax(75px,100px) minmax(0,1fr) 83px!important}}
 </style>
 </head>
 <body data-bha-build="2026-10-10-provider-auth-cache-hotfix">
@@ -1171,24 +1213,44 @@ function overviewHtml(){
 }
 
 /* BHA Payment Excel exact-source reporting, isolated imports (2026-10-13) */
-const BHA_PAY_TYPES={financial_summary:'Financial Summary',claim_financial_detail:'Claim Financial Detail'};
+const BHA_PAY_TYPES={financial_summary:'Financial Summary',claim_financial_detail:'Claim Financial Detail',payment_breakdown:'Payments Breakdown'};
 let bhaPayView='financial_summary',bhaPayQuery='',bhaPayProvider='',bhaPayFrom='',bhaPayTo='',bhaPayPage=1;
 function bhaPayNorm(v){return String(v??'').toLowerCase().replace(/[^a-z0-9]/g,'')}
 function bhaPayColumn(r,k){const cols=Array.isArray(r.__source_columns)?r.__source_columns:Object.keys(r).filter(x=>!x.startsWith('__')&&x!=='client_id');return cols.find(x=>bhaPayNorm(r.__source_headers?.[x]||x)===bhaPayNorm(k))}
 function bhaPayValue(r,k){const key=bhaPayColumn(r,k);return key==null?'':r[key]??''}
-function bhaPayKind(r){const t=r.__payment_dataset_type;if(t==='financial_summary'||t==='summary')return'financial_summary';if(t==='claim_financial_detail'||t==='claim')return'claim_financial_detail';return null}
-function bhaPayProviderValue(r){return String(bhaPayValue(r,'Rendering Provider')||bhaPayValue(r,'Resource Provider')||bhaPayValue(r,'Provider')||'').trim()}
+function bhaPayKind(r){const t=r.__payment_dataset_type;if(t==='financial_summary'||t==='summary')return'financial_summary';if(t==='claim_financial_detail'||t==='claim')return'claim_financial_detail';if(t==='payment_breakdown')return'payment_breakdown';return null}
+function bhaPayProviderValue(r){return String(r.provider||bhaPayValue(r,'Rendering Provider')||bhaPayValue(r,'Resource Provider')||bhaPayValue(r,'Provider')||[bhaPayValue(r,'Clinician First Name'),bhaPayValue(r,'Clinician Last Name')].filter(Boolean).join(' ')||'').trim()}
 function bhaPayVisible(){const selected=state.client?.id||(!hasAllClients()?state.profile?.client_id:null);if(!selected)return[];return (state.records?.payments||[]).filter(r=>String(r.client_id||'')===String(selected)&&r.__payment_import_state!=='staged'&&!!bhaPayKind(r)&& (getRole()!=='provider'||(bhaPayNorm(state.profile?.provider_name)&&bhaPayNorm(bhaPayProviderValue(r))===bhaPayNorm(state.profile.provider_name))))}
 function bhaPayDate(r){const raw=bhaPayValue(r,'Payment Date');if(!raw)return null;if(/^\d{5}(\.\d+)?$/.test(String(raw))){const x=new Date(Date.UTC(1899,11,30)+Math.floor(Number(raw))*86400000);return Number.isFinite(x.getTime())?x.toISOString().slice(0,10):null}const d=new Date(raw);return Number.isFinite(d.getTime())?d.toISOString().slice(0,10):null}
 function bhaPayTableHtml(){let rows=bhaPayVisible().filter(r=>bhaPayKind(r)===bhaPayView);const providers=[...new Set(rows.map(bhaPayProviderValue).filter(Boolean))].sort();if(bhaPayProvider)rows=rows.filter(r=>bhaPayProviderValue(r)===bhaPayProvider);if(bhaPayFrom)rows=rows.filter(r=>{const d=bhaPayDate(r);return d&&d>=bhaPayFrom});if(bhaPayTo)rows=rows.filter(r=>{const d=bhaPayDate(r);return d&&d<=bhaPayTo});if(bhaPayQuery){const q=bhaPayQuery.toLowerCase();rows=rows.filter(r=>(r.__source_columns||Object.keys(r)).some(k=>!k.startsWith('__')&&String(r[k]??'').toLowerCase().includes(q)))}
  const first=rows[0]||bhaPayVisible().find(r=>bhaPayKind(r)===bhaPayView),cols=first?(first.__source_columns||Object.keys(first).filter(k=>!k.startsWith('__')&&k!=='client_id')).filter(k=>String(k).toLowerCase()!=='source_worksheet'):[];const total=rows.length,pages=Math.max(1,Math.ceil(total/50));bhaPayPage=Math.max(1,Math.min(bhaPayPage,pages));const shown=rows.slice((bhaPayPage-1)*50,bhaPayPage*50);const type=bhaPayView;
  const selectProvider=getRole()==='provider'?'':`<select id="bhaPayProvider"><option value="">All Providers</option>${providers.map(v=>`<option value="${esc(v)}" ${bhaPayProvider===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
- return `<div class="card" style="margin-bottom:15px"><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn ${type==='financial_summary'?'btn-primary':'btn-light'}" data-bha-pay-tab="financial_summary">Financial Summary</button><button class="btn ${type==='claim_financial_detail'?'btn-primary':'btn-light'}" data-bha-pay-tab="claim_financial_detail">Claim Financial Detail</button>${canAdmin()?'<button class="btn btn-light" data-section="imports">Upload Payment Excel →</button>':''}</div><p class="muted" style="margin:12px 0 0">Original Excel headers and values · ${type==='financial_summary'?'Source has no reporting date column; period cannot be inferred.':'Payment Date filter uses dates supplied in Excel.'}</p></div><div class="filters" style="margin-bottom:12px"><input id="bhaPaySearch" placeholder="Search original Excel data" value="${esc(bhaPayQuery)}">${selectProvider}${type==='claim_financial_detail'?`<label>Payment Date from <input id="bhaPayFrom" type="date" value="${esc(bhaPayFrom)}"></label><label>To <input id="bhaPayTo" type="date" value="${esc(bhaPayTo)}"></label>`:''}<button class="btn btn-light btn-small" id="bhaPayReset">Reset</button></div><div class="card"><div class="table-headbar"><div><h3>${BHA_PAY_TYPES[type]}</h3><p class="cap">${total.toLocaleString()} source rows matching filters. Rows are payment transactions, not necessarily unique claims.</p></div><span class="table-meta">Page ${bhaPayPage} of ${pages}</span></div>${!first?'<div class="empty">No active records for this report and practice.</div>':`<div class="table-wrap"><table class="table"><thead><tr>${cols.map(k=>`<th>${esc(first.__source_headers?.[k]||k)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(k=>`<td>${esc(r[k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn btn-light btn-small" id="bhaPayPrev" ${bhaPayPage<=1?'disabled':''}>Previous</button><button class="btn btn-light btn-small" id="bhaPayNext" ${bhaPayPage>=pages?'disabled':''}>Next</button></div></div>`}
+ return `<div class="card" style="margin-bottom:15px"><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn ${type==='financial_summary'?'btn-primary':'btn-light'}" data-bha-pay-tab="financial_summary">Financial Summary</button><button class="btn ${type==='claim_financial_detail'?'btn-primary':'btn-light'}" data-bha-pay-tab="claim_financial_detail">Claim Financial Detail</button><button class="btn ${type==='payment_breakdown'?'btn-primary':'btn-light'}" data-bha-pay-tab="payment_breakdown">Payments Breakdown</button>${canAdmin()?'<button class="btn btn-light" data-section="imports">Upload Payment Excel →</button>':''}</div><p class="muted" style="margin:12px 0 0">Original Excel headers and values · ${type==='financial_summary'?'Source has no reporting date column; period cannot be inferred.':type==='payment_breakdown'?'Allocated collections use Applicable, never the repeated Amount. Payment Date filters available.':'Payment Date filter uses dates supplied in Excel.'}</p></div><div class="filters" style="margin-bottom:12px"><input id="bhaPaySearch" placeholder="Search original Excel data" value="${esc(bhaPayQuery)}">${selectProvider}${type!=='financial_summary'?`<label>Payment Date from <input id="bhaPayFrom" type="date" value="${esc(bhaPayFrom)}"></label><label>To <input id="bhaPayTo" type="date" value="${esc(bhaPayTo)}"></label>`:''}<button class="btn btn-light btn-small" id="bhaPayReset">Reset</button></div><div class="card"><div class="table-headbar"><div><h3>${BHA_PAY_TYPES[type]}</h3><p class="cap">${total.toLocaleString()} source rows matching filters. Rows are payment transactions, not necessarily unique claims.</p></div><span class="table-meta">Page ${bhaPayPage} of ${pages}</span></div>${!first?'<div class="empty">No active records for this report and practice.</div>':`<div class="table-wrap"><table class="table"><thead><tr>${cols.map(k=>`<th>${esc(first.__source_headers?.[k]||k)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(k=>`<td>${esc(r[k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn btn-light btn-small" id="bhaPayPrev" ${bhaPayPage<=1?'disabled':''}>Previous</button><button class="btn btn-light btn-small" id="bhaPayNext" ${bhaPayPage>=pages?'disabled':''}>Next</button></div></div>`}
 function bhaPayRender(){const host=document.getElementById('bhaPayWorkspace');if(!host)return;host.innerHTML=bhaPayTableHtml();host.querySelectorAll('[data-bha-pay-tab]').forEach(b=>b.onclick=()=>{bhaPayView=b.dataset.bhaPayTab;bhaPayPage=1;bhaPayQuery='';bhaPayProvider='';bhaPayFrom='';bhaPayTo='';bhaPayRender()});host.querySelector('#bhaPaySearch')?.addEventListener('input',e=>{bhaPayQuery=e.target.value;bhaPayPage=1;const pos=e.target.selectionStart;bhaPayRender();const next=host.querySelector('#bhaPaySearch');next?.focus();next?.setSelectionRange(pos,pos)});host.querySelector('#bhaPayProvider')?.addEventListener('change',e=>{bhaPayProvider=e.target.value;bhaPayPage=1;bhaPayRender()});['From','To'].forEach(k=>host.querySelector('#bhaPay'+k)?.addEventListener('change',e=>{if(k==='From')bhaPayFrom=e.target.value;else bhaPayTo=e.target.value;bhaPayPage=1;bhaPayRender()}));host.querySelector('#bhaPayReset')?.addEventListener('click',()=>{bhaPayQuery='';bhaPayProvider='';bhaPayFrom='';bhaPayTo='';bhaPayPage=1;bhaPayRender()});host.querySelector('#bhaPayPrev')?.addEventListener('click',()=>{bhaPayPage--;bhaPayRender()});host.querySelector('#bhaPayNext')?.addEventListener('click',()=>{bhaPayPage++;bhaPayRender()})}
-function bhaPaymentImportPanel(){if(!canAdmin())return'';return `<div class="card" style="margin:15px 0"><h3>Payment Posting — Excel Report Upload</h3><p class="cap">Each report is imported separately. Replace affects only the selected payment report for the selected practice.</p><div class="upload-panel"><div><div class="field"><label>Practice</label><select id="bhaPaymentClient"><option value="">Select practice…</option>${state.clients.map(c=>`<option value="${esc(c.id)}" ${state.client?.id===c.id?'selected':''}>${esc(bhaPracticeDisplayName(c.name))}</option>`).join('')}</select></div><div class="field"><label>Excel report</label><select id="bhaPaymentType"><option value="financial_summary">Financial Summary (361.05)</option><option value="claim_financial_detail">Claim Financial Detail (361.03)</option></select></div><div class="field"><label>Import mode</label><select id="bhaPaymentMode"><option value="replace">Replace only selected report type</option><option value="append">Append to selected report type</option></select></div></div><div><div class="field"><label>Excel / CSV</label><input id="bhaPaymentFile" type="file" accept=".xlsx,.xls,.csv"></div><button class="btn btn-primary" id="bhaPaymentUpload">Validate & Upload Payment Report</button><p class="muted">No changes to the other payment report, other practices, or other RCM modules.</p></div></div><div id="bhaPaymentImportStatus" class="muted" style="margin-top:10px"></div></div>`}
+function bhaPaymentImportPanel(){if(!canAdmin())return'';return `<div class="card" style="margin:15px 0"><h3>Payment Posting — Excel Report Upload</h3><p class="cap">Each report is imported separately. Replace affects only the selected payment report for the selected practice.</p><div class="upload-panel"><div><div class="field"><label>Practice</label><select id="bhaPaymentClient"><option value="">Select practice…</option>${state.clients.map(c=>`<option value="${esc(c.id)}" ${state.client?.id===c.id?'selected':''}>${esc(bhaPracticeDisplayName(c.name))}</option>`).join('')}</select></div><div class="field"><label>Excel report</label><select id="bhaPaymentType"><option value="financial_summary">Financial Summary (361.05)</option><option value="claim_financial_detail">Claim Financial Detail (361.03)</option><option value="payment_breakdown">Payments Breakdown (allocation-level)</option></select></div><div class="field"><label>Import mode</label><select id="bhaPaymentMode"><option value="replace">Replace only selected report type</option><option value="append">Append to selected report type</option></select></div></div><div><div class="field"><label>Excel / CSV</label><input id="bhaPaymentFile" type="file" accept=".xlsx,.xls,.csv"></div><button class="btn btn-primary" id="bhaPaymentUpload">Validate & Upload Payment Report</button><p class="muted">No changes to the other payment report, other practices, or other RCM modules.</p></div></div><div id="bhaPaymentImportStatus" class="muted" style="margin-top:10px"></div></div>`}
 async function bhaPaymentImport(){const button=document.getElementById('bhaPaymentUpload'),out=document.getElementById('bhaPaymentImportStatus'),file=document.getElementById('bhaPaymentFile')?.files?.[0],clientId=document.getElementById('bhaPaymentClient')?.value,type=document.getElementById('bhaPaymentType')?.value,mode=document.getElementById('bhaPaymentMode')?.value;if(!canAdmin())return;if(!clientId||!state.clients.some(c=>String(c.id)===String(clientId))){out.textContent='Select an authorized practice.';return}if(!file){out.textContent='Select Excel or CSV file.';return}if(!confirm(`Import ${file.name} to ${state.clients.find(c=>String(c.id)===String(clientId))?.name} as ${BHA_PAY_TYPES[type]}? ${mode==='replace'?'Existing active rows of ONLY this report type will be replaced.':'Records will be appended.'}`))return;
- button.disabled=true;try{out.textContent='Reading and validating original Excel headers…';const parsed=await parseImportFile(file,'payments');const rows=parsed.rows;if(!rows.length||rows.length>100000)throw new Error('Invalid report row count');const headerSet=new Set((rows[0].__source_columns||[]).map(k=>bhaPayNorm(rows[0].__source_headers?.[k]||k)));const required=type==='financial_summary'?['Rendering Provider','Billed Charge','Payer Charge','Self Charge','Payments','Payer Payment','Patient Payment','Contractual Adjustment','Payer Withheld','Writeoff Adjustment','Refund','Change in A/R']:['Rendering provider','Created By','Patient Name','Patient Acct No','Payer Name','Service Date','Claim Date','Payment Date','Payment Type','Payer Type','Claim No','Payment ID','Payment','Payer Payment','Patient Payment','Contractual Adjustment'];const missing=required.filter(h=>!headerSet.has(bhaPayNorm(h)));if(missing.length)throw new Error('Incorrect Excel report or missing columns: '+missing.join(', '));
- const providerKey=(rows[0].__source_columns||[]).find(k=>bhaPayNorm(rows[0].__source_headers?.[k]||k)==='renderingprovider');if(!providerKey)throw new Error('Rendering Provider column is required for provider isolation.');if(rows.some(r=>!String(r[providerKey]??'').trim()))throw new Error('Rendering Provider is missing on one or more rows. Import blocked to protect provider isolation.');
+ button.disabled=true;try{out.textContent='Reading and validating original Excel headers…';const parsed=await parseImportFile(file,'payments');const rows=parsed.rows;if(!rows.length||rows.length>100000)throw new Error('Invalid report row count');const headerSet=new Set((rows[0].__source_columns||[]).map(k=>bhaPayNorm(rows[0].__source_headers?.[k]||k)));const required=type==='payment_breakdown'?['Payment Type','Payment Date','Patient Last Name','Patient First Name','Date of Service','Clinician Last Name','Clinician First Name','Payer','Amount','Applicable']:type==='financial_summary'?['Rendering Provider','Billed Charge','Payer Charge','Self Charge','Payments','Payer Payment','Patient Payment','Contractual Adjustment','Payer Withheld','Writeoff Adjustment','Refund','Change in A/R']:['Rendering provider','Created By','Patient Name','Patient Acct No','Payer Name','Service Date','Claim Date','Payment Date','Payment Type','Payer Type','Claim No','Payment ID','Payment','Payer Payment','Patient Payment','Contractual Adjustment'];const missing=required.filter(h=>!headerSet.has(bhaPayNorm(h)));if(missing.length)throw new Error('Incorrect Excel report or missing columns: '+missing.join(', '));
+ if(type==='payment_breakdown'){
+  const first=rows[0],col=h=>(first.__source_columns||[]).find(k=>bhaPayNorm(first.__source_headers?.[k]||k)===bhaPayNorm(h));
+  const firstKey=col('Clinician First Name'),lastKey=col('Clinician Last Name'),allocatedKey=col('Applicable'),amountKey=col('Amount');
+  let allocationCents=0;
+  for(const [i,r] of rows.entries()){
+   const firstName=String(r[firstKey]??'').trim(),lastName=String(r[lastKey]??'').trim();
+   if(!firstName||!lastName)throw new Error('Clinician identity missing at payment row '+(i+1)+'; provider isolation would be unsafe.');
+   // Persist provider as a canonical field: both provider view and database RLS rely on data.provider.
+   r.provider=[firstName,lastName].join(' ');
+   const raw=String(r[allocatedKey]??'').trim().replace(/[$,]/g,'');
+   if(!/^-?\d+(?:\.\d{1,2})?$/.test(raw))throw new Error('Invalid Applicable payment at row '+(i+1));
+   const cents=Math.round(Number(raw)*100);allocationCents+=cents;
+   const amount=String(r[amountKey]??'').trim().replace(/[$,]/g,'');
+   if(!/^-?\d+(?:\.\d{1,2})?$/.test(amount))throw new Error('Invalid Amount at row '+(i+1));
+  }
+  out.textContent='Validated '+rows.length+' allocation rows; total allocated '+(allocationCents/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+'. Transaction Amount is not summed as collections.';
+ }else{
+  const providerKey=(rows[0].__source_columns||[]).find(k=>bhaPayNorm(rows[0].__source_headers?.[k]||k)==='renderingprovider');
+  if(!providerKey)throw new Error('Rendering Provider column is required for provider isolation.');
+  if(rows.some(r=>!String(r[providerKey]??'').trim()))throw new Error('Rendering Provider is missing on one or more rows. Import blocked to protect provider isolation.');
+ }
  const batch=crypto.randomUUID(),expected=rows.length,now=new Date().toISOString();for(let i=0;i<rows.length;i+=500){const chunk=rows.slice(i,i+500).map(r=>({data:{...r,__imported_at:now,__source_batch_id:batch}}));out.textContent=`Staging ${Math.min(i+chunk.length,expected).toLocaleString()} / ${expected.toLocaleString()} rows…`;const {data,error}=await sb.functions.invoke('rcm-payment-import',{body:{action:'stage',client_id:clientId,import_batch_id:batch,dataset_type:type,mode,expected_total:expected,start_index:i,rows:chunk}});if(error||data?.error)throw new Error(data?.error||error?.message||'Stage failed')}
  out.textContent=`Validating ${expected.toLocaleString()} staged rows and finalizing…`;const {data,error}=await sb.functions.invoke('rcm-payment-import',{body:{action:'finalize',client_id:clientId,import_batch_id:batch,dataset_type:type,mode,expected_total:expected}});if(error||data?.error||!data?.finalized)throw new Error(data?.error||error?.message||'Finalize failed');out.textContent=`Success: ${expected.toLocaleString()} ${BHA_PAY_TYPES[type]} rows published. Batch ${batch}.`;clearRecordsCache();if(state.section==='payments')await loadData();toast('Payment report imported successfully');
  }catch(e){out.textContent='Import stopped: '+(e?.message||e)+'. Any staged rows are not published; contact admin before retrying.'}finally{button.disabled=false}}
@@ -2093,6 +2155,8 @@ async function parseImportFile(file,module){
     if(!workbook.SheetNames?.length)throw new Error('No worksheet was found in the Excel file.');
     const parsedSheets=[];
     for(const name of workbook.SheetNames){
+      // Explicitly excluded review worksheets must never become live claim rows.
+      if(/audit\s*notes.*do\s*not\s*upload/i.test(name))continue;
       const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:'',blankrows:false,raw:false});
       if(!matrix.some(row=>Array.isArray(row)&&row.some(v=>String(v??'').trim()!=='')))continue;
       const parsed=sourceMatrixToRows(matrix,module).rows;
@@ -4518,7 +4582,53 @@ function v31RenderRedwoodAR(){
  document.getElementById('v31Bucket')?.addEventListener('change',e=>{S.v31Bucket=e.target.value;S.arPage=1;v31RenderRedwoodAR()});
  document.getElementById('arPrev')?.addEventListener('click',()=>{S.arPage--;v31RenderRedwoodAR()});document.getElementById('arNext')?.addEventListener('click',()=>{S.arPage++;v31RenderRedwoodAR()});
 }
+/* Vedova AR: source-safe presentation only. Does not modify database or other clinics. */
+function bhaVedovaAR(){
+ const raw=(S.records.ar||[]);
+ const rows=filtered(raw.filter(r=>String(get(r,['source_worksheet','Source Worksheet'])||'').toLowerCase().indexOf('audit notes')<0));
+ const num=(r,k)=>parseNum(get(r,[k]))||0;
+ const dollar=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+ const dueP=rows.reduce((a,r)=>a+num(r,'patient_amount_due'),0);
+ const dueI=rows.reduce((a,r)=>a+num(r,'insurance_amount_due'),0);
+ const due=dueP+dueI;
+ const q=String(S.vedovaARSearch||'').trim().toLowerCase();
+ const selected=rows.filter(r=>!q||['first_name','last_name','primary_insurer_name','service_code','patient_balance_status','insurance_balance_status'].some(k=>String(get(r,[k])||'').toLowerCase().includes(q)));
+ const pageSize=50,pages=Math.max(1,Math.ceil(selected.length/pageSize));
+ S.arPage=Math.max(1,Math.min(S.arPage||1,pages));
+ const page=selected.slice((S.arPage-1)*pageSize,S.arPage*pageSize);
+ const insurance=new Map(),statuses=new Map();
+ for(const r of rows){
+   const payer=String(get(r,['primary_insurer_name'])||'Unspecified').trim()||'Unspecified';
+   const x=insurance.get(payer)||{name:payer,n:0,v:0};x.n++;x.v+=num(r,'insurance_amount_due');insurance.set(payer,x);
+   const st=String(get(r,['insurance_balance_status'])||'Unspecified').trim()||'Unspecified';statuses.set(st,(statuses.get(st)||0)+1);
+ }
+ const p=[...insurance.values()].sort((a,b)=>b.v-a.v).slice(0,6),pMax=Math.max(1,...p.map(x=>x.v));
+ const sts=[...statuses].sort((a,b)=>b[1]-a[1]);
+ const metric=(label,value,note,color)=>`<article class="vda-kpi" style="--vda-color:${color}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></article>`;
+ const headers=[['DOS','dos'],['Patient','name'],['Service','service_code'],['Insurer','primary_insurer_name'],['Patient amount due','patient_amount_due'],['Insurance amount due','insurance_amount_due'],['Patient status','patient_balance_status'],['Insurance status','insurance_balance_status']];
+ document.getElementById('pageName').textContent='Accounts Receivable';
+ document.getElementById('content').dataset.module='ar';
+ document.getElementById('content').innerHTML=`
+ <style>
+ .vda-wrap{display:grid;gap:15px}.vda-hero{padding:25px 28px;border-radius:22px;color:#fff;background:linear-gradient(115deg,#082d42,#075968 54%,#833071)}.vda-hero small{color:#97eee0;letter-spacing:.12em;font-weight:800}.vda-hero h2{font-size:26px;margin:8px 0}.vda-hero p{color:#d5e6ea;max-width:800px;font-size:12px;line-height:1.6}
+ .vda-note{background:#fffbf2;border:1px solid #f0dfaf;border-radius:13px;padding:13px 16px;font-size:11px;line-height:1.6;color:#795722}.vda-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.vda-kpi{position:relative;overflow:hidden;padding:18px;background:#fff;border:1px solid #dfe8ef;border-radius:16px;box-shadow:0 8px 24px rgba(14,45,67,.04)}.vda-kpi:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--vda-color)}.vda-kpi span{display:block;color:#74899c;font-weight:800;font-size:9px;letter-spacing:.06em;text-transform:uppercase}.vda-kpi strong{display:block;font-size:23px;margin:9px 0;color:#112e48}.vda-kpi small{color:#7f91a2;font-size:9px}
+ .vda-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vda-card{background:#fff;border:1px solid #e0e8f0;border-radius:16px;padding:18px}.vda-card h3{margin:0 0 5px;font-size:14px}.vda-card>p{font-size:10px;color:#8090a2;margin:0 0 17px}.vda-bar{display:grid;grid-template-columns:140px minmax(0,1fr) 95px;align-items:center;gap:10px;margin:11px 0;font-size:10px}.vda-bar label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#536b7c}.vda-track{height:9px;border-radius:30px;background:#eaf0f5;overflow:hidden}.vda-fill{height:100%;border-radius:30px;background:linear-gradient(90deg,#2878ee,#15a997)}.vda-bar b{text-align:right;font-size:10px}
+ .vda-table{overflow:auto;max-height:560px;border:1px solid #e5ecf2;border-radius:11px}.vda-table table{border-collapse:collapse;min-width:1100px;width:100%}.vda-table th{position:sticky;top:0;background:#f3f7fa;font-size:9px;white-space:nowrap;text-align:left;padding:11px;color:#557087}.vda-table td{padding:10px;border-bottom:1px solid #edf1f5;font-size:10px;white-space:nowrap}.vda-tool{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0}.vda-tool input{padding:11px;border:1px solid #dbe5ef;border-radius:9px;min-width:300px}.vda-tool button{padding:9px 12px;border:1px solid #cfdeeb;border-radius:8px;background:#fff}.vda-muted{color:#758b9e;font-size:10px}
+ @media(max-width:1100px){.vda-grid{grid-template-columns:repeat(2,1fr)}.vda-panels{grid-template-columns:1fr}}@media(max-width:600px){.vda-grid{grid-template-columns:1fr}.vda-bar{grid-template-columns:100px 1fr 65px}.vda-tool input{min-width:0;width:100%}}
+ </style>
+ <div class="vda-wrap">
+ <section class="vda-hero"><small>PRACTICE INTELLIGENCE · SOURCE-BASED</small><h2>Accounts Receivable · Vedova Clinic</h2><p>Financial exposure and billing workflow from the uploaded Billing Transactions report. ${count(rows.length)} actual billing rows in the selected reporting period.</p></section>
+ <div class="vda-note"><strong>Financial interpretation:</strong> This source reports Patient Amount Due and Insurance Amount Due, but does not establish that these are currently outstanding balances. Some rows marked “Paid in Full” also contain an amount due. Values below are <b>source-reported amounts due</b>, not verified outstanding A/R. Aging is not calculated without a reliable unpaid-balance reference date. Audit Notes worksheets are excluded from this display.</div>
+ <div class="vda-grid">${metric('Combined reported amount due',dollar(due),'Patient + insurance amount due','#087f75')}${metric('Insurance reported due',dollar(dueI),'From original source','#2563eb')}${metric('Patient reported due',dollar(dueP),'From original source','#d52c84')}${metric('Billing transaction rows',count(rows.length),'Excludes audit-note worksheet','#7357d8')}</div>
+ <div class="vda-panels"><section class="vda-card"><h3>Insurance amount due by payer</h3><p>Top insurance groups by source-reported amount due</p>${p.map(x=>`<div class="vda-bar"><label title="${esc(x.name)}">${esc(x.name)}</label><div class="vda-track"><div class="vda-fill" style="width:${Math.max(0,x.v/pMax*100)}%"></div></div><b>${dollar(x.v)}</b></div>`).join('')}</section><section class="vda-card"><h3>Insurance billing workflow</h3><p>Status field from uploaded transactions · not claim aging</p>${sts.map(([k,v])=>`<div class="vda-bar"><label title="${esc(k)}">${esc(k)}</label><div class="vda-track"><div class="vda-fill" style="width:${v/Math.max(1,rows.length)*100}%"></div></div><b>${count(v)} rows</b></div>`).join('')}</section></div>
+ <section class="vda-card"><h3>Source Billing Transactions</h3><p>Patient, insurance, service, reported amounts and source status preserved</p><div class="vda-tool"><input id="vdaSearch" placeholder="Search patient, payer, CPT or status" value="${esc(S.vedovaARSearch||'')}"><span class="vda-muted">${count(selected.length)} matching · Page ${S.arPage} / ${pages}</span></div><div class="vda-table"><table><thead><tr>${headers.map(x=>`<th>${esc(x[0])}</th>`).join('')}</tr></thead><tbody>${page.map(r=>`<tr>${headers.map(([label,key])=>{let val=key==='name'?[get(r,['first_name']),get(r,['last_name'])].filter(Boolean).join(' '):get(r,[key]);if(key==='patient_amount_due'||key==='insurance_amount_due')val=dollar(parseNum(val)||0);return `<td>${esc(val??'—')}</td>`}).join('')}</tr>`).join('')}</tbody></table></div><div class="vda-tool"><span class="vda-muted">Showing ${selected.length?(S.arPage-1)*pageSize+1:0}–${Math.min(S.arPage*pageSize,selected.length)} of ${count(selected.length)}</span><div><button id="vdaPrev" ${S.arPage<=1?'disabled':''}>Previous</button> <button id="vdaNext" ${S.arPage>=pages?'disabled':''}>Next</button></div></div></section>
+ </div>`;
+ const search=document.getElementById('vdaSearch');search?.addEventListener('input',e=>{const pos=e.target.selectionStart;S.vedovaARSearch=e.target.value;S.arPage=1;bhaVedovaAR();const x=document.getElementById('vdaSearch');x?.focus({preventScroll:true});x?.setSelectionRange(pos,pos)});
+ document.getElementById('vdaPrev')?.addEventListener('click',()=>{S.arPage--;bhaVedovaAR()});
+ document.getElementById('vdaNext')?.addEventListener('click',()=>{S.arPage++;bhaVedovaAR()});
+}
 function renderAR(){
+ if(String(S.client?.name||'').toLowerCase().trim()==='vedova clinic'){bhaVedovaAR();return;}
  if(String(S.client?.id||'')===V29_REDWOOD_ID){v31RenderRedwoodAR();return;}
  document.getElementById('content').dataset.module='ar';
  document.getElementById('pageName').textContent='Accounts Receivable';
@@ -4698,6 +4808,7 @@ function bindPaymentFilters(type){
 function paymentType(r){
  if(r.__payment_dataset_type==='financial_summary')return 'summary';
  if(r.__payment_dataset_type==='claim_financial_detail')return 'claim';
+ if(r.__payment_dataset_type==='payment_breakdown')return 'breakdown';
  const h=sourceKeys(r).map(k=>String(headerLabel(r,k)).toLowerCase()).join('|');
  if(/patient acct|claim no|claim date|billed charge|service date/.test(h))return'claim';
  if(/resource provider|claim count|patient count|payer charges|self charges/.test(h))return'summary';
@@ -4761,6 +4872,50 @@ function bindPaymentTable(){
  document.getElementById('clearPayProvider')?.addEventListener('click',()=>{S.paymentProvider='';S.paymentPage=1;renderPayments()});
  document.querySelectorAll('[data-pay-provider]').forEach(b=>b.onclick=()=>{S.paymentProvider=b.dataset.payProvider;S.paymentView='claim';S.paymentPage=1;S.search='';renderPayments()})
 }
+function bhaBreakdownHtml(rows,providerOnly=false){
+ const full=rows.filter(r=>r.__payment_dataset_type==='payment_breakdown');
+ let visible=full;
+ // Date selection is a reporting filter, not a statement about service dates.
+ if(S.from)visible=visible.filter(r=>{const d=paymentDateValue(r);return d&&d.toISOString().slice(0,10)>=S.from});
+ if(S.to)visible=visible.filter(r=>{const d=paymentDateValue(r);return d&&d.toISOString().slice(0,10)<=S.to});
+ const val=(r,k)=>String(bhaPayValue(r,k)??'').trim();
+ const cents=r=>{const x=val(r,'Applicable').replace(/[$,]/g,'');return /^-?\d+(\.\d{1,2})?$/.test(x)?Math.round(Number(x)*100):0};
+ const usd=n=>(n/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ const sum=visible.reduce((n,r)=>n+cents(r),0);
+ const uniqueDates=full.map(paymentDateValue).filter(Boolean).sort((a,b)=>a-b);
+ const dateInfo=uniqueDates.length?uniqueDates[0].toISOString().slice(0,10)+' — '+uniqueDates[uniqueDates.length-1].toISOString().slice(0,10):'Unavailable';
+ const grouped=(key,sortDate=false)=>{
+  const m=new Map();for(const r of visible){const k=key(r)||'Unspecified';m.set(k,(m.get(k)||0)+cents(r))}
+  return [...m].sort((a,b)=>sortDate?a[0].localeCompare(b[0]):b[1]-a[1]);
+ };
+ const payDays=grouped(r=>{const d=paymentDateValue(r);return d?d.toISOString().slice(0,10):'Unknown'},true);
+ const payers=grouped(r=>val(r,'Payer'));
+ const methods=grouped(r=>{const t=val(r,'Payment Type');return /card/i.test(t)?'Card':/check/i.test(t)?'Check':/cash/i.test(t)?'Cash':/ach|eft|electronic/i.test(t)?'Electronic':t||'Unspecified'});
+ const clinicians=grouped(r=>[val(r,'Clinician First Name'),val(r,'Clinician Last Name')].filter(Boolean).join(' '));
+ const barList=(items,limit=10)=>{
+  if(!items.length)return '<div class="bha-break-empty">No matching allocations</div>';
+  const max=Math.max(1,...items.map(a=>Math.abs(a[1])));
+  return '<div class="bha-break-bars">'+items.slice(0,limit).map(([name,n])=>`<div class="bha-break-bar"><span class="nm" title="${esc(name)}">${esc(name)}</span><span class="track"><span class="fill" style="display:block;width:${Math.max(n===0?0:2,Math.abs(n)/max*100).toFixed(2)}%"></span></span><span class="amt">${usd(n)}</span></div>`).join('')+'</div>';
+ };
+ const rowsWithMoney=visible.filter(r=>val(r,'Applicable')!=='').length;
+ const avg=visible.length?Math.round(sum/visible.length):0;
+ const heroTitle=providerOnly?'My Allocated Collections':'Allocated Collections';
+ return `<div class="bha-break-dashboard">
+  <div class="bha-break-hero"><div><div class="exec-kicker">PAYMENT INTELLIGENCE · SOURCE-VERIFIED</div><h2>${esc(heroTitle)}</h2><p>Actual applied payment allocations, without duplicated transaction amounts. The original source report is available below.</p></div><div><div class="bha-break-period">Payment dates: ${esc(dateInfo)}</div><h2>${usd(sum)}</h2></div></div>
+  <div class="bha-break-filters"><strong style="font-size:11px;color:#163950">Reporting period</strong><label>From <input id="bhaBreakFrom" type="date" value="${esc(S.from||'')}"></label><label>To <input id="bhaBreakTo" type="date" value="${esc(S.to||'')}"></label><button id="bhaBreakReset">Reset dates</button><span style="font-size:10px;color:#8492a2">${visible.length.toLocaleString()} of ${full.length.toLocaleString()} allocation rows</span></div>
+  <div class="bha-break-kpis"><div class="bha-break-stat"><label>Allocated collections</label><strong>${usd(sum)}</strong><small>Sum of Applicable only</small></div><div class="bha-break-stat"><label>Allocation rows</label><strong>${visible.length.toLocaleString()}</strong><small>Service-level allocations</small></div><div class="bha-break-stat"><label>Payment dates</label><strong>${payDays.length}</strong><small>Distinct dates in selection</small></div><div class="bha-break-stat"><label>Average allocation</label><strong>${visible.length?usd(avg):'—'}</strong><small>Per allocation row; not per transaction</small></div></div>
+  <div class="bha-break-panels"><section class="bha-break-panel"><h3>Collections by Payment Date</h3><p>Actual applicable allocations · chronological view</p>${barList(payDays,31)}</section><section class="bha-break-panel"><h3>Collection by Payer</h3><p>Based on Payer field from the uploaded report</p>${barList(payers)}</section></div>
+  <div class="bha-break-panels"><section class="bha-break-panel"><h3>Payment Method Mix</h3><p>Methods grouped from source Payment Type; check IDs removed only from chart labels</p>${barList(methods)}</section><section class="bha-break-panel"><h3>Clinician Allocation Performance</h3><p>Allocated payments by source clinician</p>${barList(clinicians)}</section></div>
+  <div class="bha-break-notice">Source integrity: <strong>Amount</strong> repeats across service rows and is not summed. This report does not provide billed charges, contractual adjustments, payer/patient payment splits, or A/R movement. Date filter uses Payment Date, not Date of Service.</div>
+ </div>`+bhaLocalSourceTable(visible,providerOnly?'My Payments Breakdown':'Payments Breakdown');
+}
+function bhaBindBreakdown(){
+ document.getElementById('bhaBreakFrom')?.addEventListener('change',e=>{S.from=e.target.value;S.paymentPage=1;renderPayments()});
+ document.getElementById('bhaBreakTo')?.addEventListener('change',e=>{S.to=e.target.value;S.paymentPage=1;renderPayments()});
+ document.getElementById('bhaBreakReset')?.addEventListener('click',()=>{S.from='';S.to='';S.paymentPage=1;renderPayments()});
+ document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{S.paymentView=b.dataset.pay;S.from='';S.to='';S.search='';S.paymentPage=1;renderPayments()});
+ bindPaymentTable();
+}
 function renderPayments(){
  if(getRole()==='provider'){
    document.getElementById('content').dataset.module='payments';
@@ -4768,6 +4923,10 @@ function renderPayments(){
    const own=paymentBaseRows().filter(r=>bhaOwnProviderRecord(r));
    const summary=own.filter(r=>paymentType(r)==='summary');
    const claims=own.filter(r=>paymentType(r)==='claim');
+   const breakdown=own.filter(r=>paymentType(r)==='breakdown');
+   if(S.paymentView==='breakdown'&&breakdown.length){document.getElementById('content').innerHTML=hero('My Payments','Provider-isolated payment allocations only.')+'<div class="pay2-tabs">'+(summary.length?'<button class="pay2-tab" data-pay="summary">Financial Summary</button>':'')+(claims.length?'<button class="pay2-tab" data-pay="claim">Claim Financial Detail</button>':'')+'<button class="pay2-tab active" data-pay="breakdown">Payments Breakdown</button></div>'+bhaBreakdownHtml(breakdown,true);bhaBindBreakdown();return;}
+   if(!summary.length&&!claims.length&&breakdown.length)S.paymentView='breakdown';
+   if(S.paymentView==='breakdown'&&breakdown.length){document.getElementById('content').innerHTML=hero('My Payments','Provider-isolated payment allocations only.')+'<div class="pay2-tabs"><button class="pay2-tab active" data-pay="breakdown">Payments Breakdown</button></div>'+bhaBreakdownHtml(breakdown,true);bhaBindBreakdown();return;}
    const card=(name,value,detail)=>`<div class="card" style="padding:20px"><small>${esc(name)}</small><h2 style="margin:12px 0">${esc(value)}</h2><p>${esc(detail)}</p></div>`;
    const cash=n=>n==null?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
    if(!summary.length&&!claims.length){
@@ -4797,7 +4956,7 @@ function renderPayments(){
    };
    const view=S.paymentView==='summary'&&summary.length?'summary':claims.length?'claim':'summary';
    S.paymentView=view;
-   const tabs=`<div class="pay2-tabs">${summary.length?`<button class="pay2-tab ${view==='summary'?'active':''}" data-provider-pay="summary">Financial Summary</button>`:''}${claims.length?`<button class="pay2-tab ${view==='claim'?'active':''}" data-provider-pay="claim">Claim Financial Detail</button>`:''}</div>`;
+   const tabs=`<div class="pay2-tabs">${breakdown.length?`<button class="pay2-tab" data-provider-pay="breakdown">Payments Breakdown</button>`:''}${summary.length?`<button class="pay2-tab ${view==='summary'?'active':''}" data-provider-pay="summary">Financial Summary</button>`:''}${claims.length?`<button class="pay2-tab ${view==='claim'?'active':''}" data-provider-pay="claim">Claim Financial Detail</button>`:''}</div>`;
    if(view==='summary'){
      const total=(keys)=>sum(summary,keys);
      const cards=[card('Reported Payments',cash(paymentExactSum(summary,'Payments',F.payments)),'Source Financial Summary'),card('Payer Payments',cash(paymentExactSum(summary,'Payer Payment',F.payerPay)),'Provider summary'),card('Patient Payments',cash(paymentExactSum(summary,'Patient Payment',F.patientPay)),'Provider summary'),card('Provider Summary Rows',String(summary.length),'Only your attributed rows')];
@@ -4825,8 +4984,15 @@ function renderPayments(){
  }
  document.getElementById('content').dataset.module='payments';
  document.getElementById('pageName').textContent='Payments';
- const summary=paymentDatasetRows('summary'),claims=paymentDatasetRows('claim');
- const tabs=`<div class="pay2-tabs"><button class="pay2-tab ${S.paymentView==='summary'?'active':''}" data-pay="summary">Financial Summary</button><button class="pay2-tab ${S.paymentView==='claim'?'active':''}" data-pay="claim">Claim Financial Detail</button></div>`;
+ const summary=paymentDatasetRows('summary'),claims=paymentDatasetRows('claim'),breakdown=paymentBaseRows().filter(r=>paymentType(r)==='breakdown');
+ // A clinic sees only report types it actually uploaded. Auto-select a supported dataset.
+ const available={summary:summary.length,claim:claims.length,breakdown:breakdown.length};
+ if(!available[S.paymentView])S.paymentView=available.summary?'summary':available.claim?'claim':available.breakdown?'breakdown':'summary';
+ const tabs=`<div class="pay2-tabs">${available.summary?`<button class="pay2-tab ${S.paymentView==='summary'?'active':''}" data-pay="summary">Financial Summary</button>`:''}${available.claim?`<button class="pay2-tab ${S.paymentView==='claim'?'active':''}" data-pay="claim">Claim Financial Detail</button>`:''}${available.breakdown?`<button class="pay2-tab ${S.paymentView==='breakdown'?'active':''}" data-pay="breakdown">Payments Breakdown</button>`:''}</div>`;
+ if(!available.summary&&!available.claim&&!available.breakdown){document.getElementById('content').innerHTML=hero('Payments','View payment reports published for this practice.')+'<div class="card" style="padding:25px;margin-top:15px"><h3>No payment reports published</h3><p class="cap">Upload a supported payment report for this practice to display payment analytics.</p></div>';return;}
+ if(S.paymentView==='breakdown'){
+  document.getElementById('content').innerHTML=hero('Payments','Allocated payment reporting based on source data.')+tabs+bhaBreakdownHtml(breakdown);bhaBindBreakdown();return;
+ }
  if(S.paymentView==='summary'){
    const rows=summary,charges=paymentExactSum(rows,'Billed Charge',F.charges),payments=paymentExactSum(rows,'Payments',F.payments),payer=paymentExactSum(rows,'Payer Payment',F.payerPay),patient=paymentExactSum(rows,'Patient Payment',F.patientPay),contractual=sum(rows,F.contractual),writeoff=sum(rows,PF.writeoff),change=sum(rows,F.arChange),withheld=sum(rows,PF.withheld),refunds=sum(rows,PF.refunds),claimCount=sum(rows,PF.claimCount),patientCount=sum(rows,PF.patientCount);
    const ratio=charges&&charges>0&&payments!=null?payments/charges*100:null,componentsTotal=payer!=null&&patient!=null?payer+patient:null,payerMix=componentsTotal>0?payer/componentsTotal*100:null,patientMix=componentsTotal>0?patient/componentsTotal*100:null;
@@ -5031,7 +5197,7 @@ function ensureLockedHost(){
   if(host!==lockedHost||!lockedShadow){
     lockedHost=host;
     lockedShadow=host.shadowRoot||host.attachShadow({mode:'open'});
-    lockedShadow.innerHTML=`<style>${LOCKED_CSS}</style><style>${LIVE_DOC.getElementById('bha-v22-admin-portfolio-css')?.textContent||''}</style><span id="pageName" hidden></span><div id="content" class="content"></div>`;
+    lockedShadow.innerHTML=`<style>${LOCKED_CSS}</style><style>${LIVE_DOC.getElementById('bha-v22-admin-portfolio-css')?.textContent||''}</style><style id="bha-payment-breakdown-shadow-styles">${LIVE_DOC.getElementById('bha-payment-breakdown-premium-v3')?.textContent||''}</style><span id="pageName" hidden></span><div id="content" class="content"></div>`;
   }
   return host;
 }
