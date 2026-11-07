@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-04-payments-breakdown-shadow-fix-v5';</script>
+<script>const BHA_BUILD_ID='2026-11-07-dynamic-redwood-ar-import-v1';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -2163,8 +2163,14 @@ async function parseImportFile(file,module){
       if(parsed.length)parsedSheets.push({name,rows:parsed});
     }
     if(!parsedSheets.length)throw new Error('No importable rows were found in the Excel worksheets.');
-    sourceName=`${file.name} — ${parsedSheets.length} worksheet(s)`;
-    rawRows=parsedSheets.flatMap(({name,rows})=>rows.map(row=>({...row,source_worksheet:name})));
+    // Only one source worksheet may be imported. Never merge audit/summary/notes
+    // worksheets into live claim records (especially audited A/R workbooks).
+    const chosen=parsedSheets.find(x=>module==='ar'&&/^AR Upload Data$/i.test(x.name.trim()))
+      ||parsedSheets.find(x=>!/(audit|summary|changes|flags|provider totals|notes|readme|instructions)/i.test(x.name))
+      ||null;
+    if(!chosen)throw new Error('No valid data worksheet found. Select a workbook containing an AR data worksheet, not only audit or summary sheets.');
+    sourceName=`${file.name} — worksheet: ${chosen.name}`;
+    rawRows=chosen.rows.map(row=>({...row,source_worksheet:chosen.name}));
   }else{
     if(typeof Papa==='undefined')throw new Error('CSV reader is unavailable. Please refresh the page and try again.');
     const buffer=await file.arrayBuffer();
@@ -2223,17 +2229,25 @@ async function importCsv(){
     if((redwoodWorkbook||redwoodCsv)&&String(clientId)!==redwoodId)
       throw new Error('Redwood A/R source cannot be imported to another practice.');
     if(String(clientId)===redwoodId&&module==='ar'){
-      // Server-side rcm-import must enforce approved 7,216-row / $1,840,043.66 replacement.
-      // Approved Redwood A/R replacement: 7,216 claims totaling $1,840,043.66 (2026-10-27).
+      // A/R is a changing snapshot; no historical row count or dollar total is valid
+      // as a future import constraint. Validate each incoming snapshot instead.
       if(mode!=='replace')throw new Error('Redwood A/R must use Replace mode to prevent duplicates.');
-      if(rows.length!==7216)throw new Error(`Expected 7,216 Redwood claims; found ${rows.length.toLocaleString()}. No records uploaded.`);
-      const cents=rows.reduce((sum,row)=>{
-        const value=Number(String(row.balance??row.Balance??'').replace(/[$,]/g,''));
-        if(!Number.isFinite(value))throw new Error('Invalid Redwood claim balance.');
-        if(!String(row.provider??row.Provider??'').trim())throw new Error('A Redwood claim is missing provider.');
-        return sum+Math.round(value*100);
-      },0);
-      if(cents!==184004366)throw new Error(`Redwood balance mismatch: $${(cents/100).toFixed(2)}. Expected $1,840,043.66. Import blocked.`);
+      let cents=0;
+      for(let i=0;i<rows.length;i++){
+        const row=rows[i];
+        const balanceRaw=String(row.balance??'').trim();
+        if(!balanceRaw)throw new Error(`A/R row ${i+1} has no Balance value. Import blocked.`);
+        const negative=/^\(.*\)$/.test(balanceRaw);
+        const amount=Number(balanceRaw.replace(/[$,()\s]/g,''))*(negative?-1:1);
+        if(!Number.isFinite(amount))throw new Error(`Invalid A/R balance in row ${i+1}. Import blocked.`);
+        if(!String(row.provider??'').trim())throw new Error(`A/R row ${i+1} is missing Provider. Import blocked.`);
+        if(!String(row.claim_id??'').trim())throw new Error(`A/R row ${i+1} is missing Claim ID. Import blocked.`);
+        cents+=Math.round(amount*100);
+      }
+      if(!confirm(`Replace REDWOOD MEDICAL AURORA A/R with ${rows.length.toLocaleString()} source rows (${(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'})} reported balance)? This updates ONLY Redwood A/R. Ensure a database backup exists and financial exceptions have been approved.`)){
+        if(result)result.innerHTML='<div class="notice">Import cancelled; no data submitted.</div>';
+        return;
+      }
     }
 
     if(DEMO_MODE){
@@ -2275,14 +2289,26 @@ async function insertRecords(module,rows,clientId,mode){
     return {external_id:`${batchId}:${String(index+1).padStart(8,'0')}`,data};
   });
   const requestSize=1000;
+  const isRedwoodAr=module==='ar'&&clientId==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'&&mode==='replace';
+  const expectedCents=isRedwoodAr?payload.reduce((sum,item)=>{
+    const raw=String(item.data.balance??'').trim();
+    const negative=/^\(.*\)$/.test(raw);
+    const amount=Number(raw.replace(/[$,()\s]/g,''))*(negative?-1:1);
+    if(!Number.isFinite(amount))throw new Error('Invalid A/R balance in upload payload.');
+    return sum+Math.round(amount*100);
+  },0):null;
   let inserted=0;
   const result=document.getElementById('importResult');
   for(let from=0;from<payload.length;from+=requestSize){
     const chunk=payload.slice(from,from+requestSize);
     const finalize=from+chunk.length>=payload.length;
     if(result)result.innerHTML=`<div class="notice">Uploading ${Math.min(from+chunk.length,payload.length).toLocaleString()} of ${payload.length.toLocaleString()} records…</div>`;
-    const {data,error}=await sb.functions.invoke('rcm-import',{body:{client_id:clientId,module,mode,rows:chunk,import_batch_id:batchId,finalize}});
-    if(error)throw new Error(error.message||`Import failed after ${inserted.toLocaleString()} rows.`);
+    const {data,error}=await sb.functions.invoke('rcm-import',{body:{client_id:clientId,module,mode,rows:chunk,import_batch_id:batchId,finalize,...(isRedwoodAr?{expected_total:payload.length,expected_cents:expectedCents}:{})}});
+    if(error){
+      let detail=error.message||'Edge Function returned an error';
+      try{const response=error.context;if(response&&typeof response.json==='function'){const body=await response.json();detail=body?.error||body?.message||detail;}}catch(_){}
+      throw new Error(detail);
+    }
     if(data?.error)throw new Error(data.error);
     inserted+=Number(data?.inserted??chunk.length);
   }
