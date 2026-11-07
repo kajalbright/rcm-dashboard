@@ -4274,6 +4274,105 @@ function drawTrend(data,flags){
  const ds=[];if(flags.ch)ds.push({label:'Charges',data:data.map(x=>x.charges),borderWidth:2.2,tension:.34,pointRadius:2,fill:false});if(flags.pay)ds.push({label:'Payments',data:data.map(x=>x.payments),borderWidth:2.2,tension:.34,pointRadius:2,fill:false});if(flags.bal)ds.push({label:'A/R',data:data.map(x=>x.balance),borderWidth:2.2,tension:.34,pointRadius:2,fill:false});
  S.charts.trend=new Chart(el,{type:'line',data:{labels:data.map(x=>x.label),datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',align:'end',labels:{boxWidth:8,boxHeight:8,usePointStyle:true,font:{size:9}}}},scales:{x:{grid:{display:false},ticks:{font:{size:8}}},y:{beginAtZero:true,grid:{color:'#eef2f6'},ticks:{font:{size:8},callback:v=>'$'+compact(v)}}}}})
 }
+// Redwood-only financial trend: independently dated charges and a distinctly labelled
+// provisional Claim Financial Detail collection series; no double counting of batches.
+function bhaRedwoodTrendModel(chargeRows){
+ const rid='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
+ if(String(S.client?.id||'')!==rid)return null;
+ const allPay=(S.records.payments||[]).filter(r=>r.__payment_dataset_type==='claim_financial_detail');
+ const active=allPay.filter(r=>r.__payment_import_state==='active');
+ const staged=allPay.filter(r=>r.__payment_import_state==='staged');
+ // Select exactly one detail batch; never combine active and staged copies.
+ // Only enable collections when the detail batch reconciles to the separately
+ // uploaded Financial Summary on payer, patient and total deposit cents.
+ const summary=(S.records.payments||[]).filter(r=>r.__payment_dataset_type==='financial_summary'&&r.__payment_import_state==='active');
+ const cents=(r,key)=>Math.round((parseNum(get(r,[key]))||0)*100);
+ const sumCents=(rows,key)=>rows.reduce((total,r)=>total+cents(r,key),0);
+ const columns=['posted_amount','patient_payment','total_deposit_amount'];
+ const verified=staged.length>0&&summary.length>0&&columns.every(key=>Math.abs(sumCents(staged,key)-sumCents(summary,key))<=2);
+ const picked=verified?staged:[];
+ const payRows=picked.filter(r=>{
+  const d=paymentDateValue(r);if(!d)return false;
+  if(S.provider&&bhaProviderKey(get(r,F.provider))!==bhaProviderKey(S.provider))return false;
+  if(S.payer&&String(get(r,['payer_name','payer','Payer Name'])||'')!==S.payer)return false;
+  if(S.cpt&&String(get(r,F.cpt)||'')!==S.cpt)return false;
+  const now=new Date(),day=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  let from=null,to=null;
+  if(S.period==='30')from=new Date(day.getFullYear(),day.getMonth(),day.getDate()-29);
+  if(S.period==='90')from=new Date(day.getFullYear(),day.getMonth(),day.getDate()-89);
+  if(S.period==='ytd')from=new Date(day.getFullYear(),0,1);
+  if(S.period==='custom'){
+   from=S.from?new Date(S.from+'T00:00:00'):null;
+   to=S.to?new Date(S.to+'T23:59:59.999'):null;
+  }
+  return (!from||d>=from)&&(!to||d<=to);
+ });
+ const now=new Date();const start=S.period==='custom'&&S.from?new Date(S.from+'T00:00:00'):null;
+ const end=S.period==='custom'&&S.to?new Date(S.to+'T00:00:00'):null;
+ const daily=!!(start&&end&&end>=start&&(end-start)/86400000<=62);
+ const keyFor=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+(daily?'-'+String(d.getDate()).padStart(2,'0'):'');
+ const values=new Map();
+ const add=(key,field,amount)=>{const z=values.get(key)||{charges:0,payments:0,chargeRows:0,paymentRows:0};z[field]+=amount;z[field==='charges'?'chargeRows':'paymentRows']++;values.set(key,z)};
+ for(const r of chargeRows){const d=moduleDate(r,'charges');const n=parseNum(get(r,F.charges));if(d&&n!==null)add(keyFor(d),'charges',n)}
+ for(const r of payRows){const d=paymentDateValue(r);const n=parseNum(get(r,['total_deposit_amount','Total Deposit Amount']));if(d&&n!==null)add(keyFor(d),'payments',n)}
+ let keys=[...values.keys()].sort();
+ if(daily){keys=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1))keys.push(keyFor(d))}
+ else keys=keys; // All Available: show every supported month in the published dated sources.
+ const currentMonth=keyFor(now).slice(0,7);
+ const dates=keys.map(key=>{const d=new Date(key+(daily?'T00:00:00':'-01T00:00:00'));return d});
+ const rows=keys.map((key,i)=>{const x=values.get(key);const isPartial=!daily&&key===currentMonth;
+ return {label:daily?dates[i].toLocaleDateString('en-US',{month:'short',day:'numeric'}):dates[i].toLocaleDateString('en-US',{month:'short',year:'2-digit'})+(isPartial?' · MTD':''),
+  charges:x&&x.chargeRows?x.charges:(daily?0:null),payments:x&&x.paymentRows?x.payments:(daily?0:null),partial:isPartial,
+  chargeRows:x?.chargeRows||0,paymentRows:x?.paymentRows||0};});
+ return {rows,daily,hasCollections:verified,stagedRecords:picked.length,activeRecords:active.length,summaryRecords:summary.length};
+}
+// Redwood: display all claim months from the current open A/R snapshot.
+// This is NOT historical monthly collections or an A/R balance as of those past month ends.
+function bhaRedwoodClaimMonthHistory(allRows){
+ const id='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
+ if(String(S.client?.id||'')!==id)return '';
+ const months=new Map();let skipped=0;
+ for(const r of allRows){
+  const raw=String(get(r,['claim_date','Claim Date'])||'').trim();
+  let d=dt(raw);
+  if(!d&&/^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}$/.test(raw)){
+   d=new Date(raw);if(Number.isNaN(d.getTime()))d=null;
+  }
+  const v=parseNum(get(r,['balance','Balance']));
+  if(!d||v===null){skipped++;continue}
+  const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const item=months.get(key)||{amount:0,claims:0};item.amount+=v;item.claims++;months.set(key,item);
+ }
+ const entries=[...months.entries()].sort((a,b)=>b[0].localeCompare(a[0]));
+ if(!entries.length)return '';
+ const max=Math.max(...entries.map(([,v])=>Math.max(0,v.amount)),1);
+ const sumAmount=entries.reduce((a,[,v])=>a+v.amount,0);
+ const rowHtml=([key,v])=>{const label=new Date(key+'-01T00:00:00').toLocaleDateString('en-US',{month:'short',year:'numeric'});const pct=Math.max(0,v.amount)/max*100;
+ return `<div style="display:grid;grid-template-columns:90px minmax(100px,1fr) 135px;gap:12px;align-items:center;padding:9px 2px;border-bottom:1px solid #f0f3f7;font-size:11px"><b style="color:#29445f">${label}</b><div style="height:10px;background:#edf3fa;border-radius:20px;overflow:hidden"><div style="width:${pct.toFixed(2)}%;height:100%;background:#2f6df6;border-radius:20px"></div></div><div style="text-align:right"><b>${money(v.amount)}</b><div style="font-size:9px;color:#7c8da0">${count(v.claims)} claims</div></div></div>`;};
+ const recent=entries.slice(0,12),older=entries.slice(12);
+ return `<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">Where Your Outstanding Payments Come From</h3><p>Unpaid claim balances by the month claims were submitted · Latest 12 months</p></div><span class="badge">${entries.length} claim months</span></div>
+ <div style="display:flex;gap:12px;flex-wrap:wrap;padding:0 4px 12px;font-size:11px;color:#38536a"><b>Total outstanding: ${money(sumAmount)}</b><span>${count(entries.reduce((a,[,v])=>a+v.claims,0))} claims</span></div>
+ <div style="border:1px solid #e6edf4;border-radius:12px;padding:12px 15px" role="region" aria-label="Outstanding A/R by claim month">${recent.map(rowHtml).join('')}
+ ${older.length?`<details style="padding-top:10px"><summary style="cursor:pointer;color:#1e5fbd;font-size:11px;font-weight:800;padding:8px 2px">View Full History (${older.length} older months)</summary><div style="padding-top:8px">${older.map(rowHtml).join('')}</div></details>`:''}</div>
+ <p style="font-size:10px;line-height:1.5;color:#74879b;padding:12px 4px 0">These are unpaid balances today for claims submitted in each month—not the amount billed or collected in that month.${skipped?' '+count(skipped)+' records excluded because Claim Date or Balance was unavailable.':''}</p></div>`;
+}
+function bhaDrawRedwoodTrend(model){
+ const el=document.getElementById('trend');if(!el)return;
+ if(S.charts.trend)S.charts.trend.destroy();
+ const rows=model.rows,last=rows.length-1;
+ const series=[{label:'Charges Billed',value:'charges',color:'#2f6df6'}];
+ if(model.hasCollections)series.push({label:'Payments Collected',value:'payments',color:'#e45780'});
+ const groupedBars=!model.daily&&rows.length<=2;
+ const datasets=series.map(s=>({label:s.label,data:rows.map(r=>r[s.value]),borderColor:s.color,backgroundColor:s.color,
+  pointBackgroundColor:s.color,pointRadius:rows.map(r=>r.partial?5:3),pointHoverRadius:6,
+  borderWidth:2.5,tension:model.daily?.25:.15,fill:false,spanGaps:false,
+  maxBarThickness:65,borderRadius:groupedBars?5:0,
+  segment:{borderDash:ctx=>(ctx.p1DataIndex===last&&rows[last]?.partial)?[6,5]:undefined}}));
+ S.charts.trend=new Chart(el,{type:groupedBars?'bar':'line',data:{labels:rows.map(r=>r.label),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{
+  legend:{position:'top',align:'end',labels:{boxWidth:9,boxHeight:9,usePointStyle:true,font:{size:10}}},
+  tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+(ctx.parsed.y==null?'No source records':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(ctx.parsed.y))}}
+ },scales:{x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14}},y:{beginAtZero:true,grid:{color:'#eef2f6'},ticks:{font:{size:9},callback:v=>'$'+compact(v)}}}}});
+}
 function bindFilters(render){
  document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{S.period=b.dataset.period;if(S.period!=='custom'){S.from='';S.to=''}render()});
  [['provider','provider'],['payer','payer'],['cpt','cpt'],['from','from'],['to','to']].forEach(([id,k])=>document.getElementById(id)?.addEventListener('change',e=>{S[k]=e.target.value;render()}));
@@ -4387,7 +4486,8 @@ function renderOverview(){
  // Prefer domain-specific sources; fall back to fields embedded in another published source only when needed.
  const bal=has(ar,F.balance)?sum(ar,F.balance):(has(flat,F.balance)?sum(flat,F.balance):null);
  const ch=has(chargeRows,F.charges)?sum(chargeRows,F.charges):(has(ar,F.charges)?sum(ar,F.charges):(has(flat,F.charges)?sum(flat,F.charges):null));
- const pay=payRows.length?payRows.reduce((a,r)=>a+bhaOverviewClaimDeposit(r),0):null;
+ const redwoodPaymentView=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'?bhaRedwoodTrendModel(chargeRows):null;
+ const pay=redwoodPaymentView?(redwoodPaymentView.hasCollections?redwoodPaymentView.rows.reduce((a,r)=>a+(r.payments||0),0):null):(payRows.length?payRows.reduce((a,r)=>a+bhaOverviewClaimDeposit(r),0):null);
  const claimBase=ar.length?ar:flat,claims=String(S.client?.id||'')==='d2459737-3d39-4f84-9d4e-8dc33ca6cb82'?claimBase.length:(uniq(claimBase,F.claim).length||claimBase.length);
  const agedBase=ar.length?ar:flat,hasAge=has(agedBase,F.days)||has(agedBase,F.bucket);
  const old=hasAge?agedBase.filter(r=>(age(r)||0)>90):[],oldBal=old.length&&has(agedBase,F.balance)?sum(old,F.balance):null;
@@ -4402,7 +4502,7 @@ function renderOverview(){
  const primary=[];
  if(bal!=null)primary.push(kpi('Outstanding A/R',bal,'Current published receivables'));
  if(ch!=null)primary.push(kpi('Total Charges',ch,'Available charge activity','teal'));
- if(pay!=null)primary.push(kpi('Payments / Collections',pay,'Claim Financial Detail · Payment Date · Net deposits','green'));
+ if(pay!=null)primary.push(kpi(redwoodPaymentView?'Payments Collected':'Payments / Collections',pay,redwoodPaymentView?'Recorded payer + patient payments':'Claim Financial Detail · Payment Date · Net deposits','green'));
  primary.push(kpi('Claims / Records',claims,'Current receivable inventory','purple','count'));
 
  const risk=[];
@@ -4471,7 +4571,8 @@ function renderOverview(){
   const scoped=[...otherMonths.values()].filter(item=>{const m=periodMonth(item.label);return m!==null&&(first===null||m>=first)&&(last===null||m<=last)}).sort((a,b)=>periodMonth(a.label)-periodMonth(b.label));
   tr.splice(0,tr.length,...scoped.slice(-12));
  }
- const validTrend=tr.length>=1;
+ const redwoodTrend=redwoodPaymentView;
+ const validTrend=redwoodTrend?redwoodTrend.rows.length>0:tr.length>=1;
  const trendFlags={ch:trustworthyDateSet(chargeRows,'charges')&&has(chargeRows,F.charges),pay:payRows.length>0,bal:trustworthyDateSet(ar,'ar')&&has(ar,F.balance)};
  // Separate source aging amount columns take precedence over generic age/period columns.
  const verifiedAging=sourceBands.some(([,keys])=>ar.some(r=>get(r,keys)!==null));
@@ -4491,13 +4592,14 @@ function renderOverview(){
  document.getElementById('content').innerHTML=customHero+filtersHtml()+`<div class="ov3">`+
  `<div class="ov2-summary primary">${primary.join('')}</div>`+
  (risk.length?`<div class="ov2-risk">${risk.join('')}</div>`:'')+
- (validTrend?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">Financial Trend</h3><p>${dailyTrend?'Daily movement from dated records.':'Monthly movement from dated records.'}</p></div><span class="badge">${tr.length} ${dailyTrend?'days':'valid months'}</span></div><div class="trend"><canvas id="trend"></canvas></div></div>`:'')+
+ (validTrend?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">${redwoodTrend?(redwoodTrend.daily?'Daily Billing & Collections':'Monthly Billing & Collections'):'Financial Performance Trend'}</h3><p>${redwoodTrend?(redwoodTrend.daily?'Daily billing and payments in your selected dates':'See how much was billed and collected each month'):(dailyTrend?'Daily movement from dated records.':'Monthly movement from dated records.')}</p></div><span class="badge">${redwoodTrend?redwoodTrend.rows.length:tr.length} ${redwoodTrend?(redwoodTrend.daily?'days':'months'):(dailyTrend?'days':'valid months')}</span></div><div class="trend"><canvas id="trend"></canvas></div>${redwoodTrend?`<div style="padding:3px 4px 12px;font-size:10px;color:#62798d;line-height:1.65">${redwoodTrend.hasCollections?'Collections may include payments for claims billed in previous months. November figures reflect month-to-date activity.':'Payment figures are temporarily unavailable while the billing team verifies the totals. Charges are shown for the available months.'}</div>`:''}</div>`:'')+
+ (isRedwoodExcel?bhaRedwoodClaimMonthHistory(S.records.ar||[]):'')+
  (isRedwoodExcel?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Source-verified claim aging across all five Excel report buckets.</p></div><span class="badge">${count(ar.length)} source records</span></div>${sourceAgingHtml}</div>`:
  `<div class="ov3-visual-grid"><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">Top Payer Exposure</h3><p>Largest payer concentrations in the visible receivable source.</p></div><span class="badge">${count(payerData.length)} payers</span></div>${payerHtml}</div><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Graphical balance concentration across executive aging bands.</p></div></div>${agingDisplay}</div></div>`)+
  (actions.length?`<div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">Revenue Cycle Action Center</h3><p>Priority signals from published practice data.</p></div><span class="badge">${actions.length} active signals</span></div><div class="ov2-actions" style="display:grid;grid-template-columns:repeat(${Math.min(actions.length,3)},minmax(0,1fr));gap:12px">${actions.slice(0,3).map(([tag,val,txt,go,label])=>`<div class="ov2-action"><span class="tag">${esc(tag)}</span><strong>${esc(val)}</strong><p>${esc(txt)}</p><button data-action-go="${go}">${esc(label)} →</button></div>`).join('')}</div></div>`:'')+`</div>`;
  bindFilters(renderOverview);
  document.querySelectorAll('[data-action-go]').forEach(b=>b.onclick=()=>{S.search='';if(typeof window.navigateToSection==='function')window.navigateToSection(b.dataset.actionGo);});
- if(validTrend)drawTrend(tr,trendFlags)
+ if(validTrend){if(redwoodTrend)bhaDrawRedwoodTrend(redwoodTrend);else drawTrend(tr,trendFlags)}
 }
 // Caldwell verification uses the source worksheet's original field labels.
 // Scope these aliases to Caldwell only; other practices/modules retain their existing filters.
@@ -4603,7 +4705,7 @@ function v31RenderRedwoodAR(){
    let y,m,d;
    let match=str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:T|$)/);
    if(match){y=+match[1];m=+match[2];d=+match[3];}
-   else {match=str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(!match)return null;m=+match[1];d=+match[2];y=+match[3];if(y<100)y+=y>=70?1900:2000;}
+   else {match=str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(match){m=+match[1];d=+match[2];y=+match[3];if(y<100)y+=y>=70?1900:2000;}else{const named=str.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/);if(!named)return null;const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];m=months.indexOf(named[1].slice(0,3).toLowerCase())+1;d=+named[2];y=+named[3];if(!m)return null;}}
    const dt=new Date(y,m-1,d);return dt.getFullYear()===y&&dt.getMonth()===m-1&&dt.getDate()===d?dt:null;
  };
  const arToday=new Date();arToday.setHours(0,0,0,0);
@@ -4619,7 +4721,48 @@ function v31RenderRedwoodAR(){
    if(arDatePreset==='custom')return (!customFrom||dt>=customFrom)&&(!customTo||dt<=customTo);
    return dt>=arStart&&dt<=arToday;
  });
- if(!rows.length){document.getElementById('content').dataset.module='ar';document.getElementById('pageName').textContent='Accounts Receivable';document.getElementById('content').innerHTML=hero('Accounts Receivable','Redwood A/R has no published records in Supabase.')+'<div class="empty"><b>No published Redwood A/R records</b><p>Upload the approved 7,216-claim replacement in Data Operations → Accounts Receivable → Replace. No local sample data is shown.</p></div>';return;}
+ // Never claim that published A/R is missing merely because the local module cache is empty
+ // or because a selected date range contains no matching claims.
+ if(!rows.length){
+   const host=document.getElementById('content');host.dataset.module='ar';
+   document.getElementById('pageName').textContent='Accounts Receivable';
+   if(allRows.length){
+     host.innerHTML=hero('Accounts Receivable','Published receivables are available; no claims match this date selection.')+
+       '<div class="empty"><b>No records in selected date range</b><p>Current published A/R is available. Reset the A/R date filter to view all claims.</p><button class="btn btn-primary" id="bhaArShowAll">Show All Available A/R</button></div>';
+     document.getElementById('bhaArShowAll')?.addEventListener('click',()=>{S.v31DatePreset='all';S.v31DateFrom='';S.v31DateTo='';v31RenderRedwoodAR()});
+     return;
+   }
+   const cid=String(S.client?.id||'');
+   host.innerHTML=hero('Accounts Receivable','Retrieving the latest published Redwood A/R records.')+
+     '<div class="empty"><b>Loading published A/R data…</b><p>The source records are being retrieved. No upload is required.</p></div>';
+   // A failed/empty initial module load must not be represented as an empty database.
+   if(!S.__redwoodArRecovering){
+     S.__redwoodArRecovering=true;
+     Promise.resolve().then(async()=>{
+       try{
+         const fresh=await fetchModule('ar',true);
+         if(String(S.client?.id||'')!==cid)return;
+         if(!Array.isArray(fresh)||!fresh.length)throw new Error('AR read returned no rows; check practice permissions or network logs');
+         S.records.ar=fresh;S.v31DatePreset='all';S.__redwoodArLoadError='';
+       }catch(e){
+         S.__redwoodArLoadError=String(e?.message||e);
+         console.error('Redwood A/R fetch failed',e);
+       }finally{
+         S.__redwoodArRecovering=false;
+         if(String(S.client?.id||'')===cid){
+           if((S.records.ar||[]).length)v31RenderRedwoodAR();
+           else{
+             host.innerHTML=hero('Accounts Receivable','Published A/R could not be loaded in this session.')+
+               '<div class="empty"><b>A/R temporarily unavailable</b><p>Live database data may still be present. Please retry the read. Do not re-upload or delete records.</p><button class="btn btn-primary" id="bhaArRetry">Retry A/R Load</button><p class="muted" id="bhaArTechnical"></p></div>';
+             document.getElementById('bhaArTechnical').textContent=S.__redwoodArLoadError||'No rows returned';
+             document.getElementById('bhaArRetry')?.addEventListener('click',()=>{S.__redwoodArLoadError='';v31RenderRedwoodAR()});
+           }
+         }
+       }
+     });
+   }
+   return;
+ }
  const n=(r,k)=>{
   const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120'],balance:['balance','Balance'],charges:['charges','Charges']};
   for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const raw=String(value).trim(),negative=/^\(.*\)$/.test(raw);const parsed=Number(raw.replace(/[()$,\s]/g,''));if(Number.isFinite(parsed))return negative?-Math.abs(parsed):parsed;}}
@@ -6351,5 +6494,263 @@ window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V9_FINAL_LOCK_CANDIDATE';
   };
   try{bhaV56FastIntelligence=corrected}catch(_){window.bhaV56FastIntelligence=corrected}
   window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V12_FINAL_SOURCE_RECONCILED';
+})();
+</script>
+
+
+<script id="bha-ri-v13-fast-redwood-snapshot">
+/* Redwood practice Revenue Insights: authorized server aggregation; no duplicate
+   payment batches, full-table downloads, or payer attribution from payerless AR. */
+(function(){
+  const original=typeof bhaV56FastIntelligence==='function'?bhaV56FastIntelligence:null;
+  if(!original)return;
+  const cache=new Map(),pending=new Map(),TTL=5*60*1000;
+  const REDWOOD='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
+  async function fast(clientId,force=false){
+    if(String(clientId)!==REDWOOD)return original(clientId,force);
+    const key=String(clientId)+'|'+String(state?.profile?.id||'');
+    const prior=cache.get(key);
+    if(!force&&prior&&Date.now()-prior.at<TTL)return prior.value;
+    if(!force&&pending.has(key))return pending.get(key);
+    const task=(async()=>{
+      const {data,error}=await sb.rpc('app_ri_redwood_fast_snapshot',{p_client_id:clientId});
+      if(error)throw new Error(error.message||'Revenue summary unavailable');
+      if(!data||!Number.isFinite(Number(data.totalAR))||Number(data.arCount)<1)throw new Error('Revenue data could not be validated');
+      const value={
+        totalAR:Number(data.totalAR),arCount:Number(data.arCount),
+        totalPaid:Number(data.totalPaid),payCount:Number(data.payCount),
+        old90:Number(data.old90),denialExposure:Number(data.denialExposure),
+        payers:[],summary:{},
+        weighted:0,p30:0,p60:0,p90:0,
+        conf:{label:'Not available',score:0},
+        r30:{low:0,high:0},r60:{low:0,high:0},r90:{low:0,high:0},weekly:[]
+      };
+      cache.set(key,{at:Date.now(),value});return value;
+    })().finally(()=>pending.delete(key));
+    pending.set(key,task);return task;
+  }
+  try{bhaV56FastIntelligence=fast}catch(_){window.bhaV56FastIntelligence=fast}
+  window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V13_REDWOOD_FAST_SNAPSHOT';
+})();
+</script>
+
+<script id="bha-ri-v14-available-data">
+/* Redwood Revenue Insights: actual BHA-owned data, no unsupported forecasts. */
+(function(){
+  const REDWOOD='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
+  const renderOriginal=typeof window.riRender==='function'?window.riRender:null;
+  if(!renderOriginal)return;
+  const esc=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const cash=v=>'$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const short=v=>{const n=Number(v||0);return Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(2)+'M':Math.abs(n)>=1000?'$'+(n/1000).toFixed(1)+'K':cash(n)};
+  const month=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})$/);return m?new Date(Number(m[1]),Number(m[2])-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}):v};
+  const card=(title,sub,body)=>`<section class="ri5-card"><div class="ri5-head"><div><h3>${title}</h3><p>${sub}</p></div></div>${body}</section>`;
+  const note=t=>`<div class="ri5-note">${t}</div>`;
+  const table=(headers,rows)=>`<div class="ri5-table-wrap"><table class="ri5-table"><thead><tr>${headers.map(s=>`<th>${s}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  function monthlyHtml(data){
+    const monthly=[...(data.months||[])].sort((a,b)=>String(b.month_key).localeCompare(String(a.month_key)));
+    return table(['Payment month','Recorded collections','Payer payments','Patient payments','Records'],monthly.map(m=>`<tr><td><strong>${esc(month(m.month_key))}</strong></td><td>${cash(m.collected)}</td><td>${cash(m.payer_payment)}</td><td>${cash(m.patient_payment)}</td><td>${Number(m.records||0).toLocaleString()}</td></tr>`));
+  }
+  function valid(data){
+    const s=data.summary||{};
+    const monthly=(data.months||[]).reduce((sum,m)=>sum+Number(m.collected||0),0);
+    const payer=(data.payers||[]).reduce((sum,p)=>sum+Number(p.collected||0),0);
+    return s.records>0 && Math.abs(Number(s.total_collected)-Number(s.payer_payments)-Number(s.patient_payments))<0.02 && Math.abs(monthly-Number(s.total_collected))<0.02 && Math.abs(payer-Number(s.total_collected))<0.02;
+  }
+  function payerTable(data,query=''){
+    const q=query.trim().toLowerCase();
+    const rows=(data.payers||[]).filter(p=>!q||p.payer.toLowerCase().includes(q));
+    return table(['Payer / payment source','Payments recorded','Payment rows','Denied balance','Denial records'],rows.map(p=>`<tr><td><strong>${esc(p.payer)}</strong></td><td>${cash(p.collected)}</td><td>${Number(p.payment_records||0).toLocaleString()}</td><td>${cash(p.denial_balance)}</td><td>${Number(p.denial_records||0).toLocaleString()}</td></tr>`));
+  }
+  function reportCsv(data,query){
+    const q=query.trim().toLowerCase();
+    const header=['Payer / Payment Source','Recorded Payments','Payment Rows','Denied Balance','Denial Records'];
+    const rows=(data.payers||[]).filter(p=>!q||p.payer.toLowerCase().includes(q)).map(p=>[p.payer,Number(p.collected||0).toFixed(2),p.payment_records,Number(p.denial_balance||0).toFixed(2),p.denial_records]);
+    const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const csv='\ufeff'+[header,...rows].map(row=>row.map(cell).join(',')).join('\r\n');
+    const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=u;a.download='Redwood_Payer_Payment_Denial_Report.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u);
+  }
+  async function enhance(){
+    const root=document.getElementById('riRoot');
+    const clientId=state?.client?.id||state?.profile?.client_id;
+    if(!root||String(clientId)!==REDWOOD)return;
+    const {data,error}=await sb.rpc('app_ri_redwood_available_data',{p_client_id:clientId});
+    if(error)throw error;
+    if(!data||!valid(data))throw new Error('Payment totals did not reconcile; financial report withheld');
+    if(document.getElementById('riRoot')!==root||(state?.client?.id||state?.profile?.client_id)!==clientId)return;
+    const s=data.summary||{};const ps=[...(data.payers||[])];
+    // Outlook: keep A/R and risks, replace only unsupported payer A/R concentration card.
+    const outlook=root.querySelector('[data-panel="outlook"]');
+    if(outlook){
+      const kpi=outlook.querySelectorAll('.ri2-kpi');
+      if(kpi[1]){const label=kpi[1].querySelector('span');if(label)label.textContent='Recorded Collections'; const small=kpi[1].querySelector('small');if(small)small.textContent='Payer + patient payments · not bank-reconciled';}
+      const first=outlook.querySelector('.ri5-grid .ri5-card');
+      if(first){
+        const top=ps.filter(p=>p.payer.toLowerCase()!=='patient'&&Number(p.collected)>0).sort((a,b)=>b.collected-a.collected).slice(0,7);
+        const maximum=Math.max(...top.map(p=>Number(p.collected)),1);
+        first.innerHTML=`<div class="ri5-head"><div><h3>Top Payment Sources</h3><p>Recorded collections from available payer payment records.</p></div><span class="ri5-pill">${ps.length} SOURCES</span></div><div class="ri2-payer-bars">${top.map(p=>`<div class="ri2-payer-row"><div class="ri2-payer-name">${esc(p.payer)}</div><div class="ri2-track"><div class="ri2-fill" style="width:${Math.max(2,Number(p.collected)/maximum*100).toFixed(1)}%"></div></div><div class="ri2-payer-val"><b>${short(p.collected)}</b><small>${Number(p.payment_records||0).toLocaleString()} rows</small></div></div>`).join('')}</div>${note('Payer-wise outstanding A/R is not shown because the source A/R report has no payer field.')}`;
+      }
+      const priorities=outlook.querySelector('.ri5-actioncards');if(priorities&&priorities.children[2])priorities.children[2].innerHTML=`<strong>${esc(topPayer(ps))}</strong><small>Largest reported payer payment source. Outstanding A/R cannot be grouped by payer from this upload.</small>`;
+    }
+    const months=data.months||[];
+    const proj=root.querySelector('[data-panel="projection"]');
+    if(proj)proj.innerHTML=`<div class="ri5-grid">${card('Collections History','Actual monthly payment activity available to the practice.',`${monthlyHtml(data)}${note('These are recorded payments by Payment Date, not forecasts of future cash.')}`)}${card('Collection Breakdown','Payer and patient payment totals from Claim Financial Detail.',`<div class="ri5-status"><div><span>Recorded collections</span><b>${cash(s.total_collected)}</b></div><div><span>Payer payments</span><b>${cash(s.payer_payments)}</b></div><div><span>Patient payments</span><b>${cash(s.patient_payments)}</b></div><div><span>Dated payment rows</span><b>${Number(s.dated_records||0).toLocaleString()}</b></div></div>${note('30 / 60 / 90-day forecasts need more reliable payment history. No estimated future cash is presented.')}`)}</div>`;
+    const recon=root.querySelector('[data-panel="recon"]');
+    if(recon)recon.innerHTML=`<div class="ri5-grid">${card('Recorded Payment Activity','What has been captured in the billing data.',`<div class="ri5-status"><div><span>Payer payments</span><b>${cash(s.payer_payments)}</b></div><div><span>Patient payments</span><b>${cash(s.patient_payments)}</b></div><div><span>Total recorded payments</span><b>${cash(s.total_collected)}</b></div><div><span>Detail records</span><b>${Number(s.records||0).toLocaleString()}</b></div></div>${note('These values reconcile between Claim Financial Detail and Financial Summary at the aggregate level.')}`)}${card('Bank Reconciliation','What requires additional bank deposit information.',`<div class="ri5-empty"><b>Bank matching not available yet</b><span>Payment activity is visible. Bank statement or deposit records are needed to identify cleared funds, unmatched deposits and variances.</span></div>`)}</div>`;
+    const contract=root.querySelector('[data-panel="contract"]');
+    if(contract){const tops=ps.filter(p=>p.payer.toLowerCase()!=='patient'&&Number(p.collected)>0).sort((a,b)=>b.collected-a.collected).slice(0,10);
+      contract.innerHTML=`<div class="ri5-grid">${card('Actual Payment Activity by Payer','Payments recorded in available claims data.',table(['Payer','Recorded payments','Payment rows'],tops.map(p=>`<tr><td><strong>${esc(p.payer)}</strong></td><td>${cash(p.collected)}</td><td>${Number(p.payment_records||0).toLocaleString()}</td></tr>`)))}${card('Contract Rate Comparison','Expected reimbursements require payer fee schedules.',`<div class="ri5-status"><div><span>Recorded payer payments</span><b>${cash(s.payer_payments)}</b></div><div><span>Contracted allowed amount</span><b>Not available</b></div><div><span>Underpayment variance</span><b>Not calculated</b></div></div>${note('The payment amounts shown are not proof of contract compliance. Add contracted rates before calculating underpayments.')}`)}</div>`;
+    }
+    const payer=root.querySelector('[data-panel="payer"]');
+    if(payer){payer.innerHTML=`<section class="ri5-card"><div class="ri5-head"><div><h3>Payer Payments & Denials</h3><p>Available payer and payment-source information from Claims Financial Detail and Denials.</p></div><div class="ri5-actions"><input id="bhaRiPayerSearch" type="search" placeholder="Search payer" aria-label="Search payer" style="max-width:180px;border:1px solid #d6e2ec;border-radius:10px;padding:9px"/><button id="bhaRiPayerCsv">Export CSV</button></div></div><div id="bhaRiPayerResult">${payerTable(data)}</div>${note('Payer/source names are kept as recorded; naming variations may represent the same insurer. Payer-level A/R is unavailable because the AR report has no payer field. Denied balances are separate from payment totals.')}</section>`;
+      const search=payer.querySelector('#bhaRiPayerSearch');const body=payer.querySelector('#bhaRiPayerResult');
+      search?.addEventListener('input',()=>{body.innerHTML=payerTable(data,search.value)});
+      payer.querySelector('#bhaRiPayerCsv')?.addEventListener('click',()=>reportCsv(data,search?.value||''));
+    }
+    window.BHA_REVENUE_AVAILABLE_DATA_VERIFIED={total:Number(s.total_collected),months:months.length,payerSources:ps.length};
+  }
+  function topPayer(payers){return [...payers].filter(p=>p.payer.toLowerCase()!=='patient').sort((a,b)=>Number(b.collected)-Number(a.collected))[0]?.payer||'Payment sources available';}
+  const wrapped=async function(){
+    await renderOriginal();
+    try{await enhance()}catch(err){console.error('BHA Revenue available data',err);const root=document.getElementById('riRoot');if(root&&String(state?.client?.id||state?.profile?.client_id)===REDWOOD){const n=document.createElement('div');n.className='notice danger-note';n.textContent='Additional payer and monthly reporting is temporarily unavailable: '+(err?.message||'Please try again');root.prepend(n)}}
+  };
+  window.riRender=wrapped;
+  try{riRender=wrapped}catch(_){ }
+  try{renderRevenueIntelligence=wrapped}catch(_){ }
+  window.BHA_REVENUE_INTELLIGENCE_BUILD='RI_V14_AVAILABLE_DATA_CLIENT_REPORTING';
+})();
+
+</script>
+
+<style id="bha-redwood-ri-v15-polish">
+#riRoot #ri15Search{max-width:200px;min-width:0;padding:9px 12px;border:1px solid #d6e2ec;border-radius:9px}
+#riRoot .ri5-panel{display:none}#riRoot .ri5-panel.active{display:block}
+#riRoot .ri5-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#riRoot .ri5-card{min-width:0;overflow:hidden}
+#riRoot .ri5-table-wrap{width:100%;max-width:100%;overflow-x:auto}
+#riRoot .ri5-table{width:100%;min-width:0;table-layout:auto;border-collapse:collapse;font-size:12px}
+#riRoot .ri5-table th,#riRoot .ri5-table td{white-space:normal;overflow-wrap:anywhere;padding:9px 10px;line-height:1.45}
+#riRoot .ri5-table th:not(:first-child),#riRoot .ri5-table td:not(:first-child){text-align:right;white-space:nowrap}
+#riRoot .ri5-table th:first-child{min-width:115px}
+#riRoot .ri5-table--monthly th,#riRoot .ri5-table--monthly td{font-size:11px;padding:8px 7px}
+#riRoot .ri5-table--monthly th:first-child{min-width:83px}
+#riRoot .ri5-table--monthly th:not(:first-child),#riRoot .ri5-table--monthly td:not(:first-child){white-space:normal}
+#riRoot .ri15-group-title{font-size:13px;font-weight:750;color:#12354d;margin:16px 0 8px}
+#riRoot .ri15-subtle{font-size:11px;color:#617d91;margin:6px 0 12px;line-height:1.5}
+#riRoot .ri15-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:5px 0 12px}
+#riRoot .ri15-error{padding:15px;border:1px solid #f6bfc4;border-radius:10px;background:#fff4f4;color:#9c2634}
+#riRoot .ri5-note{line-height:1.5}
+@media(max-width:1020px){#riRoot .ri5-grid{grid-template-columns:1fr}}
+@media(max-width:560px){#riRoot .ri5-table{font-size:11px}#riRoot .ri5-table-wrap{overflow-x:auto}#riRoot .ri5-table--payer{min-width:610px}#riRoot .ri2-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script id="bha-redwood-ri-v15-direct">
+(function(){
+'use strict';
+const REDWOOD='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
+const previous=typeof renderRevenueIntelligence==='function'?renderRevenueIntelligence:null;
+const cache=new Map();
+const h=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const number=v=>Number(v||0);
+const dollars=v=>'$'+number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const compact=v=>{const n=number(v);return Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(2)+'M':Math.abs(n)>=1e3?'$'+(n/1e3).toFixed(1)+'K':dollars(n)};
+const fmt=v=>number(v).toLocaleString('en-US');
+const month=v=>{const match=String(v).match(/^(\d{4})-(\d{2})$/);return match?new Date(+match[1],+match[2]-1,1).toLocaleDateString('en-US',{month:'short',year:'numeric'}):v};
+const isPatient=v=>/^(patient|self\s*pay)$/i.test(String(v||'').trim());
+// Normalize only independently clear, case/spacing-only variants. Keep distinct plan labels separate.
+const canonicalName=value=>{
+ const s=String(value||'Unspecified').trim().replace(/\s+/g,' ');
+ if(/^aetna$/i.test(s))return 'Aetna';
+ if(/^united\s*health\s*care$/i.test(s)||/^united\s*healthcare$/i.test(s))return 'United Health Care';
+ if(/^patient$/i.test(s))return 'Patient';
+ if(/^self\s*pay$/i.test(s))return 'Self Pay';
+ return s;
+};
+function grouped(raw){
+ const map=new Map();
+ for(const row of raw||[]){
+   const name=canonicalName(row.payer),key=name.toLowerCase();
+   if(!map.has(key))map.set(key,{payer:name,collected:0,payment_records:0,denial_balance:0,denial_records:0,source_names:new Set()});
+   const target=map.get(key);target.collected+=number(row.collected);target.payment_records+=number(row.payment_records);
+   target.denial_balance+=number(row.denial_balance);target.denial_records+=number(row.denial_records);target.source_names.add(String(row.payer));
+ }
+ return [...map.values()].map(row=>({...row,collected:+row.collected.toFixed(2),denial_balance:+row.denial_balance.toFixed(2),source_names:[...row.source_names]})).sort((a,b)=>b.collected-a.collected);
+}
+const table=(headers,rs,cls='')=>'<div class="ri5-table-wrap"><table class="ri5-table '+h(cls)+'"><thead><tr>'+headers.map(x=>'<th>'+h(x)+'</th>').join('')+'</tr></thead><tbody>'+(rs.length?rs.join(''):'<tr><td colspan="'+headers.length+'">No matching records.</td></tr>')+'</tbody></table></div>';
+const card=(name,sub,body)=>'<section class="ri5-card"><div class="ri5-head"><div><h3>'+h(name)+'</h3><p>'+h(sub)+'</p></div></div>'+body+'</section>';
+const note=x=>'<div class="ri5-note">'+x+'</div>';
+const row=(a,b)=>'<div><span>'+h(a)+'</span><b>'+b+'</b></div>';
+const summary=s=>'<div class="ri5-status">'+row('Total recorded collections',dollars(s.total_collected))+row('Insurance / payer payments',dollars(s.payer_payments))+row('Patient payments',dollars(s.patient_payments))+row('Payment records',fmt(s.records))+'</div>';
+const payerColumns=['Payer / source','Recorded payments','Payment records','Denied balance','Denial records'];
+function payerRows(ps){return ps.map(p=>'<tr><td title="'+h((p.source_names||[]).join(' / '))+'"><strong>'+h(p.payer)+'</strong></td><td>'+dollars(p.collected)+'</td><td>'+fmt(p.payment_records)+'</td><td>'+dollars(p.denial_balance)+'</td><td>'+fmt(p.denial_records)+'</td></tr>')}
+function downloadCsv(ps){
+ const lines=[payerColumns,...ps.map(p=>[p.payer,number(p.collected).toFixed(2),p.payment_records,number(p.denial_balance).toFixed(2),p.denial_records])];
+ const csv='\ufeff'+lines.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+ const link=document.createElement('a');link.href=url;link.download='Redwood_Payer_Payments_Denials.csv';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
+}
+function validate(s,d){
+ if(!s||!d||!d.summary)throw Error('Reporting data unavailable.');
+ const n=number(d.summary.total_collected),p=number(d.summary.payer_payments),t=number(d.summary.patient_payments);
+ const monthly=(d.months||[]).reduce((a,x)=>a+number(x.collected),0);
+ const sourceTotal=(d.payers||[]).reduce((a,x)=>a+number(x.collected),0);
+ const denials=(d.payers||[]).reduce((a,x)=>a+number(x.denial_balance),0);
+ const patientSources=(d.payers||[]).filter(x=>isPatient(x.payer)).reduce((a,x)=>a+number(x.collected),0);
+ if(Math.abs(n-number(s.totalPaid))>.02||Math.abs(n-p-t)>.02||Math.abs(n-monthly)>.02||Math.abs(n-sourceTotal)>.02||Math.abs(denials-number(s.denialExposure))>.02||Math.abs(patientSources-t)>.02||number(s.arCount)<1)throw Error('Source values need reconciliation.');
+}
+function build(s,d){
+ const all=grouped(d.payers),insurance=all.filter(x=>!isPatient(x.payer)),patient=all.filter(x=>isPatient(x.payer));
+ const months=[...(d.months||[])].sort((a,b)=>String(b.month_key).localeCompare(String(a.month_key)));
+ const top=insurance.filter(x=>number(x.collected)>0).slice(0,8),largest=Math.max(1,...top.map(x=>number(x.collected)));
+ const pct=number(s.totalAR)>0?number(s.old90)/number(s.totalAR)*100:0;
+ const payerBody='<div class="ri15-group-title">Insurance / payer sources</div>'+table(payerColumns,payerRows(insurance),'ri5-table--payer')+'<div class="ri15-group-title">Patient & Self-Pay Collections</div>'+table(payerColumns,payerRows(patient),'ri5-table--payer');
+ const monthly=table(['Payment month','Collections','Payer payments','Patient payments','Records'],months.map(x=>'<tr><td><strong>'+h(month(x.month_key))+'</strong></td><td>'+dollars(x.collected)+'</td><td>'+dollars(x.payer_payment)+'</td><td>'+dollars(x.patient_payment)+'</td><td>'+fmt(x.records)+'</td></tr>'),'ri5-table--monthly');
+ const trend=top.map(x=>'<div class="ri2-payer-row"><div class="ri2-payer-name" title="'+h(x.payer)+'">'+h(x.payer)+'</div><div class="ri2-track"><div class="ri2-fill" style="width:'+Math.max(2,number(x.collected)/largest*100).toFixed(1)+'%"></div></div><div class="ri2-payer-val"><b>'+compact(x.collected)+'</b><small>'+fmt(x.payment_records)+' records</small></div></div>').join('');
+ const contractRows=insurance.filter(x=>number(x.collected)>0).slice(0,12).map(x=>'<tr><td>'+h(x.payer)+'</td><td>'+dollars(x.collected)+'</td><td>'+fmt(x.payment_records)+'</td></tr>');
+ const historyNote='Collections may include claims billed in previous months. '+(months.length&&months[0].month_key===new Date().toISOString().slice(0,7)?h(month(months[0].month_key))+' figures are month to date.':'The latest month may be incomplete.');
+ const kpis=[
+ ['Outstanding A/R',compact(s.totalAR),fmt(s.arCount)+' open claims','#2f6fed'],
+ ['Recorded Collections',compact(d.summary.total_collected),'Payer and patient payments','#17a88b'],
+ ['A/R 91+ Days',compact(s.old90),pct.toFixed(1)+'% of outstanding A/R','#f0a229'],
+ ['Denied Claim Balances',compact(s.denialExposure),'May overlap with outstanding A/R','#e9526b']
+ ];
+ return '<section class="ri2-hero"><div><div class="ri2-eyebrow">REVENUE INTELLIGENCE</div><h2>Understand your revenue and collections.</h2><p>Financial reporting from your practice billing records.</p></div><div class="ri2-source"><span>Reporting data</span><strong>Current A/R snapshot</strong><small>'+fmt(s.arCount)+' open claims · '+fmt(d.summary.records)+' payment records</small></div></section>'+
+ '<div class="ri5-tabs">'+[['outlook','Revenue Outlook'],['projection','Payment History'],['recon','Reconciliation'],['contract','Contract Performance'],['payer','Payer Intelligence']].map(([id,label],i)=>'<button class="ri5-tab'+(i===0?' active':'')+'" data-ri15-tab="'+id+'">'+label+'</button>').join('')+'</div>'+
+ '<div class="ri5-panel active" data-ri15-panel="outlook"><div class="ri2-kpis">'+kpis.map(x=>'<article class="ri2-kpi" style="--accent:'+x[3]+'"><span>'+h(x[0])+'</span><strong>'+h(x[1])+'</strong><small>'+h(x[2])+'</small></article>').join('')+'</div><div class="ri5-grid">'+card('Top Insurance Payment Sources','Highest recorded payments by insurance payer.',trend+note('Payer-wise A/R cannot be calculated from the current A/R report because payer names are not included.'))+card('Recorded Payment Summary','A breakdown of recorded payer and patient payments.',summary(d.summary)+note('These figures are from billing records, not bank reconciliation.'))+'</div></div>'+
+ '<div class="ri5-panel" data-ri15-panel="projection"><div class="ri5-grid">'+card('Monthly Collections History','Recorded payments by payment date.',monthly+note(h(historyNote)))+card('Payment Breakdown','Payer and patient amounts from claim detail.',summary(d.summary)+note('Future 30/60/90-day forecasts require more historical payment data.'))+'</div></div>'+
+ '<div class="ri5-panel" data-ri15-panel="recon"><div class="ri5-grid">'+card('Recorded Payment Activity','Payments recorded in billing reports.',summary(d.summary)+note('These aggregate totals match the uploaded Financial Summary.'))+card('Bank Reconciliation','Bank deposit records are needed to match cleared deposits.','<div class="ri5-empty"><b>Bank matching is not yet available</b><span>Your recorded payments are shown. Once bank deposits are provided, matched amounts and differences can be reported.</span></div>')+'</div></div>'+
+ '<div class="ri5-panel" data-ri15-panel="contract"><div class="ri5-grid">'+card('Actual Insurance Payments','Recorded payments by insurer or plan.',table(['Insurance payer / plan','Payments','Records'],contractRows))+card('Contract Performance','Comparison with agreed reimbursement rates.','<div class="ri5-status">'+row('Recorded payer payments',dollars(d.summary.payer_payments))+row('Contracted allowed amounts','Not available')+row('Potential underpayments','Not calculated')+'</div>'+note('Contracted reimbursement rates are required to assess underpayments accurately.'))+'</div></div>'+
+ '<div class="ri5-panel" data-ri15-panel="payer"><section class="ri5-card"><div class="ri5-head"><div><h3>Payer Payments & Denials</h3><p>Recorded payments and denied claim balances grouped by their source names.</p></div><div class="ri5-actions"><input id="ri15Search" type="search" placeholder="Search payer or source" aria-label="Search payer or payment source"><button id="ri15Export" class="btn btn-light btn-small">Export CSV</button></div></div><div id="ri15PayerTable">'+payerBody+'</div>'+note('Only clear naming variations are combined. Different insurance plans remain separate. Denied balances may overlap with outstanding A/R and must not be added to it. Payer-wise A/R is unavailable without claim-to-payer mapping.')+'</section></div>';
+}
+async function renderDirect(){
+ const root=document.getElementById('riRoot');if(!root)return;
+ const clientId=state?.client?.id||state?.profile?.client_id;
+ if(String(clientId)!==REDWOOD){if(previous)return previous();return;}
+ root.innerHTML='<div class="ri-loading ri-loading-v49"><span></span><div><strong>Loading Revenue Insights</strong><small>Reading practice reports…</small></div></div>';
+ try{
+  const key=String(clientId)+'|'+String(state?.profile?.id||'');let data=cache.get(key);
+  if(!data||Date.now()-data.at>300000){
+   const [a,b]=await Promise.all([sb.rpc('app_ri_redwood_fast_snapshot',{p_client_id:clientId}),sb.rpc('app_ri_redwood_available_data',{p_client_id:clientId})]);
+   if(a.error)throw Error(a.error.message||'Summary could not be loaded');if(b.error)throw Error(b.error.message||'Payer data could not be loaded');
+   validate(a.data,b.data);data={snapshot:a.data,report:b.data,at:Date.now()};cache.set(key,data);
+  }
+  if(root!==document.getElementById('riRoot')||String(state?.client?.id||state?.profile?.client_id)!==REDWOOD||state.section!=='intelligence')return;
+  root.innerHTML=build(data.snapshot,data.report);
+  root.querySelectorAll('[data-ri15-tab]').forEach(button=>button.addEventListener('click',()=>{
+    const tab=button.dataset.ri15Tab;
+    root.querySelectorAll('[data-ri15-tab]').forEach(el=>el.classList.toggle('active',el===button));
+    root.querySelectorAll('[data-ri15-panel]').forEach(el=>el.classList.toggle('active',el.dataset.ri15Panel===tab));
+  }));
+  const search=root.querySelector('#ri15Search'),host=root.querySelector('#ri15PayerTable');
+  const payers=grouped(data.report.payers);
+  const filtered=()=>payers.filter(x=>[x.payer,...x.source_names].some(z=>z.toLowerCase().includes(String(search?.value||'').trim().toLowerCase())));
+  const draw=()=>{if(!host)return;const visible=filtered();host.innerHTML='<div class="ri15-group-title">Insurance / payer sources</div>'+table(payerColumns,payerRows(visible.filter(x=>!isPatient(x.payer))),'ri5-table--payer')+'<div class="ri15-group-title">Patient & Self-Pay Collections</div>'+table(payerColumns,payerRows(visible.filter(x=>isPatient(x.payer))),'ri5-table--payer')};
+  search?.addEventListener('input',draw);
+  root.querySelector('#ri15Export')?.addEventListener('click',()=>downloadCsv(filtered()));
+  window.BHA_REVENUE_INTELLIGENCE_BUILD='REDWOOD_V16_CLIENT_CONTENT_VERIFIED';
+ }catch(err){console.error('Revenue Insights reporting error',err);root.innerHTML='<div class="ri15-error">Revenue Insights could not be loaded. '+h(err?.message||'Please try again.')+' <button class="btn btn-light btn-small" id="ri15Retry">Retry</button></div>';root.querySelector('#ri15Retry')?.addEventListener('click',renderDirect)}
+}
+try{renderRevenueIntelligence=renderDirect}catch(_){window.renderRevenueIntelligence=renderDirect}
+try{riRender=renderDirect}catch(_){window.riRender=renderDirect}
+window.riRender=renderDirect;
 })();
 </script>
