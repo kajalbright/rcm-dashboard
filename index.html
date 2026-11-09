@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-07-dynamic-redwood-ar-import-v1';</script>
+<script>const BHA_BUILD_ID='2026-11-10-caldwell-iv-workflow-reporting-v1';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -4090,7 +4090,7 @@ const document={
 const MODS=['ar','denials','verification','auth','charges','payments'];
 const MOD_LABEL={ar:'Accounts Receivable',denials:'Denials',verification:'Eligibility',auth:'Authorizations',charges:'Charges',payments:'Payments'};
 const ICON={overview:'▦',ar:'▥',denials:'⊘',payments:'$',verification:'✓',auth:'▣',charges:'↥'};
-let S={session:null,profile:null,clients:[],client:null,section:'overview',records:{},period:'all',from:'',to:'',provider:'',payer:'',cpt:'',paymentView:'summary',charts:{},search:'',paymentPage:1,paymentPageSize:50,paymentProvider:'',paymentFacility:'',arQueue:'all',arPage:1,arPageSize:50};
+let S={session:null,profile:null,clients:[],client:null,section:'overview',records:{},period:'all',from:'',to:'',provider:'',payer:'',cpt:'',paymentView:'summary',charts:{},search:'',eiPage:1,paymentPage:1,paymentPageSize:50,paymentProvider:'',paymentFacility:'',arQueue:'all',arPage:1,arPageSize:50};
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function parseNum(v){if(v===null||v===undefined||v==='')return null;if(typeof v==='number')return Number.isFinite(v)?v:null;let s=String(v).trim();if(!s||/^(n\/a|na|null|undefined|none|-)$/i.test(s))return null;const neg=/^\(.*\)$/.test(s);s=s.replace(/^\((.*)\)$/,'$1').replace(/[−–—]/g,'-').replace(/^(USD|US\$)\s*/i,'').replace(/\s*(USD|US\$)$/i,'').replace(/[$£€₹,]/g,'').replace(/\s+/g,'');const n=Number(s);return Number.isFinite(n)?(neg?-Math.abs(n):n):null}
@@ -5300,7 +5300,7 @@ function tableBlock(rows){
  const cols=[];const seen=new Set();rows.slice(0,100).forEach(r=>sourceKeys(r).forEach(k=>{if(!seen.has(k)){seen.add(k);cols.push(k)}}));let view=rows;if(S.search){const q=S.search.toLowerCase();view=rows.filter(r=>cols.some(k=>String(r[k]??'').toLowerCase().includes(q)))}const shown=view.slice(0,200),first=rows[0];
  return `<div class="card tablecard"><div class="card-head"><div><h3>Source Records</h3><p>Original source columns are preserved.</p></div><span class="badge">${count(view.length)} matching</span></div><div class="tabletools"><input id="search" placeholder="Search current records…" value="${esc(S.search)}"><span class="meta">Showing first ${count(Math.min(view.length,200))}</span></div><div class="tablewrap"><table class="table"><thead><tr>${cols.map(k=>`<th>${esc(headerLabel(first,k))}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(k=>`<td title="${esc(r[k])}">${esc(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`
 }
-function bindTable(rows){document.getElementById('search')?.addEventListener('input',e=>{S.search=e.target.value;renderSection()})}
+function bindTable(rows){document.getElementById('search')?.addEventListener('input',e=>{S.search=e.target.value;if(S.section==='verification')S.eiPage=1;renderSection()})}
 
 const EI={
  eligibility:{
@@ -5384,13 +5384,17 @@ function eiSourceTable(type,rows){
   if(ab&&bb&&ab===bb&&Number.isFinite(ai)&&Number.isFinite(bi))return ai-bi||a.i-b.i;
   return a.i-b.i;
  }).map(x=>x.r);
- const shown=view.slice(0,200);
+ // Eligibility source table: 200 records per page, preserving source order.
+ const pageSize=200,totalPages=Math.max(1,Math.ceil(view.length/pageSize));
+ S.eiPage=Math.min(Math.max(1,Number(S.eiPage)||1),totalPages);
+ const page=S.eiPage,start=(page-1)*pageSize;
+ const shown=view.slice(start,start+pageSize);
  function cell(r,label){
   const key=keys(r).find(k=>String(headerLabel(r,k)).trim().toLocaleLowerCase()===label.trim().toLocaleLowerCase());
   const value=key===undefined?'':r[key];
   return esc(value==null?'':String(value));
  }
- return `<div class="card tablecard ei-table"><div class="card-head"><div><h3>${type==='verification'?'Patient Eligibility Detail':'Patient Authorization Detail'}</h3><p>Original source columns and values; internal worksheet metadata hidden.</p></div><span class="badge">${count(view.length)} records</span></div><div class="tabletools"><input id="search" placeholder="Search any uploaded column…" value="${esc(S.search)}"><span class="meta">Showing ${count(Math.min(view.length,200))} of ${count(view.length)} · ${visibleColumns.length} source columns</span></div><div class="tablewrap"><table class="table"><thead><tr>${visibleColumns.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${visibleColumns.map(c=>`<td>${cell(r,c.label)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+ return `<div class="card tablecard ei-table"><div class="card-head"><div><h3>${type==='verification'?'Patient Eligibility Detail':'Patient Authorization Detail'}</h3><p>Original source columns and values; internal worksheet metadata hidden.</p></div><span class="badge">${count(view.length)} records</span></div><div class="tabletools"><input id="search" placeholder="Search any uploaded column…" value="${esc(S.search)}"><span class="meta">Showing ${view.length?count(start+1):0}–${count(start+shown.length)} of ${count(view.length)} · ${visibleColumns.length} source columns</span></div><div class="tablewrap"><table class="table"><thead><tr>${visibleColumns.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${visibleColumns.map(c=>`<td>${cell(r,c.label)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="pagination" style="padding:13px 3px 2px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span aria-live="polite">Page ${count(page)} of ${count(totalPages)} · ${count(view.length)} records</span><div class="pagination-actions" style="display:flex;gap:8px"><button type="button" id="ei-page-prev" ${page<=1?'disabled':''} aria-label="Previous eligibility page">← Previous</button><button type="button" id="ei-page-next" ${page>=totalPages?'disabled':''} aria-label="Next eligibility page">Next →</button></div></div></div>`;
 }
 function eiTable(type,rows){
  if(type==='verification')return eiSourceTable(type,rows);
@@ -5412,18 +5416,52 @@ function renderEligibility(){
  const rows=moduleRows('verification');
  document.getElementById('content').innerHTML=hero(role()==='provider'?'My Eligibility':'Eligibility',role()==='provider'?'Review only eligibility records attributed to your provider profile when published.':'Monitor verification status, coverage risk and patient eligibility from the data available for this practice.')+((S.records.verification||[]).length?(bhaCaldwellVerification()?bhaCaldwellVerificationFilters():filtersHtml()):'')+(rows.length?eligibilityBody(rows):eiEmpty('verification'));
  if(!rows.length){const b=document.querySelector('#content .hero .badge');if(b){b.innerHTML='<i></i>Awaiting eligibility data';b.style.opacity='.88'}}
- if((S.records.verification||[]).length){bindFilters(renderEligibility);if(rows.length)bindTable(rows)}
+ if((S.records.verification||[]).length){
+  bindFilters(()=>{S.eiPage=1;renderEligibility()});
+  if(rows.length){
+   bindTable(rows);
+   document.getElementById('ei-page-prev')?.addEventListener('click',()=>{S.eiPage=Math.max(1,(S.eiPage||1)-1);renderEligibility()});
+   document.getElementById('ei-page-next')?.addEventListener('click',()=>{S.eiPage=(S.eiPage||1)+1;renderEligibility()});
+  }
+ }
+}
+// Coverage classification and verification workflow are independent source fields.
+// Caldwell's "Status" is workflow status, not proof that insurance is active.
+function bhaCaldwellVerificationWorkflow(rows){
+ const labels=['Status','status','Verification Status','verification_status'];
+ if(!bhaCaldwellVerification()||!has(rows,labels))return null;
+ const totals={completed:0,selfPay:0,pending:0,unreported:0,other:0};
+ rows.forEach(r=>{
+  const raw=String(get(r,labels)??'').trim().toLowerCase();
+  if(!raw||raw==='-')totals.unreported++;
+  else if(/^(completed|complete|done|verified)$/.test(raw))totals.completed++;
+  else if(/^(self[ -]?pay|self payment)$/.test(raw))totals.selfPay++;
+  else if(/pending|in progress|under review|awaiting|not started/.test(raw))totals.pending++;
+  else totals.other++;
+ });
+ return totals;
 }
 function eligibilityBody(rows){
- const E=EI.eligibility,st=rows.map(r=>eiStatusKind(get(r,E.status),'verification')),good=st.filter(x=>x==='good').length,bad=st.filter(x=>x==='bad').length,pending=st.filter(x=>x==='pending').length,unknown=st.filter(x=>x==='unknown').length;
+ const E=EI.eligibility,st=rows.map(r=>eiStatusKind(get(r,E.status),'verification')),good=st.filter(x=>x==='good').length,bad=st.filter(x=>x==='bad').length,coveragePending=st.filter(x=>x==='pending').length,unknown=st.filter(x=>x==='unknown').length;
+ const workflow=bhaCaldwellVerificationWorkflow(rows);
+ // A blank workflow field is unreported, NOT explicitly pending.
+ const pending=workflow?workflow.pending:coveragePending;
  const payers=uniq(rows,F.payer).length,issues=has(rows,E.issue)?rows.filter(r=>String(get(r,E.issue)||'').trim()).length:null;
  const cards=[kpi('Eligibility Records',rows.length,'Verification records in the active view','blue','count')];
- if(has(rows,E.status)){cards.push(kpi('Confirmed Active Coverage',good,'Records explicitly marked Active in source coverage field','green','count'),kpi('Coverage Issues',bad,'Inactive, terminated or failed records','red','count'),kpi('Pending Verification',pending,'Records awaiting completion','amber','count'))}
+ if(has(rows,E.status)){
+  cards.push(kpi('Confirmed Active Coverage',good,'Records explicitly marked Active in source coverage field','green','count'),kpi('Coverage Issues',bad,'Inactive, terminated or failed coverage records','red','count'));
+  if(workflow){
+   cards.push(kpi('Unreported Verification',workflow.unreported,'Source workflow Status is blank or unspecified; not assumed pending','amber','count'));
+  }else{
+   cards.push(kpi('Pending Verification',pending,'Records awaiting completion based on supplied coverage status','amber','count'));
+  }
+ }
  if(payers)cards.push(kpi('Payers',payers,'Unique payers represented','purple','count'));
  if(issues!=null)cards.push(kpi('Issue-Linked Records',issues,'Records with a supplied issue or note','pink','count'));
  const status=group(rows,E.status,null),payer=group(rows,F.payer,null);
  const cop=has(rows,E.copay),ded=has(rows,E.deductible),coi=has(rows,E.coins);
- return `<div class="ei-kpis">${cards.join('')}</div><div class="ei-grid"><div class="card"><div class="card-head"><div><h3>Verification Status</h3><p>Current eligibility states exactly as supplied by the source.</p></div></div>${bars(status,false)}</div><div class="card"><div class="card-head"><div><h3>Eligibility Volume by Payer</h3><p>Verification workload concentration across available payers.</p></div><span class="badge">${count(payers)} payers</span></div>${bars(payer,false)}</div></div><div class="card" style="margin-bottom:11px"><div class="card-head"><div><h3>Coverage & Verification Focus</h3><p>Client-facing signals activate only when the corresponding source fields are available.</p></div></div><div class="ei-priority"><div><label>Coverage Issues</label><strong>${bad?count(bad):'None reported'}</strong><small>Inactive, terminated or failed eligibility statuses.</small></div><div><label>Pending Verification</label><strong>${pending?count(pending):'None reported'}</strong><small>Records still pending or under review.</small></div><div><label>Benefit Detail</label><strong>${[cop,ded,coi].filter(Boolean).length}/3 fields</strong><small>Copay, deductible and coinsurance fields available in this source.</small></div><div><label>Unknown Coverage Status</label><strong>${count(unknown)}</strong><small>Missing or unspecified coverage status; completed workflow does not imply active coverage.</small></div></div></div>${eiTable('verification',rows)}`
+ const workflowPanel=workflow?`<div class="card" style="margin-bottom:11px"><div class="card-head"><div><h3>Verification Workflow</h3><p>Based on the uploaded Status column; separate from insurance coverage.</p></div><span class="badge">${count(rows.length)} records</span></div><div class="ei-priority"><div><label>Completed</label><strong>${count(workflow.completed)}</strong><small>Verification workflow marked Completed; coverage may still be inactive or unknown.</small></div><div><label>Self-pay</label><strong>${count(workflow.selfPay)}</strong><small>Source workflow explicitly marked Self-pay.</small></div><div><label>Explicitly Pending</label><strong>${count(workflow.pending)}</strong><small>Only records with a stated pending or in-progress workflow status.</small></div><div><label>Unreported Status</label><strong>${count(workflow.unreported)}</strong><small>Blank or unspecified workflow Status; requires operational review.</small></div></div>${workflow.other?`<p class="cap" style="margin-top:10px">${count(workflow.other)} additional workflow statuses are not classified; review original Status values.</p>`:''}</div>`:'';
+ return `<div class="ei-kpis">${cards.join('')}</div><div class="ei-grid"><div class="card"><div class="card-head"><div><h3>Coverage Status</h3><p>Insurance coverage states exactly as supplied by the source.</p></div></div>${bars(status,false)}</div><div class="card"><div class="card-head"><div><h3>Eligibility Volume by Payer</h3><p>Verification workload concentration across available payers.</p></div><span class="badge">${count(payers)} payers</span></div>${bars(payer,false)}</div></div>${workflowPanel}<div class="card" style="margin-bottom:11px"><div class="card-head"><div><h3>Coverage & Verification Focus</h3><p>Source-based signals, with coverage and workflow interpreted independently.</p></div></div><div class="ei-priority"><div><label>Coverage Issues</label><strong>${bad?count(bad):'None reported'}</strong><small>Inactive, terminated or failed coverage statuses.</small></div><div><label>${workflow?'Unreported Verification':'Pending Verification'}</label><strong>${workflow?count(workflow.unreported):(pending?count(pending):'None reported')}</strong><small>${workflow?'Source verification Status not supplied; these are not automatically pending.':'Records still pending or under review.'}</small></div><div><label>Benefit Detail</label><strong>${[cop,ded,coi].filter(Boolean).length}/3 fields</strong><small>Copay, deductible and coinsurance fields available in this source.</small></div><div><label>Unknown Coverage Status</label><strong>${count(unknown)}</strong><small>Missing or unspecified coverage status; completed workflow does not imply active coverage.</small></div></div></div>${eiTable('verification',rows)}`;
 }
 function renderAuth(){
  document.getElementById('content').dataset.module='auth';
@@ -5482,7 +5520,7 @@ function syncLockedContext(section){
   if(!S.client&&S.profile?.role!=='admin'&&S.profile?.client_id)S.client={id:S.profile.client_id,name:(typeof clientName==='function'?clientName():'Practice')};
 }
 function resetLockedClientState(){
-  Object.assign(S,{records:{},period:'all',from:'',to:'',provider:'',payer:'',cpt:'',search:'',paymentPage:1,paymentPageSize:50,paymentProvider:'',paymentFacility:'',paymentView:'summary',arQueue:'all',arPage:1,arPageSize:50,denialQueue:'all',denialPage:1,chargePage:1});
+  Object.assign(S,{records:{},period:'all',from:'',to:'',provider:'',payer:'',cpt:'',search:'',eiPage:1,paymentPage:1,paymentPageSize:50,paymentProvider:'',paymentFacility:'',paymentView:'summary',arQueue:'all',arPage:1,arPageSize:50,denialQueue:'all',denialPage:1,chargePage:1});
   S.charts={};S.__loadedProviderKey=null;S.__loadedUserId=null;S.__loadedRole=null;
 }
 const V29_REDWOOD_ID='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
