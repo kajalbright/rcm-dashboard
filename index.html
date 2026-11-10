@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-10-caldwell-iv-workflow-reporting-v1';</script>
+<script>const BHA_BUILD_ID='2026-11-11-executive-demo-advanced-denial-v1';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -3920,6 +3920,7 @@ window.BHA_RELEASE_DATE='2026-10-03';
 
 </style>
 <!-- ===== BHA LOCKED MODULE INTEGRATION — LOCAL TEST ONLY ===== -->
+<script defer src="./bha-advanced-denials-demo.js"></script>
 <script id="bha-locked-modules-local">
 (()=>{
 'use strict';
@@ -4988,6 +4989,9 @@ function denDetailTable(rows,threshold){let view=denQueueRows(rows,threshold);if
  const nav=`<div class="den-page"><button data-denpage="prev" ${S.denialPage<=1?'disabled':''}>← Previous</button><span>Page ${count(S.denialPage)} of ${count(totalPages)}</span><button data-denpage="next" ${S.denialPage>=totalPages?'disabled':''}>Next →</button></div>`;
  return `<div class="card den-table"><div class="card-head"><div><h3>Claim-Level Denial Detail</h3><p>${role()==='provider'?'Review your provider-attributed denial and rejection records.':'Review individual denial and rejection records with the most relevant client-facing fields first.'}</p></div><span class="badge">${count(view.length)} matching</span></div><div class="den-quick">${[['all','All Denials'],['era','ERA Denied'],['insurance','Insurance Rejected'],['clearing','Clearinghouse Rejected'],['high','High Balance']].map(([k,l])=>`<button data-denq="${k}" class="${(S.denialQueue||'all')===k?'active':''}">${l}</button>`).join('')}</div><div class="tabletools"><input id="search" placeholder="Search patient, claim, payer, status…" value="${esc(S.search)}"><span class="meta">Showing ${count(view.length?from+1:0)}–${count(Math.min(from+pageSize,view.length))} of ${count(view.length)}</span></div><div class="tablewrap"><table class="table"><thead><tr>${cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(r=>`<tr>${cols.map(c=>`<td>${cell(r,c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${nav}</div>`}
 function renderDenials(){
+ if(String(S.client?.id||'')==='abe01011-0d48-4387-bfc7-8845b17f4dba' && role()==='client' && typeof window.bhaAdvancedDemoDenials==='function'){
+   if(window.bhaAdvancedDemoDenials({S,host:document.getElementById('content'),page:document.getElementById('pageName'),doc:LIVE_DOC}))return;
+ }
  document.getElementById('content').dataset.module='denials';
  document.getElementById('pageName').textContent=role()==='provider'?'My Denials':'Denials';const rows=moduleRows('denials');
  if(!rows.length){document.getElementById('content').innerHTML=hero(role()==='provider'?'My Denials':'Denial Management',role()==='provider'?'Review only your published denial and rejection records.':'Monitor denial exposure and rejection activity for your practice.')+filtersHtml()+'<div class="empty"><b>No published denial records</b>This view will populate automatically when denial data is published.</div>';bindFilters(renderDenials);return}
