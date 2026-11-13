@@ -4583,6 +4583,7 @@ function bhaVedovaClientOverview(){
 function renderOverview(){
  if(role()==='client'&&String(S.client?.name||'').trim().toLowerCase()==='vedova clinic'){bhaVedovaClientOverview();return;}
  document.getElementById('pageName').textContent=role()==='provider'?'My Overview':'Practice Overview';
+ const isContinuant=String(S.client?.name||'').trim().toLowerCase()==='continuant healthcare solutions';
  const source=allRows(),flat=filtered(source);
  if(!flat.length){document.getElementById('content').innerHTML=hero(scope(),'No published records match this view.')+filtersHtml()+'<div class="empty"><b>No matching data</b>Choose All Available or clear filters.</div>';bindFilters(renderOverview);return}
  const ar=filtered(S.records.ar||[]),denRows=filtered(S.records.denials||[]),payRows=bhaOverviewClaimPayments(),chargeRows=filtered(S.records.charges||[]);
@@ -4596,23 +4597,26 @@ function renderOverview(){
  const old=hasAge?agedBase.filter(r=>(age(r)||0)>90):[],oldBal=old.length&&has(agedBase,F.balance)?sum(old,F.balance):null;
  const denialBase=denRows.length?denRows:(has(ar,F.denial)?ar.filter(r=>String(get(r,F.denial)||'').trim()):[]);
  const denialCount=denialBase.length,denialExposure=denialCount&&has(denialBase,F.balance)?sum(denialBase,F.balance):(denialCount&&has(denialBase,F.charges)?sum(denialBase,F.charges):null);
- const avg=bal!=null&&claims?bal/claims:null;
+ // Continuant source has activity rows with incomplete balance coverage.
+ const chsKnownBalanceRows=isContinuant?ar.filter(r=>parseNum(get(r,F.balance))!==null):[];
+ const chsMissingBalanceCount=isContinuant?ar.length-chsKnownBalanceRows.length:0;
+ const avg=bal!=null&&(isContinuant?chsKnownBalanceRows.length:claims)?bal/(isContinuant?chsKnownBalanceRows.length:claims):null;
  // Never infer a collection rate by dividing independently uploaded datasets.
  // It is shown only when a future source explicitly supplies a validated collection-rate field.
  const comparable=false,rate=null;
  const severe=hasAge?agedBase.filter(r=>(age(r)||0)>=121):[],severeBal=severe.length&&has(agedBase,F.balance)?sum(severe,F.balance):null;
 
  const primary=[];
- if(bal!=null)primary.push(kpi('Outstanding A/R',bal,'Current published receivables'));
+ if(bal!=null)primary.push(kpi(isContinuant?'Reported Outstanding A/R':'Outstanding A/R',bal,isContinuant?'Sum of available source balances; incomplete coverage':'Current published receivables'));
  if(ch!=null)primary.push(kpi('Total Charges',ch,'Available charge activity','teal'));
  if(pay!=null)primary.push(kpi(redwoodPaymentView?'Payments Collected':'Payments / Collections',pay,redwoodPaymentView?'Recorded payer + patient payments':'Claim Financial Detail · Payment Date · Net deposits','green'));
- primary.push(kpi('Claims / Records',claims,'Current receivable inventory','purple','count'));
+ primary.push(kpi(isContinuant?'AR Activity Records':'Claims / Records',claims,isContinuant?'Source activity rows; not verified unique claims':'Current receivable inventory','purple','count'));
 
  const risk=[];
  if(oldBal!=null)risk.push(kpi('A/R 91+ Days',oldBal,count(old.length)+' aged claims','amber'));
  if(denialExposure!=null)risk.push(kpi('Denial Exposure',denialExposure,count(denialCount)+' denial records','red'));
  else if(denialCount)risk.push(kpi('Denial Records',denialCount,'Current denial inventory','red','count'));
- if(avg!=null)risk.push(kpi('Avg Balance / Claim',avg,'Average outstanding balance','pink'));
+ if(avg!=null)risk.push(kpi(isContinuant?'Avg Reported Balance / Record':'Avg Balance / Claim',avg,isContinuant?count(chsKnownBalanceRows.length)+' rows with numeric balances':'Average outstanding balance','pink'));
  if(severeBal!=null)risk.push(kpi('A/R 121+ Days',severeBal,count(severe.length)+' severely aged claims','red'));
 
  const payerBase=ar.length?ar:flat,hasPayer=has(payerBase,F.payer),payerData=hasPayer?group(payerBase,F.payer,has(payerBase,F.balance)?F.balance:F.charges):[];
@@ -4687,15 +4691,17 @@ function renderOverview(){
  const actions=[];
  if(oldBal!=null)actions.push(['Aging risk',money(oldBal),(isRedwoodExcel?count(sourceTotals[3].count+sourceTotals[4].count):count(old.length))+' aging-bucket entries have balances older than 90 days.','ar','Review A/R']);
  if(denialCount)actions.push(['Denial risk',denialExposure!=null?money(denialExposure):count(denialCount),count(denialCount)+' denial records need visibility.','denials','Review denials']);
+ if(isContinuant&&chsMissingBalanceCount>0)actions.push(['Balance coverage',count(chsMissingBalanceCount)+' records',count(chsMissingBalanceCount)+' of '+count(ar.length)+' A/R activity records have no numeric balance. Totals are incomplete until source gaps are reviewed.','ar','Review missing balances']);
  if(payerData[0])actions.push(['Payer concentration',money(payerData[0].value),payerData[0].name+' represents '+(payerTotal?((payerData[0].value/payerTotal)*100).toFixed(1):0)+'% of visible exposure.','ar','Review payer exposure']);
 
+ const chsCoverageNote=isContinuant?'<div class="card" style="margin:-1px 0 13px;padding:13px 17px;border-left:3px solid #2f6df6;background:#f7faff;color:#35516a;font-size:12px;line-height:1.7"><b>Source coverage:</b> '+count(chsKnownBalanceRows.length)+' of '+count(ar.length)+' filtered A/R records have numeric balances; '+count(chsMissingBalanceCount)+' do not. The displayed A/R is the sum of reported amounts, not a verified complete receivable total. Record counts are activity rows, not confirmed unique claims.</div>':'';
  const cov=MODS.filter(m=>(S.records[m]||[]).length).map(m=>`<span>${esc(MOD_LABEL[m])} · ${count(S.records[m].length)}</span>`).join('');
  const customHero=`<section class="hero"><div class="hero-row"><div><div class="eyebrow">${role()==='provider'?'Provider performance':'Practice performance'}</div><h1>${esc(scope())}</h1><p>Executive revenue-cycle view generated from the published data available for this practice. Metrics are shown only when the source supports them.</p></div><div class="live"><span class="dot"></span> Published data</div></div><div class="ov2-source">${cov}</div></section>`;
 
  document.getElementById('content').innerHTML=customHero+filtersHtml()+`<div class="ov3">`+
  `<div class="ov2-summary primary">${primary.join('')}</div>`+
- (risk.length?`<div class="ov2-risk">${risk.join('')}</div>`:'')+
- (validTrend?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">${redwoodTrend?(redwoodTrend.daily?'Daily Billing & Collections':'Monthly Billing & Collections'):'Financial Performance Trend'}</h3><p>${redwoodTrend?(redwoodTrend.daily?'Daily billing and payments in your selected dates':'See how much was billed and collected each month'):(dailyTrend?'Daily movement from dated records.':'Monthly movement from dated records.')}</p></div><span class="badge">${redwoodTrend?redwoodTrend.rows.length:tr.length} ${redwoodTrend?(redwoodTrend.daily?'days':'months'):(dailyTrend?'days':'valid months')}</span></div><div class="trend"><canvas id="trend"></canvas></div>${redwoodTrend?`<div style="padding:3px 4px 12px;font-size:10px;color:#62798d;line-height:1.65">${redwoodTrend.hasCollections?'Collections may include payments for claims billed in previous months. November figures reflect month-to-date activity.':'Payment figures are temporarily unavailable while the billing team verifies the totals. Charges are shown for the available months.'}</div>`:''}</div>`:'')+
+ (risk.length?`<div class="ov2-risk">${risk.join('')}</div>`:'')+chsCoverageNote+
+ (validTrend?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">${redwoodTrend?(redwoodTrend.daily?'Daily Billing & Collections':'Monthly Billing & Collections'):(isContinuant?'Reported A/R by Source Record Month':'Financial Performance Trend')}</h3><p>${redwoodTrend?(redwoodTrend.daily?'Daily billing and payments in your selected dates':'See how much was billed and collected each month'):(isContinuant?(dailyTrend?'Reported balances grouped by source record date.':'Reported balances grouped by source record month; not historical month-end A/R or collections.'):(dailyTrend?'Daily movement from dated records.':'Monthly movement from dated records.'))}</p></div><span class="badge">${redwoodTrend?redwoodTrend.rows.length:tr.length} ${redwoodTrend?(redwoodTrend.daily?'days':'months'):(dailyTrend?'days':'valid months')}</span></div><div class="trend"><canvas id="trend"></canvas></div>${redwoodTrend?`<div style="padding:3px 4px 12px;font-size:10px;color:#62798d;line-height:1.65">${redwoodTrend.hasCollections?'Collections may include payments for claims billed in previous months. November figures reflect month-to-date activity.':'Payment figures are temporarily unavailable while the billing team verifies the totals. Charges are shown for the available months.'}</div>`:''}</div>`:'')+
  (isRedwoodExcel?bhaRedwoodClaimMonthHistory(S.records.ar||[]):'')+
  (isRedwoodExcel?`<div class="card" style="margin-bottom:13px"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Source-verified claim aging across all five Excel report buckets.</p></div><span class="badge">${count(ar.length)} source records</span></div>${sourceAgingHtml}</div>`:
  `<div class="ov3-visual-grid"><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">Top Payer Exposure</h3><p>Largest payer concentrations in the visible receivable source.</p></div><span class="badge">${count(payerData.length)} payers</span></div>${payerHtml}</div><div class="card"><div class="card-head"><div><h3 class="ov3-section-accent">A/R Aging Mix</h3><p>Graphical balance concentration across executive aging bands.</p></div></div>${agingDisplay}</div></div>`)+
