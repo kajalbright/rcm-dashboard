@@ -4874,7 +4874,7 @@ function v31RenderRedwoodAR(){
    return;
  }
  const n=(r,k)=>{
-  const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120'],balance:['balance','Balance'],charges:['charges','Charges']};
+  const aliases={current:['current','Current'],aging_31_60:['aging_31_60','31-60','31–60','31_60'],aging_61_90:['aging_61_90','61-90','61–90','61_90'],aging_91_120:['aging_91_120','91-120','91–120','91_120'],aging_120_plus:['aging_120_plus','aging_121_plus','121','121_','121+','120+','over_120','120','> 120','>_120'],balance:['balance','Balance'],charges:['charges','Charges']};
   for(const key of (aliases[k]||[k])){const value=r[key];if(value!==undefined&&value!==null&&String(value).trim()!==''){const raw=String(value).trim(),negative=/^\(.*\)$/.test(raw);const parsed=Number(raw.replace(/[()$,\s]/g,''));if(Number.isFinite(parsed))return negative?-Math.abs(parsed):parsed;}}
   return 0;
  };
