@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-19-redwood-claim-level-v9-clean-url';</script>
+<script>const BHA_BUILD_ID='2026-11-19-redwood-v14-scoped-module-loading';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -5851,25 +5851,124 @@ async function v22RenderPortfolio(section){
  const attention=ranked.slice(0,5).map(x=>`<div class="v22row"><div><b>${esc(bhaPracticeDisplayName(x.client.name))}</b><small>${v22Num(v22N(x.summary,'ar_claims'))} A/R records · ${v22Num(v22N(x.summary,'denial_count'))} denials</small></div><strong>${v22Money(v22N(x.summary,'total_ar'))}</strong></div>`).join('');
  c.innerHTML=`<div class="v22p"><section class="v22hero"><small>${esc(L[0])}</small><h1>${esc(L[1])}</h1><p>${esc(L[2])}</p></section><div class="v22k">${cards}</div><section class="v22card"><div class="v22head"><div><h3>Client Portfolio</h3><p>${section==='overview'?'Financial and operational snapshot by practice.':'Portfolio comparison for this module. Open a practice for full drill-down, filters and record detail.'}</p></div><span class="v22pill">${v22Num(rows.length)} practices</span></div>${v22Table(rows,section)}</section>${section==='overview'?`<div class="v22grid"><section class="v22card"><div class="v22head"><div><h3>Clients Requiring Attention</h3><p>Practices ranked by current outstanding A/R exposure.</p></div></div><div class="v22list">${attention}</div></section><section class="v22card"><div class="v22head"><div><h3>Portfolio Coverage</h3><p>Source-supported workload currently published across BHA.</p></div></div><div class="v22list"><div class="v22row"><div><b>Eligibility</b><small>Published verification records</small></div><strong>${v22Num(t.ver)}</strong></div><div class="v22row"><div><b>Authorizations</b><small>Published authorization records</small></div><strong>${v22Num(t.auth)}</strong></div><div class="v22row"><div><b>Data Health</b><small>Client summaries successfully loaded</small></div><strong>${failed?`${rows.length-failed}/${rows.length}`:'Healthy'}</strong></div></div></section></div>`:''}${dupes.length?`<section class="v24-data-alert"><b>Data integrity review</b><span>${esc(dupes.map(x=>x.join(' and ')).join('; '))} currently have identical portfolio summary signatures. Confirm the client datasets/import mapping before treating them as independent performance.</span></section>`:''}${v24AdminNavHint()}</div>`;v22Bind();v24BindTools();
 }
-function renderLockedSection(section){
-  if(!ensureLockedHost())return;
-  const token=++lockedRenderToken;
-  syncLockedContext(section);
-  updateLiveTopbar(section);
-  const cid=String(S.client?.id||'');
-  if(!cid){
-    if(S.profile?.role==='admin' && typeof state!=='undefined' && !state.client){void v22RenderPortfolio(section);return}
-    showLockedError(new Error('No practice is selected.'));return
+// V14: Redwood CLIENT-only scoped and validated module fetch.
+// This intentionally leaves provider/admin/other-client loaders untouched.
+const BHA_V14_REDWOOD='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
+const bhaV14Cache=new Map(),bhaV14Flights=new Map();
+const BHA_V14_PAGE=1000,BHA_V14_CONCURRENCY=5;
+// Global cap across all six modules, not five requests PER module.
+let bhaV14Active=0;const bhaV14Queue=[];
+async function bhaV14Limited(fn){
+ if(bhaV14Active>=6)await new Promise(resolve=>bhaV14Queue.push(resolve));
+ bhaV14Active++;
+ try{return await fn()}finally{bhaV14Active--;const wake=bhaV14Queue.shift();if(wake)wake();}
+}
+function bhaV14Eligible(){return String(state?.client?.id||'')===BHA_V14_REDWOOD&&String(state?.profile?.role||'')==='client'&&String(state?.profile?.client_id||'')===BHA_V14_REDWOOD;}
+function bhaV14Scope(){return String(state?.profile?.id||'')+'|'+String(state?.client?.id||'')+'|'+String(state?.profile?.role||'')}
+function bhaV14Blank(){for(const m of MODS)if(!Array.isArray(S.records[m]))S.records[m]=[]}
+function bhaV14IdentityOk(scope){return bhaV14Eligible()&&bhaV14Scope()===scope}
+async function bhaV14Read(m,scope){
+ const k=scope+'|'+m;
+ if(bhaV14Cache.has(k))return bhaV14Cache.get(k);
+ if(bhaV14Flights.has(k))return bhaV14Flights.get(k);
+ const job=(async()=>{
+  const t0=performance.now();
+  const cnt=await sb.rpc('bha_redwood_fast_module_count',{p_module:m});
+  if(cnt.error)throw new Error(m+' count: '+cnt.error.message);
+  const total=Number(cnt.data);
+  if(!Number.isSafeInteger(total)||total<0)throw new Error(m+' invalid count');
+  const pages=new Array(Math.ceil(total/BHA_V14_PAGE));let next=0;
+  async function worker(){
+   while(next<pages.length){
+    const i=next++,offset=i*BHA_V14_PAGE;
+    let result,last;
+    for(let attempt=0;attempt<2;attempt++){
+     try{
+      result=await bhaV14Limited(()=>Promise.race([
+       sb.rpc('bha_redwood_fast_module_page',{p_module:m,p_offset:offset,p_limit:BHA_V14_PAGE}),
+       new Promise((_,reject)=>setTimeout(()=>reject(new Error('request exceeded 25 seconds')),25000))
+      ]));
+      if(result.error)throw result.error;
+      if(!Array.isArray(result.data))throw new Error('Invalid page response');
+      last=null;break;
+     }catch(e){last=e;if(attempt===0)await new Promise(resolve=>setTimeout(resolve,450));}
+    }
+    if(last)throw new Error(m+' page '+(i+1)+': '+(last.message||last));
+    pages[i]=result.data;
+   }
   }
-  const ready=(lockedClientId===cid&&Object.keys(S.records||{}).length>0&&S.__loadedUserId===String(state.profile?.id||'')&&S.__loadedRole===String(state.profile?.role||'')&&(S.profile?.role==='provider'?S.__loadedProviderKey===bhaProviderKey(S.profile?.provider_name):S.__loadedProviderKey===null));
-  if(ready){void v29ApplyLocalAr(cid).then(()=>{if(token===lockedRenderToken)renderSection()}).catch(e=>showLockedError(e));return}
-  const c=document.getElementById('content');
-  if(c)c.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
-  ensureLockedData(token).then(()=>{
-    if(token!==lockedRenderToken||typeof state==='undefined'||state.section!==section)return;
-    syncLockedContext(section);
-    try{renderSection()}catch(e){console.error('Locked module render failed',section,e);showLockedError(e)}
-  }).catch(e=>{console.error('Locked module data load failed',e);showLockedError(e)});
+  await Promise.all(Array.from({length:Math.min(BHA_V14_CONCURRENCY,pages.length)},worker));
+  if(!bhaV14IdentityOk(scope))throw new Error('Client changed during loading');
+  const items=pages.flat();
+  if(items.length!==total)throw new Error(m+': incomplete source records ('+items.length+'/'+total+')');
+  const rows=items.map(x=>({...x.data,client_id:x.client_id,__external_id:x.external_id,__db_uploaded_at:x.uploaded_at,__source_batch_id:x.import_batch_id}));
+  bhaV14Cache.set(k,rows);
+  console.info('[BHA V14]',m,rows.length,'rows',Math.round(performance.now()-t0)+'ms');
+  return rows;
+ })().finally(()=>bhaV14Flights.delete(k));
+ bhaV14Flights.set(k,job);return job;
+}
+function bhaV14Preview(scope,token){
+ const c=document.getElementById('content');if(!c)return;
+ c.innerHTML='<div class="loading" style="min-height:140px">Loading the executive snapshot…</div>';
+ sb.rpc('app_rcm_summary',{p_client_id:BHA_V14_REDWOOD}).then(({data,error})=>{
+  if(error)throw error;
+  if(!bhaV14IdentityOk(scope)||token!==lockedRenderToken||state.section!=='overview')return;
+  if(!data||!Number.isFinite(Number(data.ar_claims)))return;
+  const el=document.getElementById('content');if(!el||el.dataset.bhaV14Preview==='no')return;
+  const money=n=>Number(n||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+  el.innerHTML='<section class="hero"><div class="hero-row"><div><div class="eyebrow">REDWOOD MEDICAL · EXECUTIVE SNAPSHOT</div><h1>Practice Overview</h1><p>Server-reported summary. Complete source-based charts, filters and reconciliation are loading below.</p></div><div class="live"><span class="dot"></span> Source summary</div></div></section>'+ 
+   '<div class="kpis">'+[['Total A/R',money(data.total_ar)],['A/R Records',Number(data.ar_claims||0).toLocaleString()],['Denial Exposure',money(data.denial_amount)],['Payment Records',Number(data.payment_records||0).toLocaleString()]].map(([l,v])=>'<div class="kpi"><span>'+l+'</span><strong>'+v+'</strong></div>').join('')+'</div>'+ 
+   '<div class="notice" style="margin-top:14px">Preparing complete claim-level financial analysis and unchanged date/payer/provider filters…</div>';
+ }).catch(e=>console.warn('[BHA V14] Executive snapshot:',e.message||e));
+}
+async function bhaV14LoadSection(section,token){
+ syncLockedContext(section);bhaV14Blank();
+ const scope=bhaV14Scope(),cid=String(S.client?.id||'');
+ if(lockedClientId!==cid||S.__loadedUserId!==String(state.profile?.id||'')){
+   lockedClientId=cid;resetLockedClientState();syncLockedContext(section);bhaV14Blank();
+ }
+ const required=section==='overview'?MODS:[section];
+ const c=document.getElementById('content');
+ if(section==='overview'&&c){bhaV14Preview(scope,token)}
+ else if(c)c.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading '+(LOCKED_LABELS[section]||section)+'…</div></div>';
+ try{
+  // For a detail module, do NOT download AR/Payments/Eligibility in parallel.
+  // Overview still loads all six, since the existing dashboard uses all six in formulas.
+  await Promise.all(required.map(async m=>{const rows=await bhaV14Read(m,scope);if(bhaV14IdentityOk(scope))S.records[m]=rows;}));
+  if(!bhaV14IdentityOk(scope)||token!==lockedRenderToken||state.section!==section)return;
+  S.__loadedUserId=String(state.profile.id);S.__loadedRole='client';S.__loadedProviderKey=null;
+  if(c)c.dataset.bhaV14Preview='no';
+  renderSection();
+ }catch(e){
+  if(!bhaV14IdentityOk(scope)||token!==lockedRenderToken||state.section!==section)return;
+  console.error('[BHA V14] Module failed:',section,e);
+  if(c)c.innerHTML='<div class="empty"><b>Unable to load '+esc(LOCKED_LABELS[section]||section)+'</b>'+esc(e?.message||String(e))+'<p style="margin-top:12px"><button id="bhaV14Retry" class="btn btn-primary">Retry loading</button></p></div>';
+  const retry=document.getElementById('bhaV14Retry');if(retry)retry.onclick=()=>renderLockedSection(section);
+ }
+}
+function renderLockedSection(section){
+ if(!ensureLockedHost())return;
+ const token=++lockedRenderToken;
+ syncLockedContext(section);updateLiveTopbar(section);
+ const cid=String(S.client?.id||'');
+ if(!cid){
+  if(S.profile?.role==='admin'&&typeof state!=='undefined'&&!state.client){void v22RenderPortfolio(section);return}
+  showLockedError(new Error('No practice is selected.'));return;
+ }
+ if(bhaV14Eligible()){
+   void bhaV14LoadSection(section,token);return;
+ }
+ // Original route is retained exactly for other clients, Admin, BHA User and Provider.
+ const ready=(lockedClientId===cid&&Object.keys(S.records||{}).length>0&&S.__loadedUserId===String(state.profile?.id||'')&&S.__loadedRole===String(state.profile?.role||'')&&(S.profile?.role==='provider'?S.__loadedProviderKey===bhaProviderKey(S.profile?.provider_name):S.__loadedProviderKey===null));
+ if(ready){void v29ApplyLocalAr(cid).then(()=>{if(token===lockedRenderToken)renderSection()}).catch(e=>showLockedError(e));return}
+ const c=document.getElementById('content');
+ if(c)c.innerHTML='<div class="loading"><div><div class="spinner"></div>Loading published practice data…</div></div>';
+ ensureLockedData(token).then(()=>{
+  if(token!==lockedRenderToken||typeof state==='undefined'||state.section!==section)return;
+  syncLockedContext(section);
+  try{renderSection()}catch(e){console.error('Locked module render failed',section,e);showLockedError(e)}
+ }).catch(e=>{console.error('Locked module data load failed',e);showLockedError(e)});
 }
 
 // Keep original live renderer for every non-locked workspace.
