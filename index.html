@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-18-redwood-claim-level-v7-client-test-release';</script>
+<script>const BHA_BUILD_ID='2026-11-19-redwood-claim-level-v9-faster-local-qa';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -6304,7 +6304,30 @@ function rdGroupRows(rows){const claims=new Map();let unnamed=0;
  }
  return {claims:[...claims.values()],nClaims:claims.size,nLines:[...claims.values()].reduce((a,c)=>a+c.lines.size,0),nEvents:rows.length,claimExposure,withExposure,conflicts,unavailable,lineAmount,lineAvailable,lineConflicts,deniedSum,deniedAvailable};
 }
-function rdSelect(key,label,rows){const vals=[...new Set(rows.map(r=>rdValue(r,key)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));return `<label class="rd-field">${esc(label)}<select data-rd-filter="${key}"><option value="">All ${esc(label)}</option>${vals.map(v=>`<option value="${esc(v)}" ${BHA_RD[key]===v?'selected':''}>${esc(key==='reason'?v+' · '+(rows.find(r=>rdValue(r,'reason')===v&&rdValue(r,'description'))?rdValue(rows.find(r=>rdValue(r,'reason')===v&&rdValue(r,'description')),'description').slice(0,85):'Description not supplied'):v)}</option>`).join('')}</select></label>`}
+let rdGroupCacheSource=null,rdGroupCacheResult=null;
+function rdFullGroups(rows){
+ if(rows!==rdGroupCacheSource){rdGroupCacheSource=rows;rdGroupCacheResult=rdGroupRows(rows)}
+ return rdGroupCacheResult;
+}
+let rdFullClaimMapRows=null,rdFullClaimMapValue=null;
+function rdFullClaimMap(rows,group){
+ if(rows!==rdFullClaimMapRows){rdFullClaimMapRows=rows;rdFullClaimMapValue=new Map(group.claims.map(c=>[c.key,c]))}
+ return rdFullClaimMapValue;
+}
+const rdOptionCache=new WeakMap();
+function rdSelect(key,label,rows){
+ let cache=rdOptionCache.get(rows);
+ if(!cache){cache=new Map();rdOptionCache.set(rows,cache)}
+ let options=cache.get(key);
+ if(!options){
+  const vals=[...new Set(rows.map(r=>rdValue(r,key)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const reasonDesc=new Map();
+  if(key==='reason')for(const r of rows){const code=rdValue(r,'reason'),description=rdValue(r,'description');if(code&&description&&!reasonDesc.has(code))reasonDesc.set(code,description)}
+  options=vals.map(v=>({value:v,label:key==='reason'?v+' · '+(reasonDesc.get(v)?reasonDesc.get(v).slice(0,85):'Description not supplied'):v}));
+  cache.set(key,options);
+ }
+ return `<label class="rd-field">${esc(label)}<select data-rd-filter="${key}"><option value="">All ${esc(label)}</option>${options.map(o=>`<option value="${esc(o.value)}" ${BHA_RD[key]===o.value?'selected':''}>${esc(o.label)}</option>`).join('')}</select></label>`;
+}
 function rdMetric(label,value,sub,tone=''){return `<article class="rd-metric ${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(sub)}</small></article>`}
 function rdChart(name,entries,format='count',filterKey=''){const sorted=[...entries].sort((a,b)=>b.value-a.value).slice(0,8),max=Math.max(1,...sorted.map(x=>Math.abs(x.value)));return `<section class="rd-panel"><div class="rd-panel-head"><div><h3>${esc(name)}</h3><p>${format==='money'?'Full claim balances counted once for each matching group.':'Distinct matching claim groups; one claim may appear under multiple categories.'}${filterKey?' Select a row to apply a filter.':''}</p></div></div>${sorted.length?sorted.map(e=>`<div class="rd-barrow ${filterKey?'rd-clickable':''}" ${filterKey?`data-rd-chart="${esc(filterKey)}" data-rd-value="${esc(e.name==='Not supplied'?'':e.name)}" role="button" tabindex="0"`:''}><span title="${esc(e.name)}">${esc(e.name)}</span><div class="rd-track"><i style="width:${Math.max(2,Math.abs(e.value)/max*100).toFixed(1)}%"></i></div><b>${format==='money'?rdUsd(e.value):count(e.value)}</b></div>`).join(''):'<div class="rd-empty">No matching data.</div>'}</section>`}
 function rdCountByClaim(rows,key){const m=new Map();for(const c of (rows===BHA_RD._filteredRows?BHA_RD._filteredGroups:rdGroupRows(rows)).claims){const vals=[...new Set(c.rows.map(r=>rdValue(r,key)||'Not supplied'))];for(const v of vals)m.set(v,(m.get(v)||0)+1)}return [...m].map(([name,value])=>({name,value}))}
@@ -6315,7 +6338,7 @@ function rdAction(r){const s=[rdValue(r,'description'),rdValue(r,'reason'),rdVal
 function rdDetailHtml(claim){if(!claim)return'';const lines=[...claim.lines.values()];return `<div class="rd-dialog" id="rdDialog" role="dialog" aria-modal="true" aria-label="Claim-line details"><div class="rd-dialog-body"><div class="rd-dialog-head"><div><span>SOURCE-REPORTED CLAIM & REMITTANCE DETAILS</span><h2>Claim ${esc(claim.id)}</h2><p>${esc(claim.patient)} · ${esc(claim.payer)} · DOS ${esc(rdDateDisplay(claim.dos))}</p></div><button id="rdClose" class="rd-btn rd-secondary">Close ×</button></div><div class="rd-detail-tiles">${rdMetric('Claim balance',rdUsd(claim.amount.value),claim.amount.quality==='verified'?'Unique claim balance':'Unverified — do not aggregate')}${rdMetric('CPT groups',String(claim.lines.size),'CPT grouped; not guaranteed distinct service lines')}${rdMetric('Adjustment & remark records',String(claim.rows.length),'Source report rows')}</div><div class="rd-callout">Amounts are source-reported. CPT values are shown once per claim/CPT grouping only when repeated values agree. This report does not contain a reliable unique service-line ID; it cannot establish which specific service line or dollar amount was denied.</div>${lines.map(l=>`<div class="rd-line-card"><div class="rd-line-head"><strong>CPT ${esc(l.cpt)}</strong><span>${count(l.rows.length)} source rows · ${count(l.reasons.length)} distinct source explanations</span></div><div class="rd-line-amounts"><span>Billed <b>${rdUsd(l.billed.value)}</b></span><span>Payment <b>${rdUsd(l.paid.value)}</b></span><span>CPT balance <b>${rdUsd(l.balance.value)}</b></span><span>Denial amount <b>${rdUsd(l.denied.value)}</b></span></div><div class="rd-reason-list">${l.reasons.map(r=>`<article><div class="rd-code-row"><span>${esc(rdValue(r,'type')||'Source code')}</span><b>${esc([rdValue(r,'group'),rdValue(r,'reason')].filter(Boolean).join(':')||rdValue(r,'cas')||rdValue(r,'remark')||'Not supplied')}</b><small>${esc(rdValue(r,'cas')||rdValue(r,'remark'))}</small></div><p>${esc(rdValue(r,'description')||'No payer description supplied.')}</p></article>`).join('')}</div></div>`).join('')}<div class="rd-callout"><b>Recommended review:</b> Compare the actual remittance, payer contract and supporting claim documentation before correcting, rebilling or appealing. Any payer-reported appeal restriction is a source remark, not a determination by BHA. No appeal status or recovery outcome is inferred from this report.</div></div></div>`}
 function rdQualityPanel(g){const bad=[];for(const c of g.claims)for(const l of c.lines.values())if(l.balance.quality==='conflict')bad.push({c,l,values:[...new Set(l.rows.map(r=>rdNum(r,'lineBalance')).filter(v=>v!==null).map(x=>rdUsd(x)))]});return `<section class="rd-panel rd-quality"><div class="rd-panel-head"><div><h3>CPT balance reconciliation</h3><p>${count(bad.length)} claim/CPT combinations have differing source amounts. These combinations are excluded from the CPT-group balance KPI and remain available for investigation.</p></div><button class="rd-btn rd-secondary" id="rdToggleQuality">${BHA_RD.reviewConflicts?'Hide details':'Review conflicts'}</button></div>${BHA_RD.reviewConflicts?`<div class="rd-table-scroll"><table><thead><tr><th>Claim #</th><th>CPT</th><th>Different source CPT balances</th><th>Source rows</th></tr></thead><tbody>${bad.slice(0,100).map(x=>`<tr><td>${esc(x.c.id)}</td><td>${esc(x.l.cpt)}</td><td>${esc(x.values.join(' / '))}</td><td>${count(x.l.rows.length)}</td></tr>`).join('')||'<tr><td colspan="4">No CPT conflicts in selected records.</td></tr>'}</tbody></table></div>`:''}</section>`}
 function rdTable(claims){const sort=BHA_RD.sort;const sorted=[...claims].sort((a,b)=>sort==='claim'?a.id.localeCompare(b.id,undefined,{numeric:true}):sort==='date'?rdDate(b.dos).localeCompare(rdDate(a.dos)):sort==='lines'?b.lines.size-a.lines.size:(b.amount.value??-Infinity)-(a.amount.value??-Infinity));const size=30,pages=Math.max(1,Math.ceil(sorted.length/size));BHA_RD.page=Math.min(Math.max(1,BHA_RD.page),pages);const start=(BHA_RD.page-1)*size;const current=sorted.slice(start,start+size);return `<section class="rd-panel rd-table-panel"><div class="rd-panel-head"><div><h3>Claim-Line Investigation</h3><p>Select any claim to inspect CPT groups, denial reason codes and payer explanations.</p></div><div class="rd-table-tools"><select id="rdSort"><option value="exposure" ${sort==='exposure'?'selected':''}>Highest verified balance</option><option value="lines" ${sort==='lines'?'selected':''}>Most CPT groups</option><option value="date" ${sort==='date'?'selected':''}>Latest DOS</option><option value="claim" ${sort==='claim'?'selected':''}>Claim number</option></select><button class="rd-btn rd-secondary" id="rdExport">Export filtered CSV</button></div></div><div class="rd-table-scroll"><table><thead><tr><th>Claim #</th><th>Patient</th><th>Service Date</th><th>Payer</th><th>Provider</th><th>CPT groups</th><th>Source rows</th><th>Claim Balance</th><th></th></tr></thead><tbody>${current.map(c=>`<tr><td><b>${esc(c.id)}</b></td><td>${esc(c.patient)}</td><td>${esc(rdDateDisplay(c.dos))}</td><td>${esc(c.payer)}</td><td>${esc(c.provider)}</td><td>${count(c.lines.size)}</td><td>${count(c.rows.length)}</td><td><b>${rdUsd(c.amount.value)}</b>${c.amount.quality==='conflict'?'<small class="rd-warning">Conflicting source amounts</small>':''}</td><td><button class="rd-btn rd-view" data-rd-claim="${esc(c.key)}">View Claim Details →</button></td></tr>`).join('')||'<tr><td colspan="9">No matching claims.</td></tr>'}</tbody></table></div><div class="rd-pager"><span>Showing ${count(sorted.length?start+1:0)}–${count(Math.min(start+size,sorted.length))} of ${count(sorted.length)} claims</span><div><button id="rdPrev" ${BHA_RD.page===1?'disabled':''}>← Previous</button><b>Page ${BHA_RD.page} / ${pages}</b><button id="rdNext" ${BHA_RD.page===pages?'disabled':''}>Next →</button></div></div></section>`}
-function rdRender(){if(!claimAllowed())return false;const userId=String(state.profile?.id||'');if(BHA_RD.userId&&BHA_RD.userId!==userId){BHA_RD.preview=null;BHA_RD.filename='';BHA_RD.userId=null}const host=document.getElementById('bhaClaimWorkspace');if(!host)return false;const rdScope=String(state.client?.id||state.profile?.client_id||'');if(!BHA_RD.preview&&!BHA_RD.loading&&!BHA_RD.error&&BHA_RD.publishedScope!==rdScope){BHA_RD.loading=true;void rdFetchPublished(rdScope)}const source=BHA_RD.preview||(BHA_RD.publishedScope===rdScope?BHA_RD.published:[])||[];const filtered=rdFilterSet(source);const g=rdGroupRows(filtered);BHA_RD._filteredRows=filtered;BHA_RD._filteredGroups=g;const all=rdGroupRows(source);const allByKey=new Map(all.claims.map(c=>[c.key,c]));for(const c of g.claims){const full=allByKey.get(c.key);if(full){c.amount=full.amount;c.charges=full.charges;c.fullLineCount=full.lines.size}}let claimExposure=0,withExposure=0,conflicts=0,unavailable=0;for(const c of g.claims){if(c.amount.quality==='verified'){claimExposure+=c.amount.value;withExposure++}else if(c.amount.quality==='conflict')conflicts++;else unavailable++}Object.assign(g,{claimExposure,withExposure,conflicts,unavailable});const isPreview=!!BHA_RD.preview;
+function rdRender(){if(!claimAllowed())return false;const userId=String(state.profile?.id||'');if(BHA_RD.userId&&BHA_RD.userId!==userId){BHA_RD.preview=null;BHA_RD.filename='';BHA_RD.userId=null}const host=document.getElementById('bhaClaimWorkspace');if(!host)return false;const rdScope=String(state.client?.id||state.profile?.client_id||'');if(!BHA_RD.preview&&!BHA_RD.loading&&!BHA_RD.error&&BHA_RD.publishedScope!==rdScope){BHA_RD.loading=true;void rdFetchPublished(rdScope)}const source=BHA_RD.preview||(BHA_RD.publishedScope===rdScope?BHA_RD.published:[])||[];const filtered=rdFilterSet(source);const all=rdFullGroups(source);const g=filtered===source?all:rdGroupRows(filtered);BHA_RD._filteredRows=filtered;BHA_RD._filteredGroups=g;const allByKey=rdFullClaimMap(source,all);for(const c of g.claims){const full=allByKey.get(c.key);if(full){c.amount=full.amount;c.charges=full.charges;c.fullLineCount=full.lines.size}}let claimExposure=0,withExposure=0,conflicts=0,unavailable=0;for(const c of g.claims){if(c.amount.quality==='verified'){claimExposure+=c.amount.value;withExposure++}else if(c.amount.quality==='conflict')conflicts++;else unavailable++}Object.assign(g,{claimExposure,withExposure,conflicts,unavailable});const isPreview=!!BHA_RD.preview;
  const sample=source[0]||null;const hasClaim=source.some(r=>rdValue(r,'claim'));const hasCpt=source.some(r=>rdValue(r,'cpt'));const hasDetail=source.some(r=>rdValue(r,'description')||rdValue(r,'reason')||rdValue(r,'remark'));
  const activeLabel=isPreview?`Unpublished local preview · ${BHA_RD.filename}`:BHA_RD.publishedScope===rdScope&&BHA_RD.published?`Published Redwood dataset · ${BHA_RD.publishedLabel}`:BHA_RD.loading?'Loading published Redwood data…':'No published Claim Level dataset';
  host.dataset.module='claim_details';
@@ -6379,37 +6402,87 @@ async function rdLoadFile(f){
 
 
 // Publish-safe Redwood data pipeline. Supabase publication pointer SQL is required.
-const RD_PAGE_SIZE=700;
+const RD_PAGE_SIZE=1000;
+const RD_FETCH_CONCURRENCY=7;
+const RD_PAGE_RETRIES=2;
 function rdProgress(text){BHA_RD.publishStatus=text;const node=document.getElementById('rdPublishStatus');if(node)node.textContent=text}
+// Read the published batch in indexed pages with bounded concurrency and transient-error retries.
+// No PHI is saved to localStorage, sessionStorage, IndexedDB or browser disk caches.
+let rdActiveFetchToken=0;
+const rdDelay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function rdFetchPublished(scope){
   const expected='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
   if(scope!==expected){BHA_RD.loading=false;return}
+  const token=++rdActiveFetchToken;
+  const rdFetchStart=performance.now();
   const scopeAtStart=scope;
   try{
     if(!sb)throw Error('Supabase is not available in local Demo mode.');
     const {data:meta,error:me}=await sb.from('bha_claim_publications').select('active_batch_id,row_count,published_at').eq('client_id',scope).maybeSingle();
     if(me)throw me;
-    if(!meta){if(scopeAtStart===String(state.client?.id||state.profile?.client_id||'')){BHA_RD.published=[];BHA_RD.publishedScope=scope;BHA_RD.publishedLabel='no active batch'}return}
+    if(!meta){
+      if(scopeAtStart===String(state.client?.id||state.profile?.client_id||'')){
+        BHA_RD.published=[];BHA_RD.publishedScope=scope;BHA_RD.publishedLabel='no active batch';
+      }
+      return;
+    }
     const max=Number(meta.row_count);
     if(!Number.isInteger(max)||max<1||max>150000)throw Error('Published row count is invalid.');
-    const ranges=[];for(let offset=0;offset<max;offset+=RD_PAGE_SIZE)ranges.push([offset,Math.min(max-1,offset+RD_PAGE_SIZE-1)]);
-    const pages=new Array(ranges.length);
-    for(let i=0;i<ranges.length;i+=5){
-      const wave=ranges.slice(i,i+5);
-      const results=await Promise.all(wave.map(async ([from,to])=>{
-        const {data,error}=await sb.rpc('bha_read_redwood_claim_level',{p_offset:from,p_limit:to-from+1});
-        if(error)throw error;return data||[];
-      }));results.forEach((item,j)=>{pages[i+j]=item});
+    const pageCount=Math.ceil(max/RD_PAGE_SIZE);
+    const pages=new Array(pageCount);
+    let next=0,finished=0,lastProgressAt=0;
+    BHA_RD.publishStatus=`Loading published claim details: 0 / ${max.toLocaleString('en-US')} rows…`;
+    rdProgress(BHA_RD.publishStatus);
+    async function worker(){
+      while(next<pageCount){
+        if(token!==rdActiveFetchToken)return;
+        const index=next++;
+        const offset=index*RD_PAGE_SIZE;
+        const limit=Math.min(RD_PAGE_SIZE,max-offset);
+        let result=null,lastError=null;
+        for(let attempt=0;attempt<=RD_PAGE_RETRIES;attempt++){
+          if(token!==rdActiveFetchToken)return;
+          try{
+            const {data,error}=await sb.rpc('bha_read_redwood_claim_level',{p_offset:offset,p_limit:limit});
+            if(error)throw error;
+            if(!Array.isArray(data))throw Error('Invalid response from Redwood published-data reader.');
+            if(data.length!==limit)throw Error(`Incomplete page ${index+1}: expected ${limit}, received ${data.length}.`);
+            result=data;break;
+          }catch(e){
+            lastError=e;
+            const msg=String(e?.message||e);
+            // Do not retry permission errors or invalid server-side configuration.
+            if(/permission|not authorized|access required|42501|invalid pagination|22023/i.test(msg))break;
+            if(attempt<RD_PAGE_RETRIES)await rdDelay(450*(attempt+1)*(attempt+1));
+          }
+        }
+        if(!result)throw lastError||Error('Published data page could not be loaded.');
+        pages[index]=result;
+        finished+=result.length;
+        if(token===rdActiveFetchToken && (finished===max || Date.now()-lastProgressAt>350)){lastProgressAt=Date.now();rdProgress(`Loading published claim details: ${finished.toLocaleString('en-US')} / ${max.toLocaleString('en-US')} rows…`);}
+      }
     }
+    await Promise.all(Array.from({length:Math.min(RD_FETCH_CONCURRENCY,pageCount)},()=>worker()));
+    if(token!==rdActiveFetchToken)return;
     const rows=pages.flat().map(x=>x.data);
     if(rows.length!==max)throw Error(`Published count mismatch: expected ${max}, received ${rows.length}. Refresh and retry.`);
     if(scopeAtStart!==String(state.client?.id||state.profile?.client_id||''))return;
-    BHA_RD.published=rdPreparePreview(rows);BHA_RD.publishedScope=scope;
+    BHA_RD.published=rdPreparePreview(rows);
+    BHA_RD.publishedScope=scope;
     BHA_RD.publishedLabel=`${max.toLocaleString('en-US')} source rows · ${String(meta.published_at||'').slice(0,10)}`;
-    BHA_RD.error='';
-  }catch(e){if(scopeAtStart===String(state.client?.id||state.profile?.client_id||'')){BHA_RD.error='Unable to load published data: '+String(e?.message||e);BHA_RD.publishedScope='';BHA_RD.published=null}}
-  finally{BHA_RD.loading=false;if(document.getElementById('bhaClaimWorkspace')&&!BHA_RD.preview)rdRender()}
+    BHA_RD.publishStatus='';BHA_RD.error='';
+    console.info('[BHA Redwood] Published claim rows loaded in',Math.round(performance.now()-rdFetchStart),'ms');
+  }catch(e){
+    if(token===rdActiveFetchToken&&scopeAtStart===String(state.client?.id||state.profile?.client_id||'')){
+      BHA_RD.publishStatus='';
+      BHA_RD.error='Unable to load published data: '+String(e?.message||e);
+      BHA_RD.publishedScope='';BHA_RD.published=null;
+    }
+  }finally{
+    if(token===rdActiveFetchToken){BHA_RD.loading=false;if(document.getElementById('bhaClaimWorkspace')&&!BHA_RD.preview)rdRender()}
+  }
 }
+
 async function rdPublish(){
   if(BHA_RD.publishing)return;
   if(role()!=='admin'||String(state.client?.id||'')!==BHA_RD_CLIENT_ID){BHA_RD.error='Admin must select Redwood Medical before publishing.';rdRender();return}
