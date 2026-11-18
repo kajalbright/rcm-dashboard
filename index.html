@@ -11,10 +11,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-19-redwood-claim-level-v9-faster-local-qa';</script>
+<script>const BHA_BUILD_ID='2026-11-19-redwood-claim-level-v9-clean-url';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
+  // Version tokens can force a fresh document request, but should never remain
+  // visible in a client's address bar after the updated page loads.
+  try {
+    const cleanUrl = new URL(location.href);
+    if (cleanUrl.searchParams.has('bha_version') || cleanUrl.searchParams.has('bha_check')) {
+      cleanUrl.searchParams.delete('bha_version');
+      cleanUrl.searchParams.delete('bha_check');
+      history.replaceState(history.state, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    }
+  } catch (e) { /* URL display cleanup must not interrupt the dashboard. */ }
   let checking=false,lastCheck=0;
   async function checkBuild(){
     if(checking||document.hidden||Date.now()-lastCheck<60000)return;
