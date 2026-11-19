@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-19-redwood-v14-scoped-module-loading';</script>
+<script>const BHA_BUILD_ID='2026-11-19-redwood-v19-indexed-direct-chunks';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -6510,77 +6510,97 @@ async function rdLoadFile(f){
 }
 
 
-// Publish-safe Redwood data pipeline. Supabase publication pointer SQL is required.
-const RD_PAGE_SIZE=1000;
-const RD_FETCH_CONCURRENCY=7;
-const RD_PAGE_RETRIES=2;
+// V19: Redwood indexed, publication-bound chunk loader.
+// The publication function verifies unique consecutive batch UUID:00000001..N identifiers.
+// This removes both repeated SQL OFFSET scans and expensive page-manifest scans.
+// No claim data is persisted in browser storage; only in-memory current-session data.
+const RD_PAGE_SIZE=3000;
+const RD_FETCH_CONCURRENCY=3;
+const RD_PAGE_RETRIES=1;
 function rdProgress(text){BHA_RD.publishStatus=text;const node=document.getElementById('rdPublishStatus');if(node)node.textContent=text}
-// Read the published batch in indexed pages with bounded concurrency and transient-error retries.
-// No PHI is saved to localStorage, sessionStorage, IndexedDB or browser disk caches.
 let rdActiveFetchToken=0;
 const rdDelay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function rdExpectedId(batch,n){return batch+':'+String(n).padStart(8,'0')}
 async function rdFetchPublished(scope){
   const expected='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
   if(scope!==expected){BHA_RD.loading=false;return}
   const token=++rdActiveFetchToken;
-  const rdFetchStart=performance.now();
+  const start=performance.now();
   const scopeAtStart=scope;
   try{
-    if(!sb)throw Error('Supabase is not available in local Demo mode.');
-    const {data:meta,error:me}=await sb.from('bha_claim_publications').select('active_batch_id,row_count,published_at').eq('client_id',scope).maybeSingle();
+    if(!sb)throw Error('Supabase connection is unavailable.');
+    const {data:meta,error:me}=await sb.from('bha_claim_publications')
+      .select('active_batch_id,row_count,published_at').eq('client_id',scope).maybeSingle();
     if(me)throw me;
     if(!meta){
-      if(scopeAtStart===String(state.client?.id||state.profile?.client_id||'')){
-        BHA_RD.published=[];BHA_RD.publishedScope=scope;BHA_RD.publishedLabel='no active batch';
-      }
+      if(token===rdActiveFetchToken){BHA_RD.published=[];BHA_RD.publishedScope=scope;BHA_RD.publishedLabel='no active batch'}
       return;
     }
     const max=Number(meta.row_count);
-    if(!Number.isInteger(max)||max<1||max>150000)throw Error('Published row count is invalid.');
+    const batch=String(meta.active_batch_id||'');
+    if(!/^[0-9a-f-]{36}$/i.test(batch)||!Number.isInteger(max)||max<1||max>150000)throw Error('Invalid published batch metadata.');
     const pageCount=Math.ceil(max/RD_PAGE_SIZE);
     const pages=new Array(pageCount);
-    let next=0,finished=0,lastProgressAt=0;
-    BHA_RD.publishStatus=`Loading published claim details: 0 / ${max.toLocaleString('en-US')} rows…`;
-    rdProgress(BHA_RD.publishStatus);
+    let next=0,finished=0,progressAt=0;
+    rdProgress(`Loading published claim details: 0 / ${max.toLocaleString('en-US')} rows…`);
+    // RPC returns one JSON object {rows: [...]}, avoiding the PostgREST set-returning 1,000-row cap.
+    // Independent keyset anchors are safe because publish RPC validates all numbered external IDs.
     async function worker(){
       while(next<pageCount){
         if(token!==rdActiveFetchToken)return;
         const index=next++;
         const offset=index*RD_PAGE_SIZE;
         const limit=Math.min(RD_PAGE_SIZE,max-offset);
-        let result=null,lastError=null;
+        const anchor=offset?rdExpectedId(batch,offset):null;
+        let found=null,reason=null;
         for(let attempt=0;attempt<=RD_PAGE_RETRIES;attempt++){
           if(token!==rdActiveFetchToken)return;
           try{
-            const {data,error}=await sb.rpc('bha_read_redwood_claim_level',{p_offset:offset,p_limit:limit});
+            const {data,error}=await sb.rpc('bha_read_redwood_claim_level_chunk',{p_after:anchor,p_limit:limit});
             if(error)throw error;
-            if(!Array.isArray(data))throw Error('Invalid response from Redwood published-data reader.');
-            if(data.length!==limit)throw Error(`Incomplete page ${index+1}: expected ${limit}, received ${data.length}.`);
-            result=data;break;
-          }catch(e){
-            lastError=e;
-            const msg=String(e?.message||e);
-            // Do not retry permission errors or invalid server-side configuration.
-            if(/permission|not authorized|access required|42501|invalid pagination|22023/i.test(msg))break;
-            if(attempt<RD_PAGE_RETRIES)await rdDelay(450*(attempt+1)*(attempt+1));
+            const list=data?.rows;
+            if(!Array.isArray(list)||list.length!==limit)throw Error(`Incomplete published page ${index+1}: expected ${limit}, received ${Array.isArray(list)?list.length:'invalid'}.`);
+            if(list[0]?.external_id!==rdExpectedId(batch,offset+1)||list[limit-1]?.external_id!==rdExpectedId(batch,offset+limit)){
+              throw Error(`Published page ${index+1} does not match its verified batch boundary.`);
+            }
+            // Validate all row positions so no missing/duplicate rows can inflate financial totals.
+            for(let j=0;j<limit;j++)if(list[j]?.external_id!==rdExpectedId(batch,offset+j+1))throw Error(`Published page ${index+1} contains unexpected row order.`);
+            found=list;break;
+          }catch(err){
+            reason=err;
+            const msg=String(err?.message||err);
+            if(/access required|permission|42501|invalid claim-level pagination|22023/i.test(msg))break;
+            if(attempt<RD_PAGE_RETRIES)await rdDelay(350*(attempt+1));
           }
         }
-        if(!result)throw lastError||Error('Published data page could not be loaded.');
-        pages[index]=result;
-        finished+=result.length;
-        if(token===rdActiveFetchToken && (finished===max || Date.now()-lastProgressAt>350)){lastProgressAt=Date.now();rdProgress(`Loading published claim details: ${finished.toLocaleString('en-US')} / ${max.toLocaleString('en-US')} rows…`);}
+        if(!found)throw reason||Error(`Claim page ${index+1} failed.`);
+        pages[index]=found;
+        finished+=found.length;
+        if(token===rdActiveFetchToken&&(finished===max||Date.now()-progressAt>500)){
+          progressAt=Date.now();rdProgress(`Loading published claim details: ${finished.toLocaleString('en-US')} / ${max.toLocaleString('en-US')} rows…`);
+        }
       }
     }
+    const fetchStart=performance.now();
     await Promise.all(Array.from({length:Math.min(RD_FETCH_CONCURRENCY,pageCount)},()=>worker()));
     if(token!==rdActiveFetchToken)return;
-    const rows=pages.flat().map(x=>x.data);
-    if(rows.length!==max)throw Error(`Published count mismatch: expected ${max}, received ${rows.length}. Refresh and retry.`);
+    console.info('[BHA Claim V19] verified network fetch ms',Math.round(performance.now()-fetchStart));
+    const rows=[];
+    for(const page of pages){if(!page)throw Error('Missing published claim page.');for(const item of page)rows.push(item.data)}
+    if(rows.length!==max)throw Error(`Published count mismatch: ${rows.length}/${max}.`);
     if(scopeAtStart!==String(state.client?.id||state.profile?.client_id||''))return;
+    // Ensure the active publication did not change in the middle of the read.
+    const {data:check,error:checkErr}=await sb.from('bha_claim_publications')
+      .select('active_batch_id,row_count').eq('client_id',scope).maybeSingle();
+    if(checkErr||String(check?.active_batch_id)!==batch||Number(check?.row_count)!==max)
+      throw Error('Published batch changed while loading. Please retry for the new publication.');
+    const prepStart=performance.now();
     BHA_RD.published=rdPreparePreview(rows);
+    console.info('[BHA Claim V19] field preparation ms',Math.round(performance.now()-prepStart));
     BHA_RD.publishedScope=scope;
     BHA_RD.publishedLabel=`${max.toLocaleString('en-US')} source rows · ${String(meta.published_at||'').slice(0,10)}`;
     BHA_RD.publishStatus='';BHA_RD.error='';
-    console.info('[BHA Redwood] Published claim rows loaded in',Math.round(performance.now()-rdFetchStart),'ms');
+    console.info('[BHA Claim V19] verified total fetch ms',Math.round(performance.now()-start));
   }catch(e){
     if(token===rdActiveFetchToken&&scopeAtStart===String(state.client?.id||state.profile?.client_id||'')){
       BHA_RD.publishStatus='';
@@ -6588,7 +6608,7 @@ async function rdFetchPublished(scope){
       BHA_RD.publishedScope='';BHA_RD.published=null;
     }
   }finally{
-    if(token===rdActiveFetchToken){BHA_RD.loading=false;if(document.getElementById('bhaClaimWorkspace')&&!BHA_RD.preview)rdRender()}
+    if(token===rdActiveFetchToken){BHA_RD.loading=false;if(document.getElementById('bhaClaimWorkspace')&&!BHA_RD.preview){const renderStart=performance.now();rdRender();console.info('[BHA Claim V19] render ms',Math.round(performance.now()-renderStart));}}
   }
 }
 
