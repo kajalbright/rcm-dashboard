@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>const BHA_BUILD_ID='2026-11-19-redwood-v19-indexed-direct-chunks';</script>
+<script>const BHA_BUILD_ID='2026-11-19-redwood-v20-dual-access-optimized-loader';</script>
 <script id="bha-version-check">
 (function(){
   if(location.protocol!=='https:' && location.protocol!=='http:')return;
@@ -5851,7 +5851,7 @@ async function v22RenderPortfolio(section){
  const attention=ranked.slice(0,5).map(x=>`<div class="v22row"><div><b>${esc(bhaPracticeDisplayName(x.client.name))}</b><small>${v22Num(v22N(x.summary,'ar_claims'))} A/R records · ${v22Num(v22N(x.summary,'denial_count'))} denials</small></div><strong>${v22Money(v22N(x.summary,'total_ar'))}</strong></div>`).join('');
  c.innerHTML=`<div class="v22p"><section class="v22hero"><small>${esc(L[0])}</small><h1>${esc(L[1])}</h1><p>${esc(L[2])}</p></section><div class="v22k">${cards}</div><section class="v22card"><div class="v22head"><div><h3>Client Portfolio</h3><p>${section==='overview'?'Financial and operational snapshot by practice.':'Portfolio comparison for this module. Open a practice for full drill-down, filters and record detail.'}</p></div><span class="v22pill">${v22Num(rows.length)} practices</span></div>${v22Table(rows,section)}</section>${section==='overview'?`<div class="v22grid"><section class="v22card"><div class="v22head"><div><h3>Clients Requiring Attention</h3><p>Practices ranked by current outstanding A/R exposure.</p></div></div><div class="v22list">${attention}</div></section><section class="v22card"><div class="v22head"><div><h3>Portfolio Coverage</h3><p>Source-supported workload currently published across BHA.</p></div></div><div class="v22list"><div class="v22row"><div><b>Eligibility</b><small>Published verification records</small></div><strong>${v22Num(t.ver)}</strong></div><div class="v22row"><div><b>Authorizations</b><small>Published authorization records</small></div><strong>${v22Num(t.auth)}</strong></div><div class="v22row"><div><b>Data Health</b><small>Client summaries successfully loaded</small></div><strong>${failed?`${rows.length-failed}/${rows.length}`:'Healthy'}</strong></div></div></section></div>`:''}${dupes.length?`<section class="v24-data-alert"><b>Data integrity review</b><span>${esc(dupes.map(x=>x.join(' and ')).join('; '))} currently have identical portfolio summary signatures. Confirm the client datasets/import mapping before treating them as independent performance.</span></section>`:''}${v24AdminNavHint()}</div>`;v22Bind();v24BindTools();
 }
-// V14: Redwood CLIENT-only scoped and validated module fetch.
+// V20: Redwood CLIENT-only scoped and validated module fetch, including multi-practice clients.
 // This intentionally leaves provider/admin/other-client loaders untouched.
 const BHA_V14_REDWOOD='d2459737-3d39-4f84-9d4e-8dc33ca6cb82';
 const bhaV14Cache=new Map(),bhaV14Flights=new Map();
@@ -5863,7 +5863,14 @@ async function bhaV14Limited(fn){
  bhaV14Active++;
  try{return await fn()}finally{bhaV14Active--;const wake=bhaV14Queue.shift();if(wake)wake();}
 }
-function bhaV14Eligible(){return String(state?.client?.id||'')===BHA_V14_REDWOOD&&String(state?.profile?.role||'')==='client'&&String(state?.profile?.client_id||'')===BHA_V14_REDWOOD;}
+// V20: Selective Redwood loader is based on the SELECTED practice, not the user's
+// primary practice. Dual-access Caldwell + Redwood clients must use the same
+// efficient loading path. Database RPCs independently authorize each request.
+function bhaV14Eligible(){
+ return String(state?.client?.id||'')===BHA_V14_REDWOOD
+   && String(state?.profile?.role||'')==='client'
+   && String(state?.profile?.id||'')!=='';
+}
 function bhaV14Scope(){return String(state?.profile?.id||'')+'|'+String(state?.client?.id||'')+'|'+String(state?.profile?.role||'')}
 function bhaV14Blank(){for(const m of MODS)if(!Array.isArray(S.records[m]))S.records[m]=[]}
 function bhaV14IdentityOk(scope){return bhaV14Eligible()&&bhaV14Scope()===scope}
