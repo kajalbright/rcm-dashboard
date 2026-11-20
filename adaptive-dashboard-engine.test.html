@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>BHA Adaptive Engine Smoke Tests</title><pre id="out"></pre><script src="adaptive-dashboard-engine.js"></script><script src="adaptive-dashboard-runtime.js"></script><script>
+const out=document.querySelector('#out');let pass=0,fail=0;
+function t(name,fn){try{fn();out.textContent+='PASS '+name+'\n';pass++}catch(e){out.textContent+='FAIL '+name+': '+e.message+'\n';fail++}}
+function eq(a,b){if(a!==b)throw new Error(String(a)+' !== '+String(b))}
+const ar=[{'Claim ID':'A1','DOS':'2026-09-01','Balance':'100','Days':'120'},{'Claim ID':'A2','DOS':'2026-09-02','Balance':'50','Days':'30'}];
+const payments=[{'Claim ID':'A1','Paid Amount':'75'}];
+const denials=[{'Claim ID':'A2','Denial Code':'CO-16','Denied Amount':'50'}];
+const model=BHAAdaptiveRuntime.buildClientModel({ar,payments,denials});
+t('AR total from AR dataset',()=>eq(model.metrics.outstandingAR.value,150));
+t('AR >90 from aging',()=>eq(model.metrics.arOver90.value,100));
+t('Collections from payment dataset',()=>eq(model.metrics.collections.value,75));
+t('Denial amount from denial dataset',()=>eq(model.metrics.deniedAmount.value,50));
+t('Missing charges are unavailable, not zero',()=>eq(model.metrics.totalCharges.state,'unavailable'));
+t('Collection rate unavailable without charges',()=>eq(model.metrics.collectionRate.state,'unavailable'));
+const c2=BHAAdaptiveRuntime.buildClientModel({ar:[{'Claim ID':'B1','Balance':'25'}]});
+const all=BHAAdaptiveRuntime.buildAllClients([model,c2]);
+t('All-client AR coverage is complete',()=>eq(all.metrics.outstandingAR.reportingClients,2));
+t('All-client collections coverage is partial',()=>eq(all.metrics.collections.reportingClients,1));
+out.textContent+='\n'+pass+' passed, '+fail+' failed\n';
+</script>
